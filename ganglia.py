@@ -1,3 +1,4 @@
+import json
 import time
 from query_dispatch import ChatGPTQueryDispatcher
 from parse_inputs import parse_args, parse_tts_interface, parse_dictation_type
@@ -9,10 +10,12 @@ import os
 import signal
 from logger import Logger
 from hotwords import HotwordManager
+from load_config import ConfigLoader
 
 def initialize_conversation(args):
     USER_TURN_INDICATOR = None
     AI_TURN_INDICATOR = None
+    config = ConfigLoader()
     session_logger = None if args.suppress_session_logging else CLISessionLogger(args)
 
     if args.enable_turn_indicators:
@@ -49,10 +52,12 @@ def initialize_conversation(args):
 
     hotword_manager = None
     try:
-        hotword_manager = HotwordManager('config/hotwords.json')  # Initialize the class
+        hotword_manager = HotwordManager()
         Logger.print_debug("HotwordManager initialized successfully.")
     except Exception as e:
         Logger.print_error(f"Failed to initialize HotwordManager: {e}")
+
+    query_dispatcher.load_conversation_context(config.get('conversation_context'))
 
     Logger.print_info("Starting session with GANGLIA. To stop, simply say \"Goodbye\"")
 
@@ -84,6 +89,7 @@ def user_turn(prompt, dictation, USER_TURN_INDICATOR, args):
                 exit(0)
         
         # Print a fun little prompt at the beginning of the user's turn
+        # TODO - take another look at this
         Logger.print_info(dictation.generate_random_phrase())
         prompt = dictation.getDictatedInput(args.device_index, interruptable=False) if dictation else input()
 
@@ -118,7 +124,7 @@ def ai_turn(prompt, query_dispatcher, AI_TURN_INDICATOR, args, hotword_manager, 
         session_logger.log_session_interaction(SessionEvent(prompt, response))
 
 def should_end_conversation(prompt):
-    return prompt and "goodbye" in prompt.strip().lower()
+    return prompt and "goodbye" in prompt.strip().lower() # TODO move this specific word to a config
 
 def end_conversation():
     Logger.print_info("Ending session with GANGLIA. Goodbye!")
@@ -136,6 +142,9 @@ def clear_screen_after_hotword(tts):
 
 def main():
     global args
+
+    # Load the config file first thing - it will now be available anywhere in the program
+    ConfigLoader()
 
     args = parse_args()
 
@@ -162,11 +171,20 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    # Before entering the main loop, playback the llm's last response describing the conversation context
+    summary = query_dispatcher.summarize_conversation_context()
+    if tts:
+        # Generate speech response
+        _, file_path = tts.convert_text_to_speech(summary)
+        tts.play_speech_response(file_path, summary)
+
     while True:
         try:
             prompt = user_turn(None, dictation, USER_TURN_INDICATOR, args)
             if should_end_conversation(prompt):
                 Logger.print_info("User ended conversation")
+
+                # Give the AI one last turn to say goodbye to the user
                 ai_turn(prompt, query_dispatcher, AI_TURN_INDICATOR, args, hotword_manager, tts, session_logger)
                 end_conversation()
                 break

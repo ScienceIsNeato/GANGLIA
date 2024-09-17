@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import ctypes
+import platform
 import re
 import threading
 from urllib import request
@@ -21,7 +23,7 @@ from logger import Logger
 
 class TextToSpeech(ABC):
     def __init__(self):
-        self.stop_words = ["ganglia", "stop", "excuse me"]
+        self.stop_words = ["ganglia", "stop", "excuse me"] # TODO move to config
 
     @abstractmethod
     def convert_text_to_speech(self, text: str):
@@ -63,7 +65,7 @@ class TextToSpeech(ABC):
                 Logger.print_debug(f"No audio url found in the response for chunk {index}: {chunk}")
                 return None, index, None, None
 
-            file_path = os.path.abspath(os.path.join(tempfile.gettempdir(), f"chatgpt_response_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{index}.mp3"))
+            file_path = os.path.abspath(os.path.join(tempfile.gettempdir(), f"ganglia_response_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{index}.mp3"))
             audio_response = request.Request.get(audio_url, timeout=30)
             with open(file_path, 'wb') as audio_file:
                 audio_file.write(audio_response.content)
@@ -72,34 +74,83 @@ class TextToSpeech(ABC):
             Logger.print_error(f"Error fetching audio for chunk {index}: {e}")
             return None, index, None, None
 
+    def monitor_for_stop_words(self, duration, stop_words, current_playback_phrase, playback_process):
+        """
+        Monitors for stop words in real-time during audio playback and stops playback if encountered.
+
+        Parameters:
+            duration (float): Duration to monitor for stop words.
+            stop_words (list): List of stop words to monitor.
+            current_playback_phrase (str): The phrase currently being played back.
+            playback_process (subprocess.Popen): The process handling playback.
+        """
+        dictation = LiveGoogleDictation()
+        start_time = time.time()
+
+        # Prepare the playback phrase for comparison by removing punctuation and lowering the case
+        filtered_phrase = ''.join(char.lower() for char in current_playback_phrase if char.isalnum() or char.isspace()).split()
+
+        # Convert stop words to lowercase and remove them if they appear in the filtered phrase
+        current_stop_words = [word.lower() for word in stop_words]
+        current_stop_words = [word for word in current_stop_words if word not in filtered_phrase]
+
+        Logger.print_debug(f"Say one of the following words to skip playback: {current_stop_words}")
+        while time.time() - start_time < duration:
+            input_text = dictation.getDictatedInput(0, interruptable=True)
+            # Apply similar filtering to the live input text
+            filtered_input = ''.join(char.lower() for char in input_text if char.isalnum() or char.isspace()).split()
+            if any(word in filtered_input for word in current_stop_words):
+                Logger.print_debug("Skipping playback after catching stop word.")
+                playback_process.terminate()
+                return
+
+    def terminate_thread(self, thread):
+        if not thread.is_alive():
+            return
+
+        exc = ctypes.py_object(SystemExit)
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+            ctypes.c_long(thread.ident), exc)
+
+        if res == 0:
+            raise ValueError("nonexistent thread id")
+        elif res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
+            raise SystemError("PyThreadState_SetAsyncExc failed")
+
     def play_speech_response(self, file_path, raw_response):
         if file_path.endswith('.txt'):
+            # If we have an .mp4, we'll just play it directly. 
+            # But if we have a .txt, we'll need to concanate the mp4s within it into a single audio file first
             file_path = self.concatenate_audio_from_text(file_path)
 
         # Prepare the play command and determine the audio duration
         play_command, audio_duration = self.prepare_playback(file_path)
 
-        Logger.print_demon_output(f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)\n Playing...")
-        Logger.print_demon_output(raw_response)
+        Logger.print_ganglia_output(f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)\n") # TODO GANGLIA loaded from config
+        Logger.print_ganglia_output(raw_response)
 
         # Start playback in a non-blocking manner
         playback_process = subprocess.Popen(play_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
 
-        # Monitor for stop words in a separate thread
-        stop_word_thread = threading.Thread(target=self.monitor_for_stop_words, args=(LiveGoogleDictation(), audio_duration))
+        stop_words = ["GANGLIA", "stop", "wait"]
+        stop_word_thread = threading.Thread(target=self.monitor_for_stop_words, args=(audio_duration, stop_words, raw_response, playback_process))
         stop_word_thread.start()
 
         # Wait for playback or stop word detection to finish
-        stop_word_thread.join()
-        playback_process.terminate()  # Ensure playback is stopped
+        playback_process.wait()  # Ensure playback is stopped
+        self.terminate_thread(stop_word_thread)  # Forcefully stop the thread (note, the net says this is dangerous)
+
 
     def concatenate_audio_from_text(self, text_file_path):
-        output_file = "combined_audio.mp3"
+        output_file = "combined_audio.mp3" # TODO move to tmp
         concat_command = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", text_file_path, output_file]
         subprocess.run(concat_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, check=True)
+        # TODO this method is lacking any sort of error catching
         return output_file
 
     def prepare_playback(self, file_path):
+        # TODO do I really need two options here?
         if file_path.endswith('.mp4'):
             play_command = ["ffplay", "-nodisp", "-autoexit", file_path]
         else:
@@ -111,27 +162,6 @@ class TextToSpeech(ABC):
         duration_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         duration_output = subprocess.run(duration_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode('utf-8')
         return float(duration_output.strip())
-
-    def monitor_for_stop_words(self, dictation, duration):
-        def should_stop():
-            try:
-                input_text = dictation.getDictatedInput(0, interruptable=True)
-                for word in self.stop_words:
-                    if word in input_text.lower():
-                        return True
-            except Exception as e:
-                Logger.print_error(f"Monitoring error: {e}")
-            return False
-
-        start_time = time.time()
-        Logger.print_debug(f"Say one of the following words to skip playback: {self.stop_words}")
-        while time.time() - start_time < duration:
-            if should_stop():
-                Logger.print_debug(f"Skipping playback after catching stop word.")
-                subprocess.call(["pkill", "-f", "ffplay"])
-                break
-
-
 
 class GoogleTTS(TextToSpeech):
     def __init__(self):
@@ -161,11 +191,23 @@ class GoogleTTS(TextToSpeech):
                 voice=voice,
                 audio_config=audio_config)
 
+            # Check the operating system
+            if platform.system() == "Windows":
+                # Use the default temporary directory in Windows
+                base_temp_dir = tempfile.gettempdir()
+            else:
+                # Specify a custom path for Unix-like systems
+                base_temp_dir = "/tmp/GANGLIA"
+
+            # Ensure the directory exists
+            if not os.path.exists(base_temp_dir):
+                os.makedirs(base_temp_dir, exist_ok=True)
+
             # Save the audio to a file
-            file_path = os.path.join(tempfile.gettempdir(), f"chatgpt_response_{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp3")
+            file_path = os.path.join(base_temp_dir, f"ganglia_response_{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp3")
+
             with open(file_path, "wb") as out:
                 out.write(response.audio_content)
-                Logger.print_info(f"Audio content written to file {file_path}")
 
             return True, file_path
         except Exception as e:

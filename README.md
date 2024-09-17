@@ -48,7 +48,7 @@ python GANGLIA.py [-d DEVICE_INDEX] [-t TTS_INTERFACE] [--static-response]
 Here's a description of each command-line argument:
 
 - `-d DEVICE_INDEX` or `--device_index DEVICE_INDEX`: Sets the index of the input device to use. The default value is 0.
-- `-t TTS_INTERFACE` or `--tts_interface TTS_INTERFACE`: Sets the text-to-speech interface to use. Available options are 'google' or 'natural_reader'. The default value is 'google'.
+- `-t TTS_INTERFACE` or `--tts_interface TTS_INTERFACE`: Sets the text-to-speech interface to use. Available options are 'google'. The default value is 'google'.
 - `--help` or `-h`: Displays usage instructions and a list of available options.
 
 Once GANGLIA is running, it will listen for voice prompts. When you're ready to ask a question or make a request, simply speak into your microphone. Once you've finished speaking, GANGLIA will generate a response using OpenAI's GPT-3 engine and speak it aloud using the pyttsx3 library.
@@ -68,33 +68,14 @@ Here's a table of features, their implementation names, and the corresponding en
 
 ## TTS (Text To Speech)
 
-- there are a few options for how to render the AI's text response as audio. One option is to use the coqui api.
-
 - `--tts-interface google` [DEFAULT]
-    - the free, simple female google tts voice
-- `--tts-interface coqui`
-    - coqui is an incredible voice synthesis service that offers endless options for speechification
-    - when using Coqui as TTS, set up the coqui_config.json in the project root (see section below)
-
-#### Setting up Coqui TTS Configuration
-
-If you want to use Coqui as your Text To Speech interface, you need to provide the necessary configurations for the Coqui TTS API. 
-
-Create a file named `coqui_config.json` in the root directory with the following format:
-
-```json
-{
-    "api_url": "https://app.coqui.ai/api/v2/samples",
-    "bearer_token": "<your_token>",
-    "voice_id": "<your_voice_id>"
-}
-```
+    - versatile text-to-speech service provided by goggle
 
 ### AI Session Tuning
 
 - when using chatgpt, the persona of the AI can be tweaked by modifying the config file:
-    - `config/chatgpt_session_config.json`
-    - see `config/chatgpt_session_config.template` for examples and explanations.
+    - `config/ganglia_config.json`
+    - see `config/ganglia_config.template` for examples and explanations.
 
 ## Setting up Session Logging to the Cloud (Optional)
 
