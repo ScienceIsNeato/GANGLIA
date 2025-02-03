@@ -258,5 +258,76 @@ class TestStoryProcessor(unittest.TestCase):
                 "All result components should be None on failure"
             )
 
+    @patch('ttv.story_processor.generate_movie_poster')
+    @patch('ttv.story_processor.generate_image')
+    @patch('ttv.story_processor.create_video_segment')
+    def test_story_processor_with_failed_credits(
+        self, mock_create_video, mock_generate_image, mock_generate_poster
+    ):
+        """Test that story processor continues even if closing credits generation fails."""
+        # Mock dependencies
+        mock_tts = Mock()
+        mock_tts.convert_text_to_speech.return_value = (
+            True, 
+            os.path.join(self.temp_dir, "test_audio.mp3")
+        )
+        mock_query_dispatcher = Mock(spec=ChatGPTQueryDispatcher)
+        mock_music_gen = Mock()
+        
+        # Mock movie poster generation
+        mock_generate_poster.return_value = os.path.join(
+            self.temp_dir, "movie_poster.png"
+        )
+        
+        # Mock image generation for each sentence
+        mock_generate_image.return_value = (
+            os.path.join(self.temp_dir, "test_image.png"), 
+            True
+        )
+        
+        # Mock video segment creation
+        mock_create_video.return_value = True
+        
+        # Set up mock responses for content filtering
+        mock_query_dispatcher.send_query.return_value = json.dumps({
+            "filtered_text": "Test filtered text",
+            "is_safe": True
+        })
+        
+        # Mock closing credits failure
+        mock_music_gen.get_closing_credits.return_value = (None, None)
+        
+        # Create a test config with closing credits that will fail
+        test_config = TTVConfig(
+            style="test style",
+            story=["Test story line 1", "Test story line 2"],
+            title="Test Title",
+            closing_credits=MusicConfig(
+                file=None,
+                prompt="This will fail"
+            )
+        )
+        
+        with patch('ttv.story_processor.MusicGenerator', 
+                  return_value=mock_music_gen):
+            # Call process_story
+            segments, _, _, poster, _ = process_story(
+                mock_tts,
+                test_config.style,
+                test_config.story,
+                output_dir=self.temp_dir,
+                skip_generation=False,
+                query_dispatcher=mock_query_dispatcher,
+                story_title=test_config.title,
+                config=test_config
+            )
+            
+            # Verify that we got video segments even though credits failed
+            self.assertIsNotNone(segments, "Should have video segments even if credits fail")
+            self.assertEqual(len(segments), len(test_config.story), 
+                           "Should have one segment per story line")
+            self.assertIsNone(credits, "Credits should be None since generation failed")
+            self.assertIsNotNone(poster, "Should still have movie poster")
+
 if __name__ == '__main__':
     unittest.main() 

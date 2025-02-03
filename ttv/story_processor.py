@@ -301,7 +301,7 @@ def process_story(
                         closing_credits_path, closing_credits_lyrics = future.result()
                         if closing_credits_path is None:
                             Logger.print_error(f"{thread_prefix}Closing credits generation failed")
-                            return None, None, None, None, None
+                            # Don't return None for everything, just continue without credits
                             
                     elif task_type == 'segment':
                         i, segment_future = future
@@ -314,7 +314,7 @@ def process_story(
                             
                 except Exception as e:
                     Logger.print_error(f"{thread_prefix}Error processing task: {str(e)}")
-                    if task_type in ['background_music', 'closing_credits']:
+                    if task_type == 'background_music':  # Only background music failure is critical
                         return None, None, None, None, None
                     continue
             
