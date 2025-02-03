@@ -56,11 +56,11 @@ def _upload_to_test_outputs(local_file_path: str) -> bool:
     Returns:
         bool: True if upload was successful, False otherwise
     """
-    bucket_name = os.getenv('GCP_BUCKET_NAME')
+    bucket_name = "ganglia-public-test-results"  # Use our new public bucket
     project_name = os.getenv('GCP_PROJECT_NAME')
     service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     
-    if not (bucket_name and project_name and service_account_path):
+    if not (project_name and service_account_path):
         return False
 
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -79,13 +79,13 @@ def _upload_to_test_outputs(local_file_path: str) -> bool:
             credentials = service_account.Credentials.from_service_account_file(service_account_path)
             storage_client = storage.Client(credentials=credentials, project=project_name)
             bucket = storage_client.get_bucket(bucket_name)
-            blob = bucket.blob(gcs_path)
             
+            # Generate a simple public URL instead of a signed one
+            public_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
             Logger.print_info(f"Successfully uploaded final video to GCS: gs://{bucket_name}/{gcs_path}")
-            stream_url = get_video_stream_url(blob, service_account_path=service_account_path)
-            Logger.print_info(f"Stream URL: {stream_url}")
+            Logger.print_info(f"Stream the Video via Public URL: {public_url}")
         except Exception as e:
-            Logger.print_error(f"Failed to generate stream URL: {str(e)}")
+            Logger.print_error(f"Failed to generate URL: {str(e)}")
     else:
         Logger.print_error("Failed to upload final video to GCS")
     
