@@ -13,10 +13,8 @@ import subprocess
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from google.cloud import storage
-from google.oauth2 import service_account
 from logger import Logger
-from utils import run_ffmpeg_command, upload_to_gcs, get_video_stream_url
+from utils import run_ffmpeg_command, upload_to_gcs
 from .audio_alignment import create_word_level_captions
 from .captions import CaptionEntry, create_dynamic_captions, create_static_captions
 
@@ -74,18 +72,9 @@ def _upload_to_test_outputs(local_file_path: str) -> bool:
     )
     
     if success:
-        try:
-            # Create credentials from service account
-            credentials = service_account.Credentials.from_service_account_file(service_account_path)
-            storage_client = storage.Client(credentials=credentials, project=project_name)
-            bucket = storage_client.get_bucket(bucket_name)
-            
-            # Generate a simple public URL instead of a signed one
-            public_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
-            Logger.print_info(f"Successfully uploaded final video to GCS: gs://{bucket_name}/{gcs_path}")
-            Logger.print_info(f"Stream the Video via Public URL: {public_url}")
-        except Exception as e:
-            Logger.print_error(f"Failed to generate URL: {str(e)}")
+        public_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
+        Logger.print_info(f"Successfully uploaded final video to GCS: gs://{bucket_name}/{gcs_path}")
+        Logger.print_info(f"Stream the Video via Public URL: {public_url}")
     else:
         Logger.print_error("Failed to upload final video to GCS")
     

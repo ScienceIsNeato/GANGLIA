@@ -7,25 +7,28 @@ This module provides functionality for:
 - Coordinating between different components of the system
 """
 
+# Standard library imports
 import concurrent.futures
-import time
-import os
 import json
+import os
+import subprocess
+import time
+from typing import Dict, List, Optional, Tuple, Any
+
+
+# First party imports
 from logger import Logger
 from music_lib import MusicGenerator
 from ttv.config_loader import TTVConfig
-from .image_generation import generate_image, generate_blank_image, save_image_without_caption
-from .story_generation import generate_movie_poster, generate_filtered_story
-from .video_generation import create_video_segment
-from .captions import CaptionEntry, create_dynamic_captions, create_static_captions
-from .audio_alignment import create_word_level_captions
 from tts import GoogleTTS
-from utils import get_tempdir, ffmpeg_thread_manager
-import subprocess
-from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Tuple, Union, Any
-import requests
-import tempfile
+from utils import ffmpeg_thread_manager
+
+# Local imports
+from .audio_alignment import create_word_level_captions
+from .captions import CaptionEntry, create_dynamic_captions, create_static_captions
+from .image_generation import generate_image, generate_blank_image
+from .story_generation import generate_movie_poster
+from .video_generation import create_video_segment
 
 def process_sentence(i, sentence, context, style, total_images, tts, skip_generation, query_dispatcher, config, output_dir):
     """Process a single sentence into a video segment with audio and captions.
@@ -212,7 +215,7 @@ def process_story(
         max_workers = total_segments + 2
         
         # Process all tasks in parallel
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
             
             # Submit movie poster task if configured
@@ -339,6 +342,21 @@ def process_story(
 
 
 def retry_on_rate_limit(func, *args, retries=5, wait_time=60, **kwargs):
+    """Retry a function call when rate limits are hit.
+    
+    Args:
+        func: The function to call
+        *args: Positional arguments to pass to the function
+        retries: Number of times to retry (default: 5)
+        wait_time: Seconds to wait between retries (default: 60)
+        **kwargs: Keyword arguments to pass to the function
+        
+    Returns:
+        The result of the function call
+        
+    Raises:
+        Exception: If all retries fail due to rate limiting
+    """
     for attempt in range(retries):
         try:
             return func(*args, **kwargs)
@@ -356,7 +374,10 @@ def process_story_segment(
     total_segments: int,
     tts_engine: GoogleTTS,
     style: str,
-    thread_id: Optional[str] = None
+    query_dispatcher: Optional[Any] = None,
+    context: str = "",
+    thread_id: Optional[str] = None,
+    output_dir: Optional[str] = None
 ) -> Optional[Dict[str, str]]:
     """Process a single story segment.
     
@@ -366,7 +387,10 @@ def process_story_segment(
         total_segments: Total number of segments
         tts_engine: Text-to-speech engine instance
         style: Style to apply to generation
+        query_dispatcher: Optional query dispatcher for API calls
+        context: Optional context for image generation
         thread_id: Optional thread ID for logging
+        output_dir: Optional directory for output files
         
     Returns:
         Optional[Dict[str, str]]: Dictionary with paths to generated files
@@ -381,9 +405,14 @@ def process_story_segment(
         # Generate image for segment
         image_path = generate_image(
             sentence=sentence,
+            context=context,
+            style=style,
             image_index=segment_index,
-            thread_id=thread_id
-        )
+            total_images=total_segments,
+            query_dispatcher=query_dispatcher,
+            thread_id=thread_id,
+            output_dir=output_dir
+        )[0]  # get just the path from the tuple
         if not image_path:
             Logger.print_error(
                 f"{thread_prefix}Failed to generate image for segment "
@@ -392,14 +421,11 @@ def process_story_segment(
             return None
             
         # Generate audio for segment
-        audio_path = tts_engine.generate_audio(
+        success, audio_path = tts_engine.convert_text_to_speech(
             text=sentence,
-            output_filename=(
-                f"segment_{segment_index}_{time.time()}.wav"
-            ),
             thread_id=thread_id
         )
-        if not audio_path:
+        if not success or not audio_path:
             Logger.print_error(
                 f"{thread_prefix}Failed to generate audio for segment "
                 f"{segment_index + 1}"
@@ -441,7 +467,7 @@ def create_video_with_captions(
         # Create video segments
         video_segments = []
         futures = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for i, segment in enumerate(segments):
                 try:
                     # First create initial video segment without captions

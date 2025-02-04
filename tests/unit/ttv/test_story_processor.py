@@ -311,7 +311,7 @@ class TestStoryProcessor(unittest.TestCase):
         with patch('ttv.story_processor.MusicGenerator', 
                   return_value=mock_music_gen):
             # Call process_story
-            segments, _, _, poster, _ = process_story(
+            segments, _, closing_credits, poster, _ = process_story(
                 mock_tts,
                 test_config.style,
                 test_config.story,
@@ -324,10 +324,10 @@ class TestStoryProcessor(unittest.TestCase):
             
             # Verify that we got video segments even though credits failed
             self.assertIsNotNone(segments, "Should have video segments even if credits fail")
-            self.assertEqual(len(segments), len(test_config.story), 
+            self.assertEqual(len(segments), len(test_config.story),
                            "Should have one segment per story line")
-            self.assertIsNone(credits, "Credits should be None since generation failed")
+            self.assertIsNone(closing_credits, "Credits should be None since generation failed")
             self.assertIsNotNone(poster, "Should still have movie poster")
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()
