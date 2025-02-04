@@ -19,19 +19,8 @@ jobs:
     
     - name: Set up Google Application Credentials
       run: |
-        jq -n --arg client_id "${{ secrets.GAC_CLIENT_ID }}" \
-              --arg client_secret "${{ secrets.GAC_CLIENT_SECRET }}" \
-              --arg quota_project_id "${{ secrets.GAC_QUOTA_PROJECT_ID }}" \
-              --arg refresh_token "${{ secrets.GAC_REFRESH_TOKEN }}" \
-              --arg type "${{ secrets.GAC_TYPE }}" \
-              '{
-                client_id: $client_id,
-                client_secret: $client_secret,
-                quota_project_id: $quota_project_id,
-                refresh_token: $refresh_token,
-                type: $type
-              }' > /tmp/gcp-credentials.json
-        chmod 644 /tmp/gcp-credentials.json
+        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
+        chmod 600 /tmp/gcp-credentials.json
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
@@ -64,19 +53,8 @@ jobs:
     
     - name: Set up Google Application Credentials
       run: |
-        jq -n --arg client_id "${{ secrets.GAC_CLIENT_ID }}" \
-              --arg client_secret "${{ secrets.GAC_CLIENT_SECRET }}" \
-              --arg quota_project_id "${{ secrets.GAC_QUOTA_PROJECT_ID }}" \
-              --arg refresh_token "${{ secrets.GAC_REFRESH_TOKEN }}" \
-              --arg type "${{ secrets.GAC_TYPE }}" \
-              '{
-                client_id: $client_id,
-                client_secret: $client_secret,
-                quota_project_id: $quota_project_id,
-                refresh_token: $refresh_token,
-                type: $type
-              }' > /tmp/gcp-credentials.json
-        chmod 644 /tmp/gcp-credentials.json
+        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
+        chmod 600 /tmp/gcp-credentials.json
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
@@ -108,19 +86,8 @@ jobs:
     
     - name: Set up Google Application Credentials
       run: |
-        jq -n --arg client_id "${{ secrets.GAC_CLIENT_ID }}" \
-              --arg client_secret "${{ secrets.GAC_CLIENT_SECRET }}" \
-              --arg quota_project_id "${{ secrets.GAC_QUOTA_PROJECT_ID }}" \
-              --arg refresh_token "${{ secrets.GAC_REFRESH_TOKEN }}" \
-              --arg type "${{ secrets.GAC_TYPE }}" \
-              '{
-                client_id: $client_id,
-                client_secret: $client_secret,
-                quota_project_id: $quota_project_id,
-                refresh_token: $refresh_token,
-                type: $type
-              }' > /tmp/gcp-credentials.json
-        chmod 644 /tmp/gcp-credentials.json
+        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
+        chmod 600 /tmp/gcp-credentials.json
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
