@@ -390,7 +390,7 @@ def generate_closing_credits(
                 captions=captions,
                 output_path=closing_credits_video_path,
                 min_font_size=32,
-                max_font_size=48
+                max_font_ratio=1.5
             )
         else:
             # Combine all captions into one for static display
