@@ -1,11 +1,20 @@
-from logger import Logger
-from .audio_generation import get_audio_duration
-from utils import ffmpeg_thread_manager
-from ttv.log_messages import LOG_VIDEO_SEGMENT_CREATE
+"""Video generation module for text-to-video conversion.
+
+This module provides functionality for:
+- Creating video segments from images and audio
+- Adding fade effects to still images
+- Concatenating multiple video segments
+- Managing subprocess operations safely with locks
+"""
+
 import os
 import subprocess
 import threading
 from typing import List, Optional
+
+from logger import Logger
+from utils import ffmpeg_thread_manager
+from .audio_generation import get_audio_duration
 
 # Lock for subprocess operations to avoid gRPC fork handler issues
 subprocess_lock = threading.Lock()
@@ -29,6 +38,7 @@ def create_video_segment(image_path, audio_path, output_path, thread_id=None):
         if duration is None:
             Logger.print_error(f"{thread_prefix}Failed to get audio duration")
             return None
+        Logger.print_info(f"{thread_prefix}Got audio duration: {duration}s for {audio_path}")
 
         # Create video segment using thread manager
         with ffmpeg_thread_manager:
@@ -42,7 +52,7 @@ def create_video_segment(image_path, audio_path, output_path, thread_id=None):
                 "-c:a", "aac",
                 "-b:a", "192k",
                 "-pix_fmt", "yuv420p",
-                "-shortest",
+                "-t", str(duration),  # Explicit duration is sufficient
                 output_path
             ]
             with subprocess_lock:  # Protect subprocess.run from gRPC fork issues
@@ -140,7 +150,7 @@ def append_video_segments(
 
         # Create concat file with absolute paths
         concat_list_path = os.path.join(output_dir, "concat_list.txt")
-        with open(concat_list_path, "w") as f:
+        with open(concat_list_path, "w", encoding="utf-8") as f:
             for segment in video_segments:
                 abs_path = os.path.abspath(segment)
                 f.write(f"file '{abs_path}'\n")
@@ -191,4 +201,3 @@ def append_video_segments(
                 os.remove(concat_list_path)
         except (OSError, UnboundLocalError):
             pass
-

@@ -24,9 +24,10 @@ import torch
 import whisper
 
 # Local imports
-from .captions import CaptionEntry
 from logger import Logger
 from utils import exponential_backoff
+from .captions import CaptionEntry
+
 
 # Add parent directory to Python path to import logger
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -227,7 +228,7 @@ def create_word_level_captions(
                 return model, result
 
         # Use exponential backoff for model loading and processing
-        model, result = exponential_backoff(
+        _, result = exponential_backoff(
             load_and_process_model,
             max_retries=5,
             initial_delay=1.0,
@@ -246,6 +247,11 @@ def create_word_level_captions(
                 if not word_text:
                     Logger.print_warning(f"{thread_prefix}Empty word text in segment")
                     continue
+                
+                # Clean up word text by removing only extra whitespace
+                word_text = word_text.strip()
+                if not word_text:
+                    continue
                     
                 words.append({
                     "text": word_text,
@@ -260,7 +266,7 @@ def create_word_level_captions(
 
         # Create caption entries
         captions = []
-        for i, word in enumerate(words):
+        for _, word in enumerate(words):
             caption = CaptionEntry(
                 text=word["text"],
                 start_time=word["start"],

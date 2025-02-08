@@ -19,12 +19,28 @@ fi
 MODE=$1
 TEST_TYPE=$2
 
+# Generate timestamp for this test run
+TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
+
 # Create logs directory if it doesn't exist
 mkdir -p "${SCRIPT_DIR}/logs"
-
-# Generate timestamp for log file
-TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 LOG_FILE="${SCRIPT_DIR}/logs/test_run_${MODE}_${TEST_TYPE}_${TIMESTAMP}.log"
+
+# Create status directory if it doesn't exist
+mkdir -p "/tmp/GANGLIA"
+
+# Set status file based on test type
+case "$TEST_TYPE" in
+    "unit")
+        STATUS_FILE="/tmp/GANGLIA/test_status_${TIMESTAMP}.txt"
+        ;;
+    "smoke")
+        STATUS_FILE="/tmp/GANGLIA/smoke_status_${TIMESTAMP}.txt"
+        ;;
+    "integration")
+        STATUS_FILE="/tmp/GANGLIA/integration_status_${TIMESTAMP}.txt"
+        ;;
+esac
 
 # Validate mode argument
 if [[ "$MODE" != "local" && "$MODE" != "docker" ]]; then
@@ -63,7 +79,9 @@ case $MODE in
     "local")
         echo "Executing: python -m pytest ${TEST_DIR} -v -s" | tee -a "$LOG_FILE"
         eval "python -m pytest ${TEST_DIR} -v -s" 2>&1 | tee -a "$LOG_FILE"
-        exit ${PIPESTATUS[0]}
+        TEST_EXIT_CODE=${PIPESTATUS[0]}
+        echo $TEST_EXIT_CODE > "$STATUS_FILE"
+        exit $TEST_EXIT_CODE
         ;;
     "docker")
         # Build the Docker image
@@ -82,9 +100,10 @@ case $MODE in
             -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
             ganglia:latest \
             /bin/sh -c "pytest ${TEST_DIR} -v -s" 2>&1 | tee -a "$LOG_FILE"
-        exit_code=${PIPESTATUS[0]}
+        TEST_EXIT_CODE=${PIPESTATUS[0]}
+        echo $TEST_EXIT_CODE > "$STATUS_FILE"
         rm -f /tmp/gcp-credentials.json
-        exit $exit_code
+        exit $TEST_EXIT_CODE
         ;;
 esac 
 
