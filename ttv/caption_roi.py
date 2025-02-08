@@ -10,7 +10,7 @@ Note: Current implementation analyzes only the first frame.
 TODO: Expand to analyze multiple frames for true video content.
 """
 
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 import numpy as np
 from moviepy.video.io.VideoFileClip import VideoFileClip
 

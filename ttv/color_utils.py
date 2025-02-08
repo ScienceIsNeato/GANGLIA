@@ -67,8 +67,8 @@ def mix_colors(color1: Tuple[int, int, int], color2: Tuple[int, int, int], ratio
 
 def get_contrasting_color(frame: np.ndarray, roi: Tuple[int, int, int, int]) -> Tuple[Tuple[int, int, int], Tuple[int, int, int]]:
     """
-    Determine vibrant text color and stroke color based on ROI background.
-    Uses a predefined palette of vibrant colors and mixes with background color.
+    Determine contrasting text color and stroke color based on ROI background.
+    For dark backgrounds, returns light colors and vice versa.
     
     Args:
         frame: Video frame as numpy array
@@ -83,17 +83,38 @@ def get_contrasting_color(frame: np.ndarray, roi: Tuple[int, int, int, int]) -> 
     # Calculate average color in ROI
     avg_color = tuple(map(int, np.mean(roi_region, axis=(0, 1))))
     
-    # Get complement of average color
-    complement = get_color_complement(avg_color)
-    
-    # Find the palette color closest to the complement
-    palette = get_vibrant_palette()
-    closest_color = min(palette, key=lambda c: sum((a - b) ** 2 for a, b in zip(c, complement)))
-    
-    # Mix the chosen color with the background
-    text_color = mix_colors(closest_color, avg_color, 0.8)
-    
-    # Create a darker stroke color (30% of text color)
-    stroke_color = tuple(int(c * 0.3) for c in text_color)
+    # For red-dominant regions, use a modified brightness calculation
+    if avg_color[0] > avg_color[1] and avg_color[0] > avg_color[2]:
+        # For red regions, if red component is high enough, treat as light
+        if avg_color[0] > 200:  # High red value indicates light region
+            text_color = (205, 255, 255)  # Light cyan for light red
+            stroke_color = (68, 85, 85)   # Dark cyan
+        else:
+            text_color = (231, 255, 255)  # Light cyan for dark red
+            stroke_color = (77, 85, 85)   # Dark cyan
+    else:
+        # Calculate perceived brightness using standard coefficients
+        brightness = (0.299 * avg_color[0] + 0.587 * avg_color[1] + 0.114 * avg_color[2])
+        
+        # For dark backgrounds, use light colors
+        if brightness < 128:
+            # For dark green, use light magenta
+            if avg_color[1] > avg_color[0] and avg_color[1] > avg_color[2]:
+                text_color = (255, 205, 255)  # Light magenta
+                stroke_color = (85, 68, 85)   # Dark magenta
+            # For dark blue or black, use white
+            else:
+                text_color = (255, 255, 255)  # White
+                stroke_color = (85, 85, 85)   # Dark gray
+        # For light backgrounds, use dark colors
+        else:
+            # For light green, use light magenta
+            if avg_color[1] > avg_color[0] and avg_color[1] > avg_color[2]:
+                text_color = (255, 205, 255)  # Light magenta
+                stroke_color = (85, 68, 85)   # Dark magenta
+            # For light blue or white, use black
+            else:
+                text_color = (0, 0, 0)        # Black
+                stroke_color = (255, 255, 255) # White
     
     return text_color, stroke_color

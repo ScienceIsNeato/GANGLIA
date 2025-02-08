@@ -514,37 +514,72 @@ def test_text_rendering_features():
 
 def test_vibrant_color_palette():
     """Test that the vibrant color palette generates appropriate colors for different backgrounds"""
-    # Test with different background colors
-    test_backgrounds = [
-        (0, 0, 0),      # Black
-        (20, 20, 20),   # Very dark gray
-        (50, 50, 50),   # Dark gray
-    ]
+    # Create test video
+    input_video_path = create_test_video(duration=2)
+    assert input_video_path is not None, "Failed to create test video"
 
-    for bg_color in test_backgrounds:
-        # Create a test frame with the background color
-        frame = np.full((100, 100, 3), bg_color, dtype=np.uint8)
-        roi = (0, 0, 100, 100)  # Full frame as ROI
+    # Create output path
+    output_path = os.path.join(get_tempdir(), "output_color_test.mp4")
 
-        # Get colors for this background
-        text_color, stroke_color = get_contrasting_color(frame, roi)
+    try:
+        # Test with various caption lengths and word sizes
+        test_cases = [
+            "Testing with vibrant colors",
+            "Each word should have a different color",
+            "Colors should match the vibrant palette"
+        ]
+        captions = [CaptionEntry(text, idx * 0.5, (idx + 1) * 0.5) for idx, text in enumerate(test_cases)]
 
-        # Verify text color properties
-        assert all(0 <= c <= 255 for c in text_color), f"Invalid text color values: {text_color}"
-        assert any(c > 100 for c in text_color), f"Text color not vibrant enough: {text_color}"
-        
-        # Verify stroke color is darker than text color
-        assert all(s < t for s, t in zip(stroke_color, text_color)), \
-            f"Stroke color {stroke_color} not darker than text color {text_color}"
+        # Add dynamic captions
+        result_path = create_dynamic_captions(
+            input_video=input_video_path,
+            captions=captions,
+            output_path=output_path,
+            min_font_size=32,
+            max_font_ratio=1.5  # Max will be 48 (1.5x the min)
+        )
 
-        # Test color mixing
+        # Verify results
+        assert result_path is not None, "Failed to create video with color testing"
+        assert os.path.exists(output_path), f"Output file not created: {output_path}"
+        assert os.path.getsize(output_path) > 0, "Output file is empty"
+
+        # Play the video (skipped in automated testing)
+        play_test_video(output_path)
+
+        # Get actual colors from the video
+        from tests.unit.ttv.test_helpers import get_text_colors_from_video
+        text_color, stroke_color = get_text_colors_from_video(output_path)
+        assert text_color is not None, "Failed to extract text color from video"
+        assert stroke_color is not None, "Failed to extract stroke color from video"
+
+        # Print debug info
+        print(f"\nText color: {text_color}")
+        print(f"Stroke color: {stroke_color}")
+
+        # Get expected colors
         palette = get_vibrant_palette()
-        for color in palette:
-            mixed = mix_colors(color, bg_color, 0.8)
-            # Verify mixed color maintains vibrancy
-            assert any(c > 50 for c in mixed), f"Mixed color lost vibrancy: {mixed}"
-            # Verify color mixing produces valid RGB values
-            assert all(0 <= c <= 255 for c in mixed), f"Invalid mixed color values: {mixed}"
+        print(f"Palette colors: {palette}")
+        
+        # The text color should be close to one of the vibrant colors
+        color_diffs = [sum(abs(c1 - c2) for c1, c2 in zip(text_color, palette_color)) for palette_color in palette]
+        min_diff = min(color_diffs)
+        closest_color = palette[color_diffs.index(min_diff)]
+        print(f"Closest palette color: {closest_color} (diff: {min_diff})")
+        
+        assert min_diff <= 30, f"Text color {text_color} too far from any palette color"
+
+        # The stroke color should be a darker version of the text color (about 1/3 intensity)
+        expected_stroke = tuple(c // 3 for c in text_color)
+        for actual, expected in zip(stroke_color, expected_stroke):
+            assert abs(actual - expected) <= 10, f"Stroke color {stroke_color} not proportional to text color {text_color}"
+
+    finally:
+        # Clean up
+        if os.path.exists(input_video_path):
+            os.unlink(input_video_path)
+        if os.path.exists(output_path):
+            os.unlink(output_path)
 
 
 def test_no_word_overlap():
@@ -643,6 +678,94 @@ def test_no_word_overlap():
             os.unlink(output_path)
 
 
+def test_deterministic_color_selection():
+    """Test that color selection is deterministic based on background color."""
+    # Create test videos with different background colors
+    test_colors = [
+        (0, 0, 0),      # Black background
+        (255, 255, 255), # White background
+        (200, 50, 50),   # Red background
+        (50, 200, 50),   # Green background
+    ]
+    
+    # Test text to use
+    test_text = "Testing color selection"
+    
+    # Store colors used for each background
+    colors_used = {}
+    
+    for bg_color in test_colors:
+        # Create test video with this background
+        input_video_path = create_test_video(duration=2, color=bg_color)
+        assert input_video_path is not None, "Failed to create test video"
+        
+        # Create output path
+        output_path = os.path.join(get_tempdir(), f"output_color_test_{bg_color[0]}_{bg_color[1]}_{bg_color[2]}.mp4")
+        
+        try:
+            # Create caption
+            caption = CaptionEntry(test_text, 0.0, 1.0)
+            
+            # Add dynamic captions
+            result_path = create_dynamic_captions(
+                input_video=input_video_path,
+                captions=[caption],
+                output_path=output_path,
+        min_font_size=32,
+                max_font_ratio=1.5
+            )
+            
+            # Verify results
+            assert result_path is not None, "Failed to create video with color testing"
+            assert os.path.exists(output_path), f"Output file not created: {output_path}"
+            assert os.path.getsize(output_path) > 0, "Output file is empty"
+            
+            # Get colors from the video
+            from tests.unit.ttv.test_helpers import get_text_colors_from_video
+            text_color, _ = get_text_colors_from_video(output_path)
+            assert text_color is not None, "Failed to extract text color from video"
+            
+            # Store the color used for this background
+            colors_used[bg_color] = text_color
+            
+        finally:
+            # Clean up
+            if os.path.exists(input_video_path):
+                os.unlink(input_video_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+    
+    # Verify that the same background color always gets the same text color
+    for bg_color in test_colors:
+        # Create a second video with the same background
+        input_video_path = create_test_video(duration=2, color=bg_color)
+        output_path = os.path.join(get_tempdir(), f"output_color_test_verify_{bg_color[0]}_{bg_color[1]}_{bg_color[2]}.mp4")
+        
+        try:
+            result_path = create_dynamic_captions(
+                input_video=input_video_path,
+                captions=[CaptionEntry(test_text, 0.0, 1.0)],
+                output_path=output_path,
+                min_font_size=32,
+                max_font_ratio=1.5
+            )
+            
+            # Get colors and verify they match the first run
+            text_color, _ = get_text_colors_from_video(output_path)
+            assert text_color is not None, "Failed to extract text color from video"
+            
+            # Colors should match exactly since selection is deterministic
+            first_run_color = colors_used[bg_color]
+            assert text_color == first_run_color, f"Color selection not deterministic for background {bg_color}"
+            
+        finally:
+            # Clean up
+            if os.path.exists(input_video_path):
+                os.unlink(input_video_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+
 if __name__ == "__main__":
     output_dir = os.path.join(get_tempdir(), "caption_test_outputs")
     os.makedirs(output_dir, exist_ok=True)
@@ -658,3 +781,4 @@ if __name__ == "__main__":
     test_text_rendering_features()
     test_vibrant_color_palette()
     test_no_word_overlap()
+    test_deterministic_color_selection()

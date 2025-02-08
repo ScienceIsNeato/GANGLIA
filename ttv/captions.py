@@ -13,11 +13,12 @@ from moviepy.video.VideoClip import TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from PIL import ImageFont, Image, ImageDraw
+import numpy as np
 
 from logger import Logger
 from utils import run_ffmpeg_command
 from .caption_roi import find_roi_in_frame
-from .color_utils import get_contrasting_color
+from .color_utils import get_contrasting_color, get_vibrant_palette
 
 def get_default_font() -> str:
     """Get default font name."""
@@ -334,21 +335,217 @@ def calculate_text_size(text, font_size, font_path=None):
     buffer_pixels = max(int(font_size * 0.75), 16)  # Significantly increased buffer
     return width + buffer_pixels * 2, height + buffer_pixels * 2, text_width, text_height
 
+def _create_text_clip(
+    word: Word,
+    position: Tuple[int, int],
+    text_color: Tuple[int, int, int],
+    stroke_color: Tuple[int, int, int],
+    clip_dimensions: Tuple[int, int],
+    margins: Tuple[int, int, int, int],
+    border_thickness: int,
+    duration: float,
+    start_time: float
+) -> TextClip:
+    """Create a text clip with the given parameters."""
+    return TextClip(
+        text=word.text,
+        font=word.font_name,
+        method='caption',
+        color=text_color,
+        stroke_color=stroke_color,
+        stroke_width=border_thickness,
+        font_size=word.font_size,
+        size=clip_dimensions,
+        margin=margins,
+        text_align='left',
+        duration=duration
+    ).with_position(position).with_start(start_time)
+
+def _create_shadow_clip(
+    word: Word,
+    position: Tuple[int, int],
+    clip_dimensions: Tuple[int, int],
+    margins: Tuple[int, int, int, int],
+    border_thickness: int,
+    duration: float,
+    start_time: float,
+    opacity: float
+) -> TextClip:
+    """Create a shadow clip with the given parameters."""
+    return TextClip(
+        text=word.text,
+        font=word.font_name,
+        method='caption',
+        color=(0, 0, 0),  # Black shadow
+        stroke_color=(0, 0, 0),
+        stroke_width=border_thickness,
+        font_size=word.font_size,
+        size=clip_dimensions,
+        margin=margins,
+        text_align='left',
+        duration=duration
+    ).with_position(position).with_start(start_time).with_opacity(opacity)
+
+def _calculate_clip_dimensions(
+    word: Word,
+    border_thickness: int,
+    shadow_offset: Tuple[int, int]
+) -> Tuple[Tuple[int, int], Tuple[int, int, int, int]]:
+    """Calculate clip dimensions and margins."""
+    horizontal_padding = border_thickness * 2 + int(shadow_offset[0] * 1.5)
+    clip_width = int(word.width + horizontal_padding)
+    clip_height = int(word.font_size * 1.5)
+    margin_left = horizontal_padding // 2
+    margin_bottom = int(word.font_size * 0.2)
+    
+    return (clip_width, clip_height), (margin_left, 0, 0, margin_bottom)
+
+def _create_word_clips(
+    word: Word,
+    window: CaptionWindow,
+    roi_x: int,
+    roi_y: int,
+    roi_width: int,
+    roi_height: int,
+    text_color: Tuple[int, int, int],
+    stroke_color: Tuple[int, int, int],
+    border_thickness: int,
+    shadow_offset: Tuple[int, int],
+    max_font_size: int,
+    cursor_pos: Tuple[int, int],
+    previous_word: Optional[Word]
+) -> Tuple[List[TextClip], Tuple[int, int]]:
+    """Create all clips (text and shadows) for a single word."""
+    clip_dimensions, margins = _calculate_clip_dimensions(word, border_thickness, shadow_offset)
+    
+    # Calculate baseline offset for vertical alignment
+    baseline_offset = max_font_size - word.font_size
+    
+    # Calculate word position
+    new_cursor_x, new_cursor_y, x_position, y_position, _ = calculate_word_position(
+        word=word,
+        cursor_x=int(cursor_pos[0]),
+        cursor_y=int(cursor_pos[1]),
+        line_height=int(word.font_size * 1.2),
+        roi_width=int(roi_width),
+        roi_height=int(roi_height),
+        previous_word=previous_word
+    )
+    
+    # Calculate base position adjustments
+    margin_left = margins[0]
+    base_x = int(roi_x + x_position - margin_left)
+    base_y = int(roi_y + y_position + baseline_offset)
+    
+    # Create outer shadow
+    outer_shadow = _create_shadow_clip(
+        word=word,
+        position=(base_x + int(shadow_offset[0] * 1.5), base_y + int(shadow_offset[1] * 1.5)),
+        clip_dimensions=clip_dimensions,
+        margins=margins,
+        border_thickness=border_thickness,
+        duration=window.end_time - word.start_time,
+        start_time=word.start_time,
+        opacity=0.4
+    )
+    
+    # Create inner shadow
+    inner_shadow = _create_shadow_clip(
+        word=word,
+        position=(base_x + shadow_offset[0], base_y + shadow_offset[1]),
+        clip_dimensions=clip_dimensions,
+        margins=margins,
+        border_thickness=border_thickness,
+        duration=window.end_time - word.start_time,
+        start_time=word.start_time,
+        opacity=0.7
+    )
+    
+    # Create main text clip
+    text_clip = _create_text_clip(
+        word=word,
+        position=(base_x, base_y),
+        text_color=text_color,
+        stroke_color=stroke_color,
+        clip_dimensions=clip_dimensions,
+        margins=margins,
+        border_thickness=border_thickness,
+        duration=window.end_time - word.start_time,
+        start_time=word.start_time
+    )
+    
+    return [outer_shadow, inner_shadow, text_clip], (new_cursor_x, new_cursor_y)
+
+def _process_caption_window(
+    window: CaptionWindow,
+    roi_x: int,
+    roi_y: int,
+    roi_width: int,
+    roi_height: int,
+    first_frame: np.ndarray,
+    min_font_size: int,
+    max_font_ratio: float,
+    border_thickness: int,
+    shadow_offset: Tuple[int, int]
+) -> List[TextClip]:
+    """Process a single caption window and create all necessary clips."""
+    # Get background color from ROI for this window's position
+    window_roi = first_frame[roi_y:roi_y+roi_height, roi_x:roi_x+roi_width]
+    avg_bg_color = tuple(map(int, np.mean(window_roi, axis=(0, 1))))
+    
+    # Calculate complement of background color
+    complement = tuple(255 - c for c in avg_bg_color)
+    
+    # Find palette color closest to background complement
+    palette = get_vibrant_palette()
+    color_diffs = [sum(abs(c1 - c2) for c1, c2 in zip(complement, palette_color)) for palette_color in palette]
+    color_idx = color_diffs.index(min(color_diffs))
+    text_color = palette[color_idx]
+    
+    # Make stroke color exactly 1/3 intensity of text color
+    stroke_color = tuple(c // 3 for c in text_color)
+    
+    Logger.print_info(f"Using color {text_color} for window (background: {avg_bg_color}, complement: {complement})")
+    
+    # Process all words in the window
+    text_clips = []
+    cursor_x, cursor_y = 0, 0
+    previous_word = None
+    max_font_size = int(min_font_size * max_font_ratio)
+    
+    for word in window.words:
+        clips, (cursor_x, cursor_y) = _create_word_clips(
+            word=word,
+            window=window,
+            roi_x=roi_x,
+            roi_y=roi_y,
+            roi_width=roi_width,
+            roi_height=roi_height,
+            text_color=text_color,
+            stroke_color=stroke_color,
+            border_thickness=border_thickness,
+            shadow_offset=shadow_offset,
+            max_font_size=max_font_size,
+            cursor_pos=(cursor_x, cursor_y),
+            previous_word=previous_word
+        )
+        text_clips.extend(clips)
+        previous_word = word
+    
+    return text_clips
+
 def create_dynamic_captions(
     input_video: str,
     captions: List[CaptionEntry],
     output_path: str,
     min_font_size: int = 32,
-    max_font_ratio: float = 1.5,  # Changed from max_font_size to max_font_ratio
+    max_font_ratio: float = 1.5,
     font_name: str = get_default_font(),
-    # Margin from screen edges in pixels
     words_per_second: float = 2.0,
-    shadow_offset: Tuple[int, int] = (8, 8),  # Increased shadow offset for more depth
-    border_thickness: int = 5,  # Increased border thickness for better readability
+    shadow_offset: Tuple[int, int] = (8, 8),
+    border_thickness: int = 5,
 ) -> Optional[str]:
-    """
-    Add Instagram-style dynamic captions to a video using MoviePy.
-    """
+    """Add Instagram-style dynamic captions to a video using MoviePy."""
     temp_files = []  # Keep track of temp files for cleanup
     try:
         # Load the video and get its duration
@@ -362,19 +559,10 @@ def create_dynamic_captions(
             Logger.print_error("Failed to find ROI for captions")
             return None
 
-        # Extract ROI dimensions and determine text color
+        # Extract ROI dimensions
         roi_x, roi_y, roi_width, roi_height = roi
-        text_color, stroke_color = get_contrasting_color(first_frame, roi)
-        # Make text color more vibrant
-        if text_color[0] > 200 and text_color[1] > 200 and text_color[2] > 200:
-            # If it's a light color, make it pure white
-            text_color = (255, 255, 255)
-        else:
-            # If it's a dark color, make it more saturated
-            text_color = tuple(min(int(c * 1.3), 255) for c in text_color)
-        Logger.print_info(f"Using {(text_color, stroke_color)} text for optimal contrast in ROI")
-
-        # Process all captions into words, ensuring they don't exceed video duration
+        
+        # Process all captions into words
         all_words = []
         for caption in captions:
             # Ensure caption timing doesn't exceed video duration
@@ -402,92 +590,22 @@ def create_dynamic_captions(
             roi_height=roi_height
         )
 
-        # Create text clips for each word
+        # Process each window and collect all text clips
         text_clips = []
         for window in windows:
-            cursor_x = 0
-            cursor_y = 0
-            previous_word = None
-
-            for word in window.words:
-                # Calculate position using cursor-based approach
-                new_cursor_x, new_cursor_y, x_position, y_position, _ = calculate_word_position(
-                    word=word,
-                    cursor_x=int(cursor_x),
-                    cursor_y=int(cursor_y),
-                    line_height=int(word.font_size * 1.2),  # Use word's font size for line height
-                    roi_width=int(roi_width),
-                    roi_height=int(roi_height),
-                    previous_word=previous_word
-                )
-
-                # Calculate extra padding needed for border and shadow
-                horizontal_padding = border_thickness * 2 + int(shadow_offset[0] * 1.5)
-                clip_width = int(word.width + horizontal_padding)
-                clip_height = int(word.font_size * 1.5)
-                margin_left = horizontal_padding // 2
-                margin_bottom = int(word.font_size * 0.2)  # Reduced bottom margin for baseline alignment
-
-                # Calculate baseline offset to align all words along their bottom edge
-                max_font_size = int(min_font_size * max_font_ratio)
-                baseline_offset = max_font_size - word.font_size
-
-                # Create outer shadow clip with larger offset and more opacity
-                outer_shadow_clip = TextClip(
-                    text=word.text,
-                    font=word.font_name,
-                    method='caption',
-                    color=(0, 0, 0),  # Black shadow
-                    stroke_color=(0, 0, 0),
-                    stroke_width=border_thickness,
-                    font_size=word.font_size,  # Use word's font size
-                    size=(clip_width, clip_height),  # Add padding
-                    margin=(margin_left, 0, 0, margin_bottom),  # Add left margin
-                    text_align='left',
-                    duration=window.end_time - word.start_time
-                ).with_position((int(roi_x + x_position - margin_left + shadow_offset[0] * 1.5),
-                               int(roi_y + y_position + baseline_offset + shadow_offset[1] * 1.5))).with_opacity(0.4).with_start(word.start_time)
-
-                # Create inner shadow clip with regular offset and more opacity
-                inner_shadow_clip = TextClip(
-                    text=word.text,
-                    font=word.font_name,
-                    method='caption',
-                    color=(0, 0, 0),  # Black shadow
-                    stroke_color=(0, 0, 0),
-                    stroke_width=border_thickness,
-                    font_size=word.font_size,  # Use word's font size
-                    size=(clip_width, clip_height),  # Add padding
-                    margin=(margin_left, 0, 0, margin_bottom),  # Add left margin
-                    text_align='left',
-                    duration=window.end_time - word.start_time
-                ).with_position((int(roi_x + x_position - margin_left + shadow_offset[0]),
-                               int(roi_y + y_position + baseline_offset + shadow_offset[1]))).with_opacity(0.7).with_start(word.start_time)
-
-                # Create text clip with contrasting color and enhancements
-                txt_clip = TextClip(
-                    text=word.text,
-                    font=word.font_name,
-                    method='caption',
-                    color=text_color,
-                    stroke_color=stroke_color,
-                    stroke_width=border_thickness,
-                    font_size=word.font_size,  # Use word's font size
-                    size=(clip_width, clip_height),  # Add padding
-                    margin=(margin_left, 0, 0, margin_bottom),  # Add left margin
-                    text_align='left',
-                    duration=window.end_time - word.start_time  # Word persists until end of window
-                ).with_position((int(roi_x + x_position - margin_left),
-                               int(roi_y + y_position + baseline_offset))).with_start(word.start_time)
-
-                text_clips.append(outer_shadow_clip)  # Add outer shadow first (furthest back)
-                text_clips.append(inner_shadow_clip)  # Add inner shadow next
-                text_clips.append(txt_clip)  # Add text last (on top)
-
-                # Update cursor and previous word for next iteration
-                cursor_x = new_cursor_x
-                cursor_y = new_cursor_y
-                previous_word = word
+            window_clips = _process_caption_window(
+                window=window,
+                roi_x=roi_x,
+                roi_y=roi_y,
+                roi_width=roi_width,
+                roi_height=roi_height,
+                first_frame=first_frame,
+                min_font_size=min_font_size,
+                max_font_ratio=max_font_ratio,
+                border_thickness=border_thickness,
+                shadow_offset=shadow_offset
+            )
+            text_clips.extend(window_clips)
 
         # Combine video with text overlays
         final_video = CompositeVideoClip([video] + text_clips)
@@ -521,7 +639,7 @@ def create_dynamic_captions(
             threads=4
         )
 
-        # Combine video with original audio, ensuring we keep the full duration
+        # Combine video with original audio
         ffmpeg_cmd = [
             "ffmpeg", "-y",
             "-i", temp_video,     # Video with captions

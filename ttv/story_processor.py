@@ -127,7 +127,7 @@ def process_sentence(i, sentence, context, style, total_images, tts, skip_genera
                 captions=captions,
                 output_path=final_segment_path,
                 min_font_size=32,
-                max_font_size=48
+                max_font_ratio=1.5  # Max will be 48 (1.5x the min)
             )
 
         if captioned_path:
@@ -513,7 +513,7 @@ def create_video_with_captions(
                         captions=captions,
                         output_path=final_segment_path,
                         min_font_size=32,
-                        max_font_size=48
+                        max_font_ratio=1.5  # Max will be 48 (1.5x the min)
                     )
                     
                     if not captioned_path:

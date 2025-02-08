@@ -38,6 +38,7 @@ def create_video_segment(image_path, audio_path, output_path, thread_id=None):
         if duration is None:
             Logger.print_error(f"{thread_prefix}Failed to get audio duration")
             return None
+        Logger.print_info(f"{thread_prefix}Got audio duration: {duration}s for {audio_path}")
 
         # Create video segment using thread manager
         with ffmpeg_thread_manager:
@@ -51,6 +52,7 @@ def create_video_segment(image_path, audio_path, output_path, thread_id=None):
                 "-c:a", "aac",
                 "-b:a", "192k",
                 "-pix_fmt", "yuv420p",
+                "-t", str(duration),  # Explicit duration is sufficient
                 output_path
             ]
             with subprocess_lock:  # Protect subprocess.run from gRPC fork issues
