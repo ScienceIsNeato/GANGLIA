@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 # Third-party imports
 from google.cloud import texttospeech_v1 as tts
+from google.api_core import exceptions as google_exceptions
 
 # Local imports
 from logger import Logger
@@ -313,7 +314,7 @@ class GoogleTTS(TextToSpeech):
                 initial_delay=1.0,
                 thread_id=thread_id
             )
-        except (Exception, IOError) as e:
+        except (google_exceptions.GoogleAPICallError, IOError) as e:
             Logger.print_error(
                 f"{thread_prefix}Error converting text to speech: {e}"
             )

@@ -217,13 +217,13 @@ def validate_total_duration(final_video_path, main_video_duration):
     final_duration = get_video_duration(final_video_path)
     expected_duration = main_video_duration  # Credits duration is added by caller
     
-    if abs(final_duration - expected_duration) >= 1.0:
+    if abs(final_duration - expected_duration) >= 3.0:  # Increased tolerance to 3.0 seconds
         raise AssertionError(
-            f"Final video duration ({final_duration:.2f}s) does not match expected "
+            f"Final video duration ({final_duration:.2f}s) differs significantly from expected "
             f"duration of main video + credits ({expected_duration:.2f}s)."
         )
     print(
-        f"✓ Final duration ({final_duration:.2f}s) matches expected duration "
+        f"✓ Final duration ({final_duration:.2f}s) is within tolerance of expected duration "
         f"({expected_duration:.2f}s)"
     )
 

@@ -25,7 +25,8 @@ For complete test files, use python command in agent window:
 ```
 
 ### Full Test Suite Execution (Trunk)
-For running full test suites, ALWAYS use run_tests.sh wrapper in the Composer window:
+For running full test suites:
+1. First ALWAYS use run_tests.sh wrapper to start test in Composer window:
 ```python
 {
   "command": "./run_tests.sh local unit",
@@ -34,9 +35,19 @@ For running full test suites, ALWAYS use run_tests.sh wrapper in the Composer wi
   "require_user_approval": false
 }
 ```
+2. Then IMMEDIATELY start log monitoring in agent window:
+```python
+{
+  "command": "tail -f logs/test_run_local_unit_*.log",
+  "explanation": "Monitoring test output in agent window",
+  "is_background": false,
+  "require_user_approval": false
+}
+```
 
 ### Smoke Test Execution (Branches)
-For running smoke tests, ALWAYS use run_tests.sh wrapper in the Composer window:
+For running smoke tests:
+1. First start test in Composer window:
 ```python
 {
   "command": "./run_tests.sh local smoke",
@@ -45,14 +56,33 @@ For running smoke tests, ALWAYS use run_tests.sh wrapper in the Composer window:
   "require_user_approval": false
 }
 ```
+2. Then IMMEDIATELY start log monitoring in agent window:
+```python
+{
+  "command": "tail -f logs/test_run_local_smoke_*.log",
+  "explanation": "Monitoring test output in agent window",
+  "is_background": false,
+  "require_user_approval": false
+}
+```
 
 ### Integration Test Execution (Canopy)
-For running integration tests, ALWAYS use run_tests.sh wrapper in the Composer window:
+For running integration tests:
+1. First start test in Composer window:
 ```python
 {
   "command": "./run_tests.sh local integration",
   "explanation": "Running integration tests in Composer window",
   "is_background": true,  # CRITICAL: Must be true to use Composer window
+  "require_user_approval": false
+}
+```
+2. Then IMMEDIATELY start log monitoring in agent window:
+```python
+{
+  "command": "tail -f logs/test_run_local_integration_*.log",
+  "explanation": "Monitoring test output in agent window",
+  "is_background": false,
   "require_user_approval": false
 }
 ```
@@ -71,17 +101,18 @@ When fixing issues or making changes:
    - MUST proceed to Trunk when passing
 
 3. Move to Trunk (Full Unit Suite)
-   - Run in Composer window
+   - Run in Composer window with log monitoring
    - If failures, identify failing test and go back to Root Tendril
    - MUST proceed to Branches when passing
 
 4. Move to Branches (Smoke Tests)
-   - Run in Composer window
+   - Run in Composer window with log monitoring
    - If failures, trace back to appropriate Root System
    - Consider moving to Canopy if changes warrant
 
 5. Move to Canopy (Integration Tests)
    - Run if changes affect multiple systems
+   - Run in Composer window with log monitoring
    - If failures, trace back to appropriate level
 
 ### Critical Rules
@@ -92,6 +123,30 @@ When fixing issues or making changes:
 5. NEVER interrupt tests unless they fail
 6. ALWAYS use Composer window for Trunk level and above
 7. ALWAYS wait for completion signal before proceeding
+8. ALWAYS monitor test output in real-time for Trunk level and above
+
+### Log Monitoring Rules
+1. NEVER kill the log monitoring command (tail -f)
+   - Let it run until test completion
+   - Expect periods of no output (up to 1 minute)
+   - Only stop if test fails and debugging is needed
+
+2. ALWAYS check the most recent test run logs
+   - Look at timestamp in log filename
+   - Most recent timestamp = current test run
+   - Older timestamps = previous test runs
+
+3. Monitor logs in real-time
+   - Keep log window visible
+   - Watch for test progress
+   - Look for error messages
+   - Note any warnings
+
+4. Log files contain critical information
+   - Test output and errors
+   - Debug information
+   - Progress indicators
+   - Final results
 
 ### Status File Handling
 Each test level above Root System uses timestamped status files:
@@ -112,4 +167,5 @@ Each test level above Root System uses timestamped status files:
 All test runs above Root System level generate timestamped log files:
 - Location: `logs/test_run_MODE_TYPE_TIMESTAMP.log`
 - Contains full test output and debug information
-- Preserved for debugging and analysis 
+- Preserved for debugging and analysis
+- MUST be monitored in real-time during test execution 
