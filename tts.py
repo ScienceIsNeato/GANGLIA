@@ -313,9 +313,8 @@ class GoogleTTS(TextToSpeech):
                 initial_delay=1.0,
                 thread_id=thread_id
             )
-        except (tts.TextToSpeechError, IOError) as e:
+        except (Exception, IOError) as e:
             Logger.print_error(
                 f"{thread_prefix}Error converting text to speech: {e}"
             )
             return False, None
-

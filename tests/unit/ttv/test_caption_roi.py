@@ -115,4 +115,4 @@ def test_roi_activity_detection():
     
     _, y, _, height = roi
     # ROI should prefer the quiet bottom half
-    assert y + height > 250, "ROI should prefer low-activity region" 
+    assert y + height > 250, "ROI should prefer low-activity region"

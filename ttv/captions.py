@@ -18,7 +18,7 @@ import numpy as np
 from logger import Logger
 from utils import run_ffmpeg_command
 from .caption_roi import find_roi_in_frame
-from .color_utils import get_contrasting_color, get_vibrant_palette
+from .color_utils import get_vibrant_palette
 
 def get_default_font() -> str:
     """Get default font name."""
