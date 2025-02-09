@@ -17,6 +17,7 @@ import pytest
 # Local application imports
 from utils import get_tempdir
 from ttv.log_messages import LOG_TTV_DIR_CREATED
+from tests.integration.test_data.config_generator import generate_config
 from tests.integration.test_helpers import (
     validate_segment_count,
     validate_audio_video_durations,
@@ -25,12 +26,10 @@ from tests.integration.test_helpers import (
     validate_closing_credits_duration,
     validate_background_music,
     validate_gcs_upload,
+    validate_caption_accuracy
 )
 
 logger = logging.getLogger(__name__)
-
-# Path to the test config files
-GENERATED_PIPELINE_CONFIG = "tests/integration/test_data/generated_pipeline_config.json"
 
 @pytest.mark.costly
 def test_generated_pipeline_execution():
@@ -43,6 +42,7 @@ def test_generated_pipeline_execution():
     4. Closing credits generation and assembly
     5. Final video compilation and validation
     6. GCS upload validation
+    7. Caption accuracy validation
     """
     # Skip if GCS credentials are not configured
     bucket_name = os.getenv('GCP_BUCKET_NAME')
@@ -52,8 +52,12 @@ def test_generated_pipeline_execution():
 
     print("\n=== Starting Generated Pipeline Integration Test ===")
 
+    # Generate a config file
+    config_path = os.path.join(get_tempdir(), "generated_pipeline_config.json")
+    generate_config(config_path)
+
     # Run the TTV command and capture output
-    command = f"PYTHONUNBUFFERED=1 python ganglia.py --text-to-video --ttv-config {GENERATED_PIPELINE_CONFIG}"
+    command = f"PYTHONUNBUFFERED=1 python ganglia.py --text-to-video --ttv-config {config_path}"
     output = ""  # Initialize output here
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     for line in iter(process.stdout.readline, b''):
@@ -68,31 +72,32 @@ def test_generated_pipeline_execution():
     with open(get_tempdir() + "/test_output.log", "w", encoding="utf-8") as f:
         f.write(output)
 
-    # Get the output directory from the output by getting everything after the : following `Created TTV directory` from the output
+    # Get the output directory from the output
     output_dir = output.split(LOG_TTV_DIR_CREATED)[1].split("\n")[0]
     print(f"Detected output directory: {output_dir}")
 
     # Validate all segments are present
-    validate_segment_count(output, GENERATED_PIPELINE_CONFIG)
+    validate_segment_count(output, config_path)
 
     # Validate segment durations
-    total_video_duration = validate_audio_video_durations(GENERATED_PIPELINE_CONFIG, output_dir)
+    total_video_duration = validate_audio_video_durations(config_path, output_dir)
 
     # Validate background music was added successfully
     validate_background_music(output)
 
     # Add closing credits duration to total video duration
-    closing_credits_duration = validate_closing_credits_duration(output, GENERATED_PIPELINE_CONFIG)
+    closing_credits_duration = validate_closing_credits_duration(output, config_path)
     total_video_duration += closing_credits_duration
 
     # Validate final video
     final_video_path = validate_final_video_path(output_dir)
     validate_total_duration(final_video_path, total_video_duration)
 
+    # Validate caption accuracy
+    validate_caption_accuracy(output, config_path)
+
     # Validate GCS upload
     validate_gcs_upload(bucket_name, project_name)
 
-    # Clean up
-    # os.remove(final_video_path)  # Commented out to preserve files for debugging
-    # uploaded_file.delete()  # Commented out to preserve GCS files for debugging
+
     print("\n=== Test Complete ===\n")

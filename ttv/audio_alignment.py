@@ -36,6 +36,72 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 torch.load = partial(torch.load, weights_only=True)
 
 whisper_lock = threading.Lock()
+_whisper_model = None
+_whisper_model_size = None
+_model_loading = False
+_model_loading_event = threading.Event()
+
+def get_whisper_model(model_size: str = "small") -> whisper.Whisper:
+    """Get or load Whisper model, ensuring thread safety and clean state.
+    
+    Args:
+        model_size: Size of model to load if not already loaded
+        
+    Returns:
+        whisper.Whisper: The loaded model instance
+    """
+    global _whisper_model, _whisper_model_size, _model_loading, _model_loading_event
+    
+    # Fast path - if model exists and is right size, return it
+    if _whisper_model is not None and _whisper_model_size == model_size:
+        # Clear model state before returning
+        if hasattr(_whisper_model, 'decoder') and hasattr(_whisper_model.decoder, '_kv_cache'):
+            _whisper_model.decoder._kv_cache = {}
+        return _whisper_model
+        
+    # If another thread is loading the model, wait for it
+    if _model_loading:
+        Logger.print_info("Waiting for Whisper model to be loaded by another thread...")
+        _model_loading_event.wait()
+        # After waiting, check if the model is what we need
+        if _whisper_model is not None and _whisper_model_size == model_size:
+            # Clear model state before returning
+            if hasattr(_whisper_model, 'decoder') and hasattr(_whisper_model.decoder, '_kv_cache'):
+                _whisper_model.decoder._kv_cache = {}
+            return _whisper_model
+    
+    # Slow path - need to load model
+    with whisper_lock:
+        # Double-check pattern
+        if _whisper_model is not None and _whisper_model_size == model_size:
+            # Clear model state before returning
+            if hasattr(_whisper_model, 'decoder') and hasattr(_whisper_model.decoder, '_kv_cache'):
+                _whisper_model.decoder._kv_cache = {}
+            return _whisper_model
+            
+        # Mark that we're loading the model and clear any previous event
+        _model_loading = True
+        _model_loading_event.clear()
+        
+        try:
+            # Load new model
+            _whisper_model = whisper.load_model(
+                model_size,
+                device="cpu",  # Force CPU usage
+                download_root=None,  # Use default download location
+                in_memory=True  # Keep model in memory
+            )
+            _whisper_model_size = model_size
+            
+            # Initialize empty cache
+            if hasattr(_whisper_model, 'decoder'):
+                _whisper_model.decoder._kv_cache = {}
+                
+            return _whisper_model
+        finally:
+            # Always mark loading as complete and notify waiters
+            _model_loading = False
+            _model_loading_event.set()
 
 @dataclass
 class WordTiming:
@@ -44,7 +110,7 @@ class WordTiming:
     start: float
     end: float
 
-def align_words_with_audio(audio_path: str, text: str, model_size: str = "tiny", max_retries: int = 5) -> List[WordTiming]:
+def align_words_with_audio(audio_path: str, text: str, model_size: str = "small", max_retries: int = 5) -> List[WordTiming]:
     """
     Analyze audio file to generate word-level timings.
     Uses Whisper ASR to perform forced alignment between the audio and text.
@@ -59,20 +125,17 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "tiny",
     Returns:
         List of WordTiming objects containing word-level alignments
     """
-
-    # Use a lock to ensure only one thread can load the Whisper model at a time
-    with whisper_lock:
-        for attempt in range(max_retries):
-            try:
-                # Load Whisper model with safe settings
-                model = whisper.load_model(
-                    model_size,
-                    device="cpu",  # Force CPU usage
-                    download_root=None,  # Use default download location
-                    in_memory=True  # Keep model in memory
-                )
-                
-                # Get word-level timestamps from audio
+    for attempt in range(max_retries):
+        try:
+            # Get model instance
+            model = get_whisper_model(model_size)
+            
+            # Clear any existing cache
+            if hasattr(model, 'decoder') and hasattr(model.decoder, '_kv_cache'):
+                model.decoder._kv_cache = {}
+            
+            # Get word-level timestamps from audio
+            with whisper_lock:  # Add lock around model usage
                 result = model.transcribe(
                     audio_path,
                     word_timestamps=True,
@@ -85,49 +148,49 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "tiny",
                     compression_ratio_threshold=2.0,  # Help detect hallucinations
                     best_of=5  # Try multiple candidates and take the best one
                 )
-                
-                if not result or "segments" not in result:
-                    Logger.print_error(f"Failed to transcribe audio on attempt {attempt + 1}")
-                    if attempt < max_retries - 1:
-                        Logger.print_info(f"Retrying whisper alignment (attempt {attempt + 1}/{max_retries})")
-                        time.sleep(0.5)  # Add a small delay between retries
-                        continue
-                    return create_evenly_distributed_timings(audio_path, text)
-                
-                # Extract word timings from result
-                word_timings = []
-                for segment in result["segments"]:
-                    if "words" in segment:
-                        for word in segment["words"]:
-                            # Check if word has the required fields
-                            if isinstance(word, dict) and "word" in word and "start" in word and "end" in word:
-                                word_timings.append(WordTiming(
-                                    text=word["word"].strip(),
-                                    start=word["start"],
-                                    end=word["end"]
-                                ))
-                
-                if not word_timings:
-                    Logger.print_error(f"No word timings found on attempt {attempt + 1}")
-                    if attempt < max_retries - 1:
-                        Logger.print_info(f"Retrying whisper alignment (attempt {attempt + 1}/{max_retries})")
-                        time.sleep(0.5)  # Add a small delay between retries
-                        continue
-                    return create_evenly_distributed_timings(audio_path, text)
-                
-                # If we get here, the attempt was successful
-                if attempt > 0:
-                    Logger.print_info(f"✓ Whisper alignment succeeded on attempt {attempt + 1}")
-                return word_timings
-
-            except Exception as e:
-                # Just log the error message without the stack trace
-                Logger.print_error(f"Whisper alignment failed on attempt {attempt + 1}: {str(e)}")
+            
+            if not result or "segments" not in result:
+                Logger.print_error(f"No segments found in result on attempt {attempt + 1}")
                 if attempt < max_retries - 1:
                     Logger.print_info(f"Retrying whisper alignment (attempt {attempt + 1}/{max_retries})")
                     time.sleep(0.5)  # Add a small delay between retries
                     continue
                 return create_evenly_distributed_timings(audio_path, text)
+            
+            # Extract word timings from result
+            word_timings = []
+            for segment in result["segments"]:
+                if "words" in segment:
+                    for word in segment["words"]:
+                        # Check if word has the required fields
+                        if isinstance(word, dict) and "word" in word and "start" in word and "end" in word:
+                            word_timings.append(WordTiming(
+                                text=word["word"].strip(),
+                                start=word["start"],
+                                end=word["end"]
+                            ))
+            
+            if not word_timings:
+                Logger.print_error(f"No word timings found on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    Logger.print_info(f"Retrying whisper alignment (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(0.5)  # Add a small delay between retries
+                    continue
+                return create_evenly_distributed_timings(audio_path, text)
+            
+            # If we get here, the attempt was successful
+            if attempt > 0:
+                Logger.print_info(f"✓ Whisper alignment succeeded on attempt {attempt + 1}")
+            return word_timings
+
+        except Exception as e:
+            # Just log the error message without the stack trace
+            Logger.print_error(f"Whisper alignment failed on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries - 1:
+                Logger.print_info(f"Retrying whisper alignment (attempt {attempt + 1}/{max_retries})")
+                time.sleep(0.5)  # Add a small delay between retries
+                continue
+            return create_evenly_distributed_timings(audio_path, text)
     
     # If we get here, all retries failed
     Logger.print_error(f"All {max_retries} whisper alignment attempts failed, falling back to even distribution")
@@ -183,7 +246,7 @@ def create_evenly_distributed_timings(audio_path: str, text: str) -> List[WordTi
 def create_word_level_captions(
     audio_file: str,
     text: str,
-    model_name: str = "base",
+    model_name: str = "small",
     thread_id: str = None
 ) -> List[CaptionEntry]:
     """Create word-level captions by aligning text with audio using Whisper.
@@ -191,7 +254,7 @@ def create_word_level_captions(
     Args:
         audio_file: Path to the audio file
         text: Text to align with audio
-        model_name: Whisper model name to use (default: "base")
+        model_name: Whisper model name to use (default: "small")
         thread_id: Optional thread ID for logging
         
     Returns:
@@ -204,15 +267,16 @@ def create_word_level_captions(
             f"{thread_prefix}Creating word-level captions for: {audio_file}"
         )
 
-        # Load model with retries using exponential backoff
+        # Load model and process with retries using exponential backoff
         def load_and_process_model():
+            model = get_whisper_model(model_name)
+            
+            # Clear any existing cache
+            if hasattr(model, 'decoder') and hasattr(model.decoder, '_kv_cache'):
+                model.decoder._kv_cache = {}
+            
+            # Process audio with lock
             with whisper_lock:
-                model = whisper.load_model(
-                    model_name,
-                    device="cpu",  # Force CPU usage
-                    download_root=None,  # Use default download location
-                    in_memory=True  # Keep model in memory
-                )
                 result = model.transcribe(
                     audio_file,
                     word_timestamps=True,
@@ -225,7 +289,7 @@ def create_word_level_captions(
                     compression_ratio_threshold=2.0,  # Help detect hallucinations
                     best_of=5  # Try multiple candidates and take the best one
                 )
-                return model, result
+            return model, result
 
         # Use exponential backoff for model loading and processing
         _, result = exponential_backoff(

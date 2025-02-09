@@ -168,7 +168,7 @@ def calculate_word_position(
 ) -> Tuple[int, int, int, int, bool]:
     """Calculate position for a word in the caption window."""
     # Calculate buffer pixels based on font size
-    buffer_pixels = max(int(word.font_size / 2), 12)  # Increased buffer and minimum size
+    buffer_pixels = max(int(word.font_size * 0.4), 8)  # Reduced from 0.5 to 0.4
     
     # Calculate word position
     if previous_word is None:
@@ -192,7 +192,7 @@ def calculate_word_position(
 
     # Word doesn't fit - check if we have room for a new line
     # Add extra vertical buffer between lines
-    vertical_buffer = max(int(line_height / 2), 12)  # Increased line height buffer
+    vertical_buffer = max(int(line_height * 0.4), 8)  # Reduced from 0.5 to 0.4
     if cursor_y + (2 * line_height) + vertical_buffer <= roi_height:
         # Start new line
         word_x = 0
@@ -256,11 +256,14 @@ def create_caption_windows(
         
         # Update word position and line number
         word.x_position = word_x
-        word.line_number = int(word_y / (word.font_size * 1.2))
+        # Calculate line number based on y position, accounting for line height and vertical buffer
+        vertical_buffer = max(int(word.font_size * 1.2 * 0.4), 8)  # Same as in calculate_word_position
+        line_spacing = word.font_size * 1.2 + vertical_buffer
+        word.line_number = int(word_y / line_spacing)
         current_window_words.append(word)
         cursor_x = new_cursor_x
         cursor_y = new_cursor_y
-        if cursor_y > line_number * (word.font_size * 1.2):
+        if cursor_y > line_number * line_spacing:
             line_number += 1
         i += 1
     
@@ -392,11 +395,15 @@ def _calculate_clip_dimensions(
     shadow_offset: Tuple[int, int]
 ) -> Tuple[Tuple[int, int], Tuple[int, int, int, int]]:
     """Calculate clip dimensions and margins."""
-    horizontal_padding = border_thickness * 2 + int(shadow_offset[0] * 1.5)
+    # Calculate padding to account for stroke and shadow
+    # Use border thickness for stroke and shadow offset for shadow
+    horizontal_padding = (border_thickness + shadow_offset[0]) * 2
     clip_width = int(word.width + horizontal_padding)
-    clip_height = int(word.font_size * 1.5)
+    clip_height = int(word.font_size * 1.5)  # Keep original height ratio
+    
+    # Center the text in the clip by using equal margins
     margin_left = horizontal_padding // 2
-    margin_bottom = int(word.font_size * 0.2)
+    margin_bottom = int(word.font_size * 0.2)  # Keep original bottom margin
     
     return (clip_width, clip_height), (margin_left, 0, 0, margin_bottom)
 

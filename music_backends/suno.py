@@ -1,9 +1,8 @@
 import os
 import time
 import json
-import requests
-import re
 from datetime import datetime
+import requests
 from lyrics_lib import LyricsGenerator
 from logger import Logger
 from music_backends.base import MusicBackend
@@ -155,14 +154,15 @@ class SunoMusicBackend(MusicBackend):
             
             style = lyrics_data.get('style', 'pop')
             lyrics = lyrics_data.get('lyrics', '')
-            # Combine the config prompt with the generated style
-            full_prompt = f"A 30-second {style} song with lyrics that match this theme: {prompt}\nLyrics:\n{lyrics}"
             
-            endpoint = f"{self.api_base_url}/gateway/generate/music"
+            endpoint = f"{self.api_base_url}/gateway/generate/gpt_desc"
+            
+            # Create a natural language prompt that includes style and lyrics
+            commercial_prompt = f"Create a 30-second {style} song with these exact lyrics:\n{lyrics}"
+            
             data = {
-                "title": "Generated Song",
-                "tags": "general",
-                "prompt": full_prompt,
+                "gpt_description_prompt": commercial_prompt,
+                "make_instrumental": False,  # This is a lyrical song
                 "mv": model
             }
 
@@ -170,10 +170,20 @@ class SunoMusicBackend(MusicBackend):
             api_key = self.headers['api-key']
             masked_key = f"{api_key[:2]}{'*' * (len(api_key)-4)}{api_key[-2:]}"
             logging_headers['api-key'] = masked_key
+            Logger.print_info(f"Generated lyrics: {lyrics_data}")
             Logger.print_info(f"Sending request to {endpoint} with data: {data} and headers: {logging_headers}")
                 
             response = requests.post(endpoint, headers=self.headers, json=data)
             if response.status_code != 200:
+                try:
+                    error_detail = response.json()
+                    Logger.print_error(f"Failed to start lyrical music job. Status: {response.status_code}, Response: {error_detail}")
+                    if 'detail' in error_detail:
+                        Logger.print_error(f"Error detail: {error_detail['detail']}")
+                    if 'message' in error_detail:
+                        Logger.print_error(f"Error message: {error_detail['message']}")
+                except json.JSONDecodeError:
+                    Logger.print_error(f"Failed to start lyrical music job. Status: {response.status_code}, Raw response: {response.text}")
                 return None
             
             response_data = response.json()

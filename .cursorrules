@@ -169,3 +169,17 @@ All test runs above Root System level generate timestamped log files:
 - Contains full test output and debug information
 - Preserved for debugging and analysis
 - MUST be monitored in real-time during test execution 
+
+## Decision Making and Proactivity Rules
+1. Be proactive - take your best guess and proceed rather than asking for confirmation
+2. When encountering a decision point:
+   - Make a reasoned choice based on available context
+   - Document the choice and rationale in your response
+   - Proceed with implementation
+   - Let the user course-correct if needed
+3. Avoid blocking on user input unless absolutely necessary
+4. If multiple reasonable approaches exist:
+   - Choose the most likely one
+   - Note alternatives in your response
+   - Continue with implementation
+5. Bias towards action over asking questions 

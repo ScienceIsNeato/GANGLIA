@@ -6,6 +6,7 @@ of the TTV pipeline, including:
 - Background music integration
 - Closing credits generation
 - Final video assembly and validation
+- Caption accuracy validation
 
 Each test case validates:
 1. Audio/video duration matches for each segment
@@ -13,6 +14,7 @@ Each test case validates:
 3. Total video duration including credits
 4. Proper cleanup of temporary files
 5. GCS upload validation
+6. Caption accuracy against expected text
 """
 
 import logging
@@ -27,7 +29,8 @@ from tests.integration.test_helpers import (
     validate_closing_credits_duration,
     validate_segment_count,
     validate_background_music,
-    validate_gcs_upload
+    validate_gcs_upload,
+    validate_caption_accuracy
 )
 from utils import get_tempdir
 from ttv.log_messages import LOG_TTV_DIR_CREATED
@@ -48,6 +51,7 @@ def test_simulated_pipeline_execution():
     4. Closing credits generation and assembly
     5. Final video compilation and validation
     6. GCS upload validation
+    7. Caption accuracy validation
     """
     # Skip if GCS credentials are not configured
     bucket_name = os.getenv('GCP_BUCKET_NAME')
@@ -102,6 +106,9 @@ def test_simulated_pipeline_execution():
     # Validate final video
     final_video_path = validate_final_video_path(output_dir)
     validate_total_duration(final_video_path, total_video_duration)
+
+    # Validate caption accuracy
+    validate_caption_accuracy(output, SIMULATED_PIPELINE_CONFIG)
 
     # Validate GCS upload
     validate_gcs_upload(bucket_name, project_name)

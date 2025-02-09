@@ -320,3 +320,70 @@ def validate_gcs_upload(bucket_name: str, project_name: str) -> storage.Blob:
     
     print(f"✓ Found uploaded file in GCS: {uploaded_file.name}")
     return uploaded_file
+
+def validate_caption_accuracy(output: str, config_path: str) -> None:
+    """Validate that Whisper's captions match the expected text for each segment.
+    
+    Args:
+        output: The test output containing Whisper's word data
+        config_path: Path to the config file containing expected text
+        
+    Raises:
+        AssertionError: If caption validation fails
+    """
+    print("\n=== Validating Caption Accuracy ===")
+    
+    try:
+        # Read expected text from config
+        with open(config_path, encoding='utf-8') as f:
+            config = json.loads(f.read())
+            expected_text = " ".join(config.get('story', []))
+    except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
+        raise AssertionError(f"Failed to read story from config: {e}") # pylint: disable=raise-missing-from
+    
+    # Extract word data from output
+    word_data_pattern = r"Word data: {'word': '([^']+)', 'start': np\.float64\(([^)]+)\), 'end': np\.float64\(([^)]+)\), 'probability': np\.float64\(([^)]+)\)}"
+    word_matches = list(re.finditer(word_data_pattern, output))
+    
+    # Collect all words, skipping closing credits numbers
+    actual_words = []
+    for match in word_matches:
+        word = match.group(1).strip()
+        # Skip closing credits numbers
+        if word.replace(',', '').strip().isdigit():
+            continue
+        actual_words.append(word)
+    
+    actual_text = " ".join(actual_words)
+    
+    # Print debug info
+    print("\nCaption validation:")
+    print(f"Expected: {expected_text}")
+    print(f"Actual:   {actual_text}")
+    
+    # Convert to lowercase and remove punctuation for comparison
+    expected_words = set(re.sub(r'[^\w\s]', '', expected_text.lower()).split())
+    actual_words = set(re.sub(r'[^\w\s]', '', actual_text.lower()).split())
+    
+    # Check for missing and extra words
+    missing_words = expected_words - actual_words
+    extra_words = actual_words - expected_words
+    
+    if missing_words:
+        print(f"Missing words: {sorted(missing_words)}")
+    if extra_words:
+        print(f"Extra words: {sorted(extra_words)}")
+    
+    # Calculate word match percentage
+    matched_words = len(expected_words & actual_words)
+    total_expected = len(expected_words)
+    match_percentage = (matched_words / total_expected) * 100 if total_expected > 0 else 0
+    print(f"Word match: {match_percentage:.1f}% ({matched_words}/{total_expected} words)")
+    
+    # Assert reasonable accuracy (at least 80% of words should match)
+    assert match_percentage >= 80.0, (
+        f"Caption accuracy too low: {match_percentage:.1f}% "
+        f"({matched_words}/{total_expected} words matched)"
+    )
+    
+    print("\n✓ All captions meet minimum accuracy threshold")
