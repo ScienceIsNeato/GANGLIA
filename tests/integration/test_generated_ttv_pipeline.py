@@ -26,7 +26,8 @@ from tests.integration.test_helpers import (
     validate_closing_credits_duration,
     validate_background_music,
     validate_gcs_upload,
-    validate_caption_accuracy
+    validate_caption_accuracy,
+    post_test_results_to_youtube
 )
 
 logger = logging.getLogger(__name__)
@@ -99,5 +100,28 @@ def test_generated_pipeline_execution():
     # Validate GCS upload
     validate_gcs_upload(bucket_name, project_name)
 
-
     print("\n=== Test Complete ===\n")
+
+    # Upload test results to YouTube if enabled
+    if os.getenv('UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE', 'false').lower() == 'true':
+        # Restore stdout/stderr
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        # Post results to YouTube if we have a final video
+        if final_video_path and os.path.exists(final_video_path):
+            try:
+                video_url = post_test_results_to_youtube(
+                    test_name="TTV Pipeline Integration Test (Generated)",
+                    final_video_path=final_video_path,
+                    additional_info={
+                        "python_version": sys.version,
+                        "platform": sys.platform,
+                        "environment": "local",
+                        "test_type": "integration"
+                    },
+                    config_path=config_path
+                )
+                print(f"\nIntegration test results uploaded to YouTube: {video_url}")
+            except Exception as e:
+                print(f"Failed to upload integration test results to YouTube: {e}")

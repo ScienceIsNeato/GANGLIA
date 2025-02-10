@@ -6,7 +6,7 @@ ignore=CVS
 disable=
 
 # Files or directories to be skipped. They should be base names, not paths
-ignore-patterns=
+ignore-patterns=ganglia_minified/*
 
 [FORMAT]
 # Maximum number of characters on a single line
@@ -34,7 +34,7 @@ good-names=i,j,k,ex,Run,_,id,f
 known-standard-library=
 
 # Force import order to recognize a module as part of a third party library
-known-third-party=numpy,torch,soundfile,transformers,requests,openai
+known-third-party=numpy,torch,soundfile,transformers,requests,openai,opencv-python,cv2
 
 [MESSAGES CONTROL]
 # Only show warnings with the listed confidence levels

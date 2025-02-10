@@ -14,7 +14,8 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from logger import Logger
-from utils import run_ffmpeg_command, upload_to_gcs
+from utils.ffmpeg_utils import run_ffmpeg_command
+from utils.cloud_utils import upload_to_gcs
 from .audio_alignment import create_word_level_captions
 from .captions import CaptionEntry, create_dynamic_captions, create_static_captions
 
@@ -90,7 +91,7 @@ def concatenate_video_segments(
     Args:
         video_segments: List of video file paths to concatenate
         output_dir: Directory for output files
-        force_reencode: Whether to force re-encoding of streams (needed for closing credits)
+        force_reencode: Whether to force re-encoding of all streams
         
     Returns:
         Optional[str]: Path to output video if successful, None otherwise
@@ -124,8 +125,23 @@ def concatenate_video_segments(
             # Re-encode both video and audio streams
             cmd = base_cmd + VIDEO_ENCODING_ARGS + AUDIO_ENCODING_ARGS + [output_path]
         else:
-            # Just copy streams without re-encoding
-            cmd = base_cmd + ["-c", "copy", output_path]
+            # Copy video stream but re-encode audio with crossfade
+            # First normalize audio to consistent format
+            filter_complex = (
+                # Convert all audio to consistent format
+                "[0:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+                # Add 50ms crossfade between segments
+                "acrossfade=d=0.05:c1=tri:c2=tri[aout]"
+            )
+            
+            cmd = base_cmd + [
+                # Copy video stream
+                "-c:v", "copy",
+                # Add audio filter
+                "-filter_complex", filter_complex,
+                "-map", "0:v",  # Map video from input
+                "-map", "[aout]"  # Map processed audio
+            ] + AUDIO_ENCODING_ARGS + [output_path]
 
         result = run_ffmpeg_command(cmd)
         if not result:

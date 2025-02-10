@@ -22,6 +22,15 @@ from ttv.log_messages import (
     LOG_BACKGROUND_MUSIC_SUCCESS,
     LOG_BACKGROUND_MUSIC_FAILURE
 )
+import datetime
+import tempfile
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+import cv2
+import numpy as np
+
+from social_media.youtube_client import YouTubeClient
 
 logger = logging.getLogger(__name__)
 
@@ -387,3 +396,137 @@ def validate_caption_accuracy(output: str, config_path: str) -> None:
     )
     
     print("\n✓ All captions meet minimum accuracy threshold")
+
+def get_git_description() -> str:
+    """Get description from either PR or latest commit."""
+    try:
+        # Try to get PR description first
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "title,body"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            pr_info = json.loads(result.stdout)
+            return f"{pr_info['title']}\n\n{pr_info['body']}"
+    except Exception:
+        pass  # Fall back to commit message
+    
+    try:
+        # Get the most recent commit message
+        result = subprocess.run(
+            ["git", "log", "-1", "--pretty=%B"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    
+    return "No description available"
+
+def post_test_results_to_youtube(
+    test_name: str,
+    final_video_path: str,
+    additional_info: Optional[Dict[str, Any]] = None,
+    config_path: Optional[str] = None
+) -> str:
+    """Post integration test results to YouTube.
+    
+    Args:
+        test_name: Name of the test that was run
+        final_video_path: Path to the final generated video
+        additional_info: Optional dictionary of additional information to include
+        config_path: Optional path to the config file used to generate the video
+        
+    Returns:
+        str: URL of the uploaded video
+    """
+    if not os.path.exists(final_video_path):
+        raise FileNotFoundError(f"Final video not found at: {final_video_path}")
+
+    def sanitize_text(text: str, max_length: int = 5000) -> str:
+        """Sanitize text for YouTube description."""
+        # Remove ANSI escape codes
+        text = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', text)
+        # Keep only printable ASCII characters
+        text = ''.join(char for char in text if char.isprintable() or char in '\n\t')
+        # Truncate if too long
+        if len(text) > max_length:
+            text = text[:max_length-3] + "..."
+        return text
+        
+    # Get description from git
+    description = get_git_description()
+    
+    # Add project information
+    project_info = [
+        "",
+        "🌟 About GANGLIA",
+        "GANGLIA is an open-source project that automates the creation of engaging social media content.",
+        "It uses AI to generate and synchronize video, audio, and captions for a seamless storytelling experience.",
+        "",
+        "🔗 Project Links",
+        "- GitHub: https://github.com/ScienceIsNeato/ganglia",
+        "",
+        "🎯 Purpose of Integration Tests",
+        "These videos are automatically generated during our integration tests to:",
+        "1. Demonstrate the current capabilities of GANGLIA",
+        "2. Track improvements and changes over time",
+        "3. Help identify potential bugs or areas for enhancement",
+        ""
+    ]
+    
+    # Add config information if provided
+    config_info = []
+    if config_path and os.path.exists(config_path):
+        try:
+            with open(config_path, encoding='utf-8') as f:
+                config = json.loads(f.read())
+                config_info = [
+                    "",
+                    "📝 Configuration Used",
+                    "```json",
+                    json.dumps(config, indent=2),
+                    "```",
+                    ""
+                ]
+        except Exception as e:
+            logger.warning(f"Failed to read config file: {e}")
+    
+    # Add metadata at the end
+    metadata_lines = [
+        "",
+        "🔍 Test Information",
+        f"Test: {test_name}",
+        f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    ]
+    
+    if additional_info:
+        metadata_lines.extend([
+            "",
+            "💻 System Information",
+            "```json",
+            json.dumps(additional_info, indent=2),
+            "```"
+        ])
+    
+    # Combine all sections and sanitize
+    full_description = description + "\n" + "\n".join(project_info + config_info + metadata_lines)
+    sanitized_description = sanitize_text(full_description)
+    
+    # Upload to YouTube
+    client = YouTubeClient()
+    result = client.upload_video(
+        final_video_path,
+        title=f"GANGLIA Integration Test: {test_name}",
+        description=sanitized_description,
+        privacy_status="public",  # Make videos public for community feedback
+        tags=["ganglia", "integration-test", "automation", "ai", "video-generation", "python"]
+    )
+    
+    if not result.success:
+        raise RuntimeError(f"Failed to upload test results: {result.error}")
+    
+    return f"https://www.youtube.com/watch?v={result.video_id}"
