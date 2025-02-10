@@ -113,7 +113,7 @@ def test_thread_count_local_environment():
 
 def test_memory_limit():
     """Test thread count adjustment based on memory limits."""
-    with patch('utils.get_system_info') as mock_sys:
+    with patch('utils.ffmpeg_utils.get_system_info') as mock_sys:
         mock_sys.return_value = {
             'total_cores': 8,
             'total_memory': 8 * 1024 * 1024 * 1024,  # 8GB in bytes

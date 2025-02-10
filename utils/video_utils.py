@@ -1,5 +1,6 @@
 """Video generation and manipulation utilities."""
 
+# pylint: disable=no-member
 import os
 import random
 import tempfile

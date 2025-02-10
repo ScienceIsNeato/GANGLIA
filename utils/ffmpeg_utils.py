@@ -48,25 +48,21 @@ def get_ffmpeg_thread_count(is_ci: Optional[bool] = None) -> int:
         ci_value = os.environ.get('CI', '')
         is_ci = ci_value.lower() == 'true' if ci_value is not None else False
 
-    # Memory-based thread limiting for all environments
+    # Memory-based thread limiting takes precedence
     # Use fewer threads when memory is constrained
     if memory_gb < 4:
-        return 2
-    elif memory_gb < 8:
+        return min(2, cpu_count)
+    elif memory_gb <= 8:
         return min(4, cpu_count)
     elif memory_gb < 16:
         return min(6, cpu_count)
 
-    # After memory checks, apply environment-specific limits
+    # For systems with ample memory (16GB+), apply environment-specific limits
     if is_ci:
         # In CI: Use cpu_count/2 with min 2, max 4 threads
-        if cpu_count <= 2:
-            return 2
-        if cpu_count == 4:
-            return 4
-        return min(4, cpu_count // 2)
+        return min(4, max(2, cpu_count // 2))
 
-    # In production: Use 1.5x CPU count, capped at 16 threads
+    # In production with ample memory: Use 1.5x CPU count, capped at 16 threads
     # For single core systems, use just 1 thread
     if cpu_count == 1:
         return 1
@@ -129,13 +125,16 @@ class FFmpegThreadManager:
             int: Number of threads to allocate for this operation
         """
         with self.lock:
-            if not self.active_operations:
-                # First operation gets full thread count
-                return get_ffmpeg_thread_count()
-
-            # For subsequent operations, use a reduced thread count
+            # Get base thread count which already includes memory limits
             base_thread_count = get_ffmpeg_thread_count()
-            return max(2, base_thread_count // (len(self.active_operations) + 1))
+            
+            if not self.active_operations:
+                # First operation gets base thread count (already memory limited)
+                return base_thread_count
+
+            # For subsequent operations, reduce thread count based on active operations
+            # but never exceed the base memory-limited thread count
+            return min(base_thread_count, max(2, base_thread_count // (len(self.active_operations) + 1)))
 
     def cleanup(self) -> None:
         """Clean up resources and reset state."""
