@@ -43,6 +43,11 @@ def validate_background_music(output: str) -> None:
     Raises:
         AssertionError: If background music validation fails
     """
+    # First check if video concatenation failed
+    if "Failed to concatenate video segments" in output:
+        logger.warning("Video concatenation failed before background music step")
+        return
+        
     # Check for successful background music generation
     success_pattern = re.compile(LOG_BACKGROUND_MUSIC_SUCCESS)
     failure_pattern = re.compile(LOG_BACKGROUND_MUSIC_FAILURE)

@@ -125,22 +125,12 @@ def concatenate_video_segments(
             # Re-encode both video and audio streams
             cmd = base_cmd + VIDEO_ENCODING_ARGS + AUDIO_ENCODING_ARGS + [output_path]
         else:
-            # Copy video stream but re-encode audio with crossfade
-            # First normalize audio to consistent format
-            filter_complex = (
-                # Convert all audio to consistent format
-                "[0:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
-                # Add 50ms crossfade between segments
-                "acrossfade=d=0.05:c1=tri:c2=tri[aout]"
-            )
-            
+            # Copy video stream and normalize audio
             cmd = base_cmd + [
                 # Copy video stream
                 "-c:v", "copy",
-                # Add audio filter
-                "-filter_complex", filter_complex,
-                "-map", "0:v",  # Map video from input
-                "-map", "[aout]"  # Map processed audio
+                # Normalize audio to consistent format
+                "-af", f"aformat=sample_fmts=fltp:sample_rates={AUDIO_SAMPLE_RATE}:channel_layouts=stereo"
             ] + AUDIO_ENCODING_ARGS + [output_path]
 
         result = run_ffmpeg_command(cmd)
@@ -264,11 +254,9 @@ def assemble_final_video(
             )
             if main_video_with_background_music_path:
                 final_output_path = main_video_with_background_music_path
-                Logger.print_info(f"Successfully added background music from {music_path}")
-                Logger.print_info(f"Main video with music path: {main_video_with_background_music_path}")
             else:
                 Logger.print_warning("Failed to add background music, using video without music")
-                main_video_with_background_music_path = main_video_path
+                final_output_path = main_video_path
         else:
             Logger.print_info("No background music specified, skipping...")
             main_video_with_background_music_path = main_video_path
