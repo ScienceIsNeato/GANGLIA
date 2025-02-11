@@ -33,7 +33,12 @@ jobs:
 
     - name: Set up YouTube token
       run: |
+        # Decode and validate token
         echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
+        if ! jq empty /tmp/youtube_token.json 2>/dev/null; then
+          echo "Error: Invalid JSON in decoded token file"
+          exit 1
+        fi
         chmod 600 /tmp/youtube_token.json
       env:
         YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
@@ -87,6 +92,8 @@ jobs:
     - name: Set up YouTube token
       run: |
         echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
+        # Verify JSON format
+        jq empty /tmp/youtube_token.json || (echo "Invalid JSON in token file" && exit 1)
         chmod 600 /tmp/youtube_token.json
       env:
         YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
@@ -139,6 +146,8 @@ jobs:
     - name: Set up YouTube token
       run: |
         echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
+        # Verify JSON format
+        jq empty /tmp/youtube_token.json || (echo "Invalid JSON in token file" && exit 1)
         chmod 600 /tmp/youtube_token.json
       env:
         YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
