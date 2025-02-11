@@ -153,9 +153,11 @@ else
     if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
         # Copy from original credentials file
         echo "[DEBUG] Copying YouTube credentials from $YOUTUBE_CREDENTIALS_FILE"
-        if ! cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json"; then
-            echo "Error: Failed to copy YouTube credentials file"
-            exit 1
+        if [ "$YOUTUBE_CREDENTIALS_FILE" != "/tmp/youtube_credentials.json" ]; then
+            if ! cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json"; then
+                echo "Error: Failed to copy YouTube credentials file"
+                exit 1
+            fi
         fi
     else
         # Treat as JSON content
@@ -196,9 +198,11 @@ else
     if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
         # Copy from original token file
         echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE"
-        if ! cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json"; then
-            echo "Error: Failed to copy YouTube token file"
-            exit 1
+        if [ "$YOUTUBE_TOKEN_FILE" != "/tmp/youtube_token.json" ]; then
+            if ! cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json"; then
+                echo "Error: Failed to copy YouTube token file"
+                exit 1
+            fi
         fi
     else
         # Treat as JSON content
