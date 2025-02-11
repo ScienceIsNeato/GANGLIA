@@ -108,9 +108,11 @@ else
     if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
         # Local development with file path
         echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS"
-        if ! cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json"; then
-            echo "Error: Failed to copy credentials file"
-            exit 1
+        if [ "$GOOGLE_APPLICATION_CREDENTIALS" != "/tmp/gcp-credentials.json" ]; then
+            if ! cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json"; then
+                echo "Error: Failed to copy credentials file"
+                exit 1
+            fi
         fi
     else
         # Treat as JSON content
