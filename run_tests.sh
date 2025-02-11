@@ -105,19 +105,7 @@ else
     rm -rf "/tmp/gcp-credentials.json"
     touch "/tmp/gcp-credentials.json"
     
-    if [ -n "$CI" ]; then
-        # In CI, credentials should be base64 decoded from GOOGLE_APPLICATION_CREDENTIALS
-        echo "[DEBUG] Running in CI, decoding base64 GAC from GOOGLE_APPLICATION_CREDENTIALS"
-        if ! echo "$GOOGLE_APPLICATION_CREDENTIALS" | base64 -d > "/tmp/gcp-credentials.json"; then
-            echo "Error: Failed to decode base64 credentials"
-            exit 1
-        fi
-        # Verify the file is not empty and contains valid JSON
-        if ! jq empty "/tmp/gcp-credentials.json" 2>/dev/null; then
-            echo "Error: Invalid JSON in credentials file"
-            exit 1
-        fi
-    elif [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+    if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
         # Local development with file path
         echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS"
         if ! cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json"; then
@@ -125,12 +113,18 @@ else
             exit 1
         fi
     else
-        # Fallback - treat as JSON content
+        # Treat as JSON content
         echo "[DEBUG] GAC provided as content"
         if ! printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > "/tmp/gcp-credentials.json"; then
             echo "Error: Failed to write credentials content"
             exit 1
         fi
+    fi
+    
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/gcp-credentials.json" 2>/dev/null; then
+        echo "Error: Invalid JSON in credentials file"
+        exit 1
     fi
 fi
 
@@ -155,14 +149,14 @@ else
     touch "/tmp/youtube_credentials.json"
     
     if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
-        # Local development - copy from original credentials file
+        # Copy from original credentials file
         echo "[DEBUG] Copying YouTube credentials from $YOUTUBE_CREDENTIALS_FILE"
         if ! cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json"; then
             echo "Error: Failed to copy YouTube credentials file"
             exit 1
         fi
     else
-        # CI or direct content - use environment variable content
+        # Treat as JSON content
         echo "[DEBUG] Using YouTube credentials from environment variable"
         if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
             echo "Error: Failed to write YouTube credentials content"
@@ -170,8 +164,8 @@ else
         fi
     fi
     
-    # Verify the file contains valid JSON
-    if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
+    # Verify the file contains valid JSON (if file is not empty)
+    if [ -s "/tmp/youtube_credentials.json" ] && ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube credentials file"
         exit 1
     fi
@@ -198,14 +192,14 @@ else
     touch "/tmp/youtube_token.json"
     
     if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
-        # Local development - copy from original token file
+        # Copy from original token file
         echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE"
         if ! cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json"; then
             echo "Error: Failed to copy YouTube token file"
             exit 1
         fi
     else
-        # CI or direct content - use environment variable content
+        # Treat as JSON content
         echo "[DEBUG] Using YouTube token from environment variable"
         if ! printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json"; then
             echo "Error: Failed to write YouTube token content"
@@ -213,8 +207,8 @@ else
         fi
     fi
     
-    # Verify the file contains valid JSON
-    if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
+    # Verify the file contains valid JSON (if file is not empty)
+    if [ -s "/tmp/youtube_token.json" ] && ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube token file"
         exit 1
     fi
