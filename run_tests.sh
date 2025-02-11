@@ -143,8 +143,8 @@ chmod 600 "/tmp/gcp-credentials.json"
 if [ -f "/tmp/youtube_credentials.json" ]; then
     echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
     
-    # Verify the file contains valid JSON (if file is not empty)
-    if [ -s "/tmp/youtube_credentials.json" ] && ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube credentials file"
         exit 1
     fi
@@ -156,24 +156,18 @@ else
     rm -rf "/tmp/youtube_credentials.json"
     touch "/tmp/youtube_credentials.json"
     
-    # Treat as JSON content since file should already exist in CI
-    echo "[DEBUG] Using YouTube credentials from environment variable"
+    # Write credentials content
+    echo "[DEBUG] Writing YouTube credentials content"
     if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
         echo "Error: Failed to write YouTube credentials content"
         exit 1
     fi
     
-    # Verify the file contains valid JSON (if file is not empty)
-    if [ -s "/tmp/youtube_credentials.json" ] && ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube credentials file"
         exit 1
     fi
-fi
-
-# Verify the credentials file exists and is a regular file
-if [ ! -f "/tmp/youtube_credentials.json" ]; then
-    echo "Error: /tmp/youtube_credentials.json is not a regular file"
-    exit 1
 fi
 
 # Set restrictive permissions
@@ -183,8 +177,8 @@ chmod 600 "/tmp/youtube_credentials.json"
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
     
-    # Verify the file contains valid JSON (if file is not empty)
-    if [ -s "/tmp/youtube_token.json" ] && ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube token file"
         exit 1
     fi
@@ -196,24 +190,18 @@ else
     rm -rf "/tmp/youtube_token.json"
     touch "/tmp/youtube_token.json"
     
-    # Treat as JSON content since file should already exist in CI
-    echo "[DEBUG] Using YouTube token from environment variable"
+    # Write token content
+    echo "[DEBUG] Writing YouTube token content"
     if ! printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json"; then
         echo "Error: Failed to write YouTube token content"
         exit 1
     fi
     
-    # Verify the file contains valid JSON (if file is not empty)
-    if [ -s "/tmp/youtube_token.json" ] && ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube token file"
         exit 1
     fi
-fi
-
-# Verify the token file exists and is a regular file
-if [ ! -f "/tmp/youtube_token.json" ]; then
-    echo "Error: /tmp/youtube_token.json is not a regular file"
-    exit 1
 fi
 
 # Set restrictive permissions
