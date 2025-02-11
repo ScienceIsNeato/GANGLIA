@@ -309,6 +309,40 @@ docker build --build-arg GOOGLE_CREDENTIALS_PATH=/path/to/your/credentials.json 
 ### CI Environment
 In CI, credentials are handled automatically through GitHub Secrets. No additional setup is required.
 
+## Setting up YouTube Credentials for CI
+
+GANGLIA uses YouTube API for uploading test videos. For CI environments, you'll need to set up the appropriate credentials:
+
+1. First, obtain your YouTube OAuth credentials:
+   - Go to the [Google Cloud Console](https://console.cloud.google.com)
+   - Create a new project or select an existing one
+   - Enable the YouTube Data API v3
+   - Create OAuth 2.0 credentials
+   - Download the credentials JSON file
+
+2. Run the local setup once to generate a token:
+   ```bash
+   # Set the credentials file path
+   export YOUTUBE_CREDENTIALS_FILE=/path/to/your/credentials.json
+   
+   # Run any test that uses YouTube to trigger the OAuth flow
+   python -m pytest tests/third_party/test_youtube_live.py -v -s
+   ```
+   This will open a browser window for authentication and save the token.
+
+3. Base64 encode the token for GitHub Actions:
+   ```bash
+   base64 ~/.config/ganglia/youtube_token.json > youtube_token_base64.txt
+   ```
+
+4. Add the base64-encoded token as a GitHub Actions secret:
+   - Go to your repository settings
+   - Navigate to Secrets and Variables > Actions
+   - Create a new secret named `YOUTUBE_TOKEN_BASE64`
+   - Paste the contents of youtube_token_base64.txt
+
+This setup allows the CI environment to upload test videos to YouTube without requiring interactive authentication.
+
 ## Development Setup
 
 ### Setting up your development environment

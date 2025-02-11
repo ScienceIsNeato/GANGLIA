@@ -24,6 +24,12 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
+    - name: Set up YouTube credentials
+      run: |
+        mkdir -p ~/.config/ganglia
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > ~/.config/ganglia/youtube_token.json
+        chmod 600 ~/.config/ganglia/youtube_token.json
+
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
     
@@ -34,11 +40,15 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
+        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
       run: ./run_tests.sh docker unit
     
     - name: Clean up
       if: always()
-      run: rm -f /tmp/gcp-credentials.json
+      run: |
+        rm -f /tmp/gcp-credentials.json
+        rm -f ~/.config/ganglia/youtube_token.json
 
   smoke-tests:
     needs: unit-tests
@@ -58,6 +68,12 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
+    - name: Set up YouTube credentials
+      run: |
+        mkdir -p ~/.config/ganglia
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > ~/.config/ganglia/youtube_token.json
+        chmod 600 ~/.config/ganglia/youtube_token.json
+
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
     
@@ -68,11 +84,15 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'true'
+        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
       run: ./run_tests.sh docker smoke
     
     - name: Clean up
       if: always()
-      run: rm -f /tmp/gcp-credentials.json
+      run: |
+        rm -f /tmp/gcp-credentials.json
+        rm -f ~/.config/ganglia/youtube_token.json
 
   integration-tests:
     if: github.event_name == 'pull_request'
@@ -91,6 +111,12 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
+    - name: Set up YouTube credentials
+      run: |
+        mkdir -p ~/.config/ganglia
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > ~/.config/ganglia/youtube_token.json
+        chmod 600 ~/.config/ganglia/youtube_token.json
+
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
     
@@ -101,9 +127,13 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
+        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'true'
       run: ./run_tests.sh docker integration
     
     - name: Clean up
       if: always()
-      run: rm -f /tmp/gcp-credentials.json
+      run: |
+        rm -f /tmp/gcp-credentials.json
+        rm -f ~/.config/ganglia/youtube_token.json
 
