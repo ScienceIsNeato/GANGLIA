@@ -98,8 +98,8 @@ fi
 if [ -f "/tmp/gcp-credentials.json" ]; then
     echo "[DEBUG] GAC file already exists at /tmp/gcp-credentials.json"
 else
-    # Remove existing file
-    rm "/tmp/gcp-credentials.json"
+    # Clear current contents of GAC file
+    rm -rf "/tmp/gcp-credentials.json"
 
     if [ -n "$CI" ]; then
         # In CI, credentials should be base64 decoded from GOOGLE_APPLICATION_CREDENTIALS
@@ -120,8 +120,8 @@ fi
 if [ -f "/tmp/youtube_credentials.json" ]; then
     echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
 else
-    # Remove existing file
-    rm "/tmp/youtube_credentials.json"
+    # Clear current contents of YouTube credentials file
+    rm -rf "/tmp/youtube_credentials.json"
 
     if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
         # Local development - copy from original credentials file
@@ -138,8 +138,8 @@ fi
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
 else
-    # Remove existing file
-    rm  "/tmp/youtube_token.json"
+    # Clear current contents of YouTube token file
+    rm -rf "/tmp/youtube_token.json"
 
     if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
         # Local development - copy from original token file
