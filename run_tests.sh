@@ -142,6 +142,12 @@ chmod 600 "/tmp/gcp-credentials.json"
 # Setup YouTube credentials
 if [ -f "/tmp/youtube_credentials.json" ]; then
     echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
+    
+    # Verify the file contains valid JSON (if file is not empty)
+    if [ -s "/tmp/youtube_credentials.json" ] && ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube credentials file"
+        exit 1
+    fi
 else
     # Ensure parent directory exists
     mkdir -p "/tmp"
@@ -150,22 +156,11 @@ else
     rm -rf "/tmp/youtube_credentials.json"
     touch "/tmp/youtube_credentials.json"
     
-    if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
-        # Copy from original credentials file
-        echo "[DEBUG] Copying YouTube credentials from $YOUTUBE_CREDENTIALS_FILE"
-        if [ "$YOUTUBE_CREDENTIALS_FILE" != "/tmp/youtube_credentials.json" ]; then
-            if ! cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json"; then
-                echo "Error: Failed to copy YouTube credentials file"
-                exit 1
-            fi
-        fi
-    else
-        # Treat as JSON content
-        echo "[DEBUG] Using YouTube credentials from environment variable"
-        if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
-            echo "Error: Failed to write YouTube credentials content"
-            exit 1
-        fi
+    # Treat as JSON content since file should already exist in CI
+    echo "[DEBUG] Using YouTube credentials from environment variable"
+    if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
+        echo "Error: Failed to write YouTube credentials content"
+        exit 1
     fi
     
     # Verify the file contains valid JSON (if file is not empty)
@@ -187,6 +182,12 @@ chmod 600 "/tmp/youtube_credentials.json"
 # Setup YouTube token
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
+    
+    # Verify the file contains valid JSON (if file is not empty)
+    if [ -s "/tmp/youtube_token.json" ] && ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube token file"
+        exit 1
+    fi
 else
     # Ensure parent directory exists
     mkdir -p "/tmp"
@@ -195,22 +196,11 @@ else
     rm -rf "/tmp/youtube_token.json"
     touch "/tmp/youtube_token.json"
     
-    if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
-        # Copy from original token file
-        echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE"
-        if [ "$YOUTUBE_TOKEN_FILE" != "/tmp/youtube_token.json" ]; then
-            if ! cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json"; then
-                echo "Error: Failed to copy YouTube token file"
-                exit 1
-            fi
-        fi
-    else
-        # Treat as JSON content
-        echo "[DEBUG] Using YouTube token from environment variable"
-        if ! printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json"; then
-            echo "Error: Failed to write YouTube token content"
-            exit 1
-        fi
+    # Treat as JSON content since file should already exist in CI
+    echo "[DEBUG] Using YouTube token from environment variable"
+    if ! printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json"; then
+        echo "Error: Failed to write YouTube token content"
+        exit 1
     fi
     
     # Verify the file contains valid JSON (if file is not empty)
