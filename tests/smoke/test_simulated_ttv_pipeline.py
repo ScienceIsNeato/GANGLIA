@@ -31,9 +31,10 @@ from tests.integration.test_helpers import (
     validate_background_music,
     validate_gcs_upload,
     validate_caption_accuracy,
-    post_test_results_to_youtube
+    post_test_results_to_youtube,
+    get_output_dir_from_logs
 )
-from utils.file_utils import get_tempdir, get_timestamped_ttv_dir
+from utils.file_utils import get_tempdir
 
 logger = logging.getLogger(__name__)
 
@@ -83,17 +84,15 @@ def test_simulated_pipeline_execution():
     # Save output to a file for debugging
     with open(get_tempdir() + "/test_output.log", "w", encoding='utf-8') as f:
         f.write(output)
-
-    # Get the output directory directly
-    output_dir = get_timestamped_ttv_dir()
+    # Get output directory from logs
+    output_dir = get_output_dir_from_logs(output)
     print(f"Using TTV directory: {output_dir}")
-
     # Validate all segments are present
     validate_segment_count(output, SIMULATED_PIPELINE_CONFIG)
 
     # Validate segment durations
     total_video_duration = validate_audio_video_durations(
-        SIMULATED_PIPELINE_CONFIG, output_dir
+        SIMULATED_PIPELINE_CONFIG, output
     )
 
     # Validate background music was added successfully
@@ -104,6 +103,8 @@ def test_simulated_pipeline_execution():
         output, SIMULATED_PIPELINE_CONFIG
     )
     total_video_duration += closing_credits_duration
+
+
 
     # Validate final video
     final_video_path = validate_final_video_path(output_dir)

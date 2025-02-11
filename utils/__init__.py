@@ -11,6 +11,7 @@ from .ffmpeg_utils import (
 from .cloud_utils import upload_to_gcs, get_video_stream_url
 from .retry_utils import exponential_backoff
 from .video_utils import create_test_video, create_moving_rectangle_video
+from .test_utils import get_most_recent_test_logs, parse_test_log_timestamp, get_test_status
 
 __all__ = [
     'get_tempdir',
@@ -25,5 +26,8 @@ __all__ = [
     'get_video_stream_url',
     'exponential_backoff',
     'create_test_video',
-    'create_moving_rectangle_video'
+    'create_moving_rectangle_video',
+    'get_most_recent_test_logs',
+    'parse_test_log_timestamp',
+    'get_test_status'
 ] 

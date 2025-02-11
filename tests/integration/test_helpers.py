@@ -132,7 +132,24 @@ def validate_segment_count(output, config_path):
     print("✓ All story segments are present")
     return actual_segments
 
-def validate_audio_video_durations(config_path, output_dir):
+def get_output_dir_from_logs(output: str) -> str:
+    """Extract the TTV output directory from logs.
+    
+    Args:
+        output: The test output containing log messages
+        
+    Returns:
+        str: Path to the TTV output directory
+        
+    Raises:
+        AssertionError: If directory not found in logs
+    """
+    pattern = r"Created TTV directory: (.+)"
+    if match := re.search(pattern, output):
+        return match.group(1)
+    raise AssertionError("TTV directory not found in logs")
+
+def validate_audio_video_durations(config_path, output):
     """Validate that each audio file matches the corresponding video segment duration."""
     print("\n=== Validating Audio/Video Segment Durations ===")
     
@@ -143,6 +160,8 @@ def validate_audio_video_durations(config_path, output_dir):
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
         raise AssertionError(f"Failed to read story from config: {e}") # pylint: disable=raise-missing-from
 
+    # Get output directory from logs
+    output_dir = get_output_dir_from_logs(output)
     print(f"Checking {expected_segments} segments in {output_dir}")
     
     # First get all the segment files

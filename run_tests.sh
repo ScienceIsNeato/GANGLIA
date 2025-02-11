@@ -61,7 +61,7 @@ LOG_FILE="${SCRIPT_DIR}/logs/test_run_${MODE}_${TEST_TYPE}_${TIMESTAMP}.log"
 mkdir -p "/tmp/GANGLIA"
 
 # Clean up any stale credential files/directories
-rm -rf /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
+rm -rf /tmp/gcp-credentials.json* /tmp/youtube_credentials.json* /tmp/youtube_token.json*
 
 # Set status file based on test type
 case "$TEST_TYPE" in
@@ -96,38 +96,41 @@ fi
 
 # Setup Google credentials
 if [ -f "/tmp/gcp-credentials.json" ]; then
-    echo "[DEBUG] GAC file already exists at /tmp/gcp-credentials.json" | tee -a "$LOG_FILE"
+    echo "[DEBUG] GAC file already exists at /tmp/gcp-credentials.json"
 else
+    # Remove existing file
+    rm "/tmp/gcp-credentials.json"
+
     if [ -n "$CI" ]; then
         # In CI, credentials should be base64 decoded from GOOGLE_APPLICATION_CREDENTIALS
-        echo "[DEBUG] Running in CI, decoding base64 GAC from GOOGLE_APPLICATION_CREDENTIALS" | tee -a "$LOG_FILE"
-        echo "$GOOGLE_APPLICATION_CREDENTIALS" | base64 -d > /tmp/gcp-credentials.json
+        echo "[DEBUG] Running in CI, decoding base64 GAC from GOOGLE_APPLICATION_CREDENTIALS"
+        echo "$GOOGLE_APPLICATION_CREDENTIALS" | base64 -d > "/tmp/gcp-credentials.json.tmp" && mv "/tmp/gcp-credentials.json.tmp" "/tmp/gcp-credentials.json"
     elif [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
         # Local development with file path
-        echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS" | tee -a "$LOG_FILE"
-        cat "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/gcp-credentials.json
+        echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS"
+        cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json.tmp" && mv "/tmp/gcp-credentials.json.tmp" "/tmp/gcp-credentials.json"
     else
         # Fallback - treat as JSON content
-        echo "[DEBUG] GAC provided as content" | tee -a "$LOG_FILE"
-        printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/gcp-credentials.json
+        echo "[DEBUG] GAC provided as content"
+        printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > "/tmp/gcp-credentials.json.tmp" && mv "/tmp/gcp-credentials.json.tmp" "/tmp/gcp-credentials.json"
     fi
 fi
-
-# Set permissions on credentials
-chmod 600 /tmp/gcp-credentials.json
 
 # Setup YouTube credentials
 if [ -f "/tmp/youtube_credentials.json" ]; then
     echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
 else
+    # Remove existing file
+    rm "/tmp/youtube_credentials.json"
+
     if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
         # Local development - copy from original credentials file
         echo "[DEBUG] Copying YouTube credentials from $YOUTUBE_CREDENTIALS_FILE"
-        cat "$YOUTUBE_CREDENTIALS_FILE" > /tmp/youtube_credentials.json
+        cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json.tmp" && mv "/tmp/youtube_credentials.json.tmp" "/tmp/youtube_credentials.json"
     else
         # CI or direct content - use environment variable content
         echo "[DEBUG] Using YouTube credentials from environment variable"
-        printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > /tmp/youtube_credentials.json
+        printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json.tmp" && mv "/tmp/youtube_credentials.json.tmp" "/tmp/youtube_credentials.json"
     fi
 fi
 
@@ -135,18 +138,22 @@ fi
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
 else
+    # Remove existing file
+    rm  "/tmp/youtube_token.json"
+
     if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
         # Local development - copy from original token file
         echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE"
-        cat "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
+        cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json.tmp" && mv "/tmp/youtube_token.json.tmp" "/tmp/youtube_token.json"
     else
         # CI or direct content - use environment variable content
         echo "[DEBUG] Using YouTube token from environment variable"
-        printf "%s" "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
+        printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json.tmp" && mv "/tmp/youtube_token.json.tmp" "/tmp/youtube_token.json"
     fi
 fi
 
 # Set permissions on credentials
+chmod 600 /tmp/gcp-credentials.json
 chmod 600 /tmp/youtube_credentials.json
 chmod 600 /tmp/youtube_token.json
 
@@ -194,6 +201,9 @@ case $MODE in
                 -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
                 -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
                 -v /tmp/youtube_token.json:/tmp/youtube_token.json \
+                -v "${SCRIPT_DIR}/tests/integration/test_data:/app/tests/integration/test_data" \
+                -v "${SCRIPT_DIR}/tests/unit/ttv/test_data:/app/tests/unit/ttv/test_data" \
+                -v "/tmp/GANGLIA:/tmp/GANGLIA" \
                 -e OPENAI_API_KEY \
                 -e GCP_BUCKET_NAME \
                 -e GCP_PROJECT_NAME \
@@ -222,6 +232,9 @@ case $MODE in
             -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
             -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
             -v /tmp/youtube_token.json:/tmp/youtube_token.json \
+            -v "${SCRIPT_DIR}/tests/integration/test_data:/app/tests/integration/test_data" \
+            -v "${SCRIPT_DIR}/tests/unit/ttv/test_data:/app/tests/unit/ttv/test_data" \
+            -v "/tmp/GANGLIA:/tmp/GANGLIA" \
             -e OPENAI_API_KEY \
             -e GCP_BUCKET_NAME \
             -e GCP_PROJECT_NAME \
