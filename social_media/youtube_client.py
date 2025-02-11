@@ -8,17 +8,14 @@ This module provides functionality for:
 """
 
 import os
-import json
-import http.client
-import httplib2
-from dataclasses import dataclass
-from typing import Optional, Dict, Any, Union
-from pathlib import Path
 
+from dataclasses import dataclass
+from typing import Optional, Dict, Any
+
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
+from googleapiclient.discovery import build, Resource
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 
@@ -61,7 +58,7 @@ class YouTubeClient:
     def __init__(self):
         """Initialize YouTube client with OAuth authentication."""
         self.credentials = self._get_credentials()
-        self.youtube = build(
+        self.youtube: Resource = build(
             self.API_SERVICE_NAME, 
             self.API_VERSION, 
             credentials=self.credentials
@@ -79,7 +76,8 @@ class YouTubeClient:
         if os.path.exists(TOKEN_FILE):
             try:
                 credentials = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-                Logger.print_info("Loaded existing YouTube credentials")
+                Logger.print_info(f"[DEBUG] YouTube token file found at {TOKEN_FILE}")
+                return credentials
             except Exception as e:
                 Logger.print_error(f"Failed to load existing credentials: {e}")
         
@@ -96,9 +94,9 @@ class YouTubeClient:
             if not credentials:
                 if not os.path.exists(CREDENTIALS_FILE):
                     raise FileNotFoundError(
-                        f"Credentials file not found at {CREDENTIALS_FILE}. "
-                        "Please download the OAuth client configuration from the Google Cloud Console "
-                        "and save it to this location."
+                        f"No valid YouTube token found at {TOKEN_FILE} and no credentials file at {CREDENTIALS_FILE}. "
+                        "Please either provide a valid token or download the OAuth client configuration from the "
+                        "Google Cloud Console and save it to this location."
                     )
                 
                 # Run the OAuth flow
@@ -119,7 +117,7 @@ class YouTubeClient:
                 Logger.print_info("Successfully authenticated with YouTube")
                 
                 # Save the credentials for future use
-                with open(TOKEN_FILE, 'w') as token:
+                with open(TOKEN_FILE, 'w', encoding='utf-8') as token:
                     token.write(credentials.to_json())
                 Logger.print_info(f"Saved credentials to {TOKEN_FILE}")
         
@@ -176,6 +174,7 @@ class YouTubeClient:
                 )
                 
                 # Call the API to insert the video
+                # pylint: disable=no-member
                 request = self.youtube.videos().insert(
                     part=','.join(body.keys()),
                     body=body,
@@ -225,6 +224,7 @@ class YouTubeClient:
             dict: Video status information
         """
         try:
+            # pylint: disable=no-member
             request = self.youtube.videos().list(
                 part="status,snippet",
                 id=video_id
