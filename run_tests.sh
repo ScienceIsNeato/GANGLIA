@@ -60,9 +60,6 @@ LOG_FILE="${SCRIPT_DIR}/logs/test_run_${MODE}_${TEST_TYPE}_${TIMESTAMP}.log"
 # Create status directory if it doesn't exist
 mkdir -p "/tmp/GANGLIA"
 
-# Clean up any stale credential files/directories
-rm -rf /tmp/gcp-credentials.json* /tmp/youtube_credentials.json* /tmp/youtube_token.json*
-
 # Set status file based on test type
 case "$TEST_TYPE" in
     "unit")
