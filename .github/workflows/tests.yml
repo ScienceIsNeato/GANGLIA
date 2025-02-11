@@ -26,6 +26,13 @@ jobs:
 
     - name: Set up YouTube credentials
       run: |
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
+        chmod 600 /tmp/youtube_credentials.json
+      env:
+        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+
+    - name: Set up YouTube token
+      run: |
         echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
         chmod 600 /tmp/youtube_token.json
       env:
@@ -72,6 +79,13 @@ jobs:
 
     - name: Set up YouTube credentials
       run: |
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
+        chmod 600 /tmp/youtube_credentials.json
+      env:
+        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+
+    - name: Set up YouTube token
+      run: |
         echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
         chmod 600 /tmp/youtube_token.json
       env:
@@ -116,6 +130,13 @@ jobs:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
     - name: Set up YouTube credentials
+      run: |
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
+        chmod 600 /tmp/youtube_credentials.json
+      env:
+        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+
+    - name: Set up YouTube token
       run: |
         echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
         chmod 600 /tmp/youtube_token.json

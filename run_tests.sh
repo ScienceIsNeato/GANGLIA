@@ -9,22 +9,33 @@ if command -v direnv >/dev/null 2>&1; then
 fi
 
 # Check for required credentials and warn about missing features
-declare -A CRED_FEATURES=(
-    ["GOOGLE_APPLICATION_CREDENTIALS"]="Google Cloud Speech/TTS and GCS storage"
-    ["YOUTUBE_TOKEN_FILE"]="YouTube video upload tests"
-    ["OPENAI_API_KEY"]="OpenAI GPT and DALL-E features"
-    ["GCP_BUCKET_NAME"]="GCS storage features"
-    ["GCP_PROJECT_NAME"]="GCS and Google API features"
-    ["SUNO_API_KEY"]="Music generation features"
-)
-
-# Print warnings for missing credentials
 echo "Checking available features based on credentials..."
-for cred in "${!CRED_FEATURES[@]}"; do
-    if [ -z "${!cred}" ]; then
-        echo "Warning: $cred not set - ${CRED_FEATURES[$cred]} will not be available"
-    fi
-done
+
+# Google Cloud features
+if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+    echo "Warning: GOOGLE_APPLICATION_CREDENTIALS not set - Google Cloud Speech/TTS and GCS storage features will not be available"
+fi
+
+# YouTube features
+if [ -z "$YOUTUBE_CREDENTIALS_FILE" ]; then
+    echo "Warning: YOUTUBE_CREDENTIALS_FILE not set - YouTube video upload tests will not be available"
+fi
+
+# OpenAI features
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo "Warning: OPENAI_API_KEY not set - OpenAI GPT and DALL-E features will not be available"
+fi
+
+# GCS features
+if [ -z "$GCP_BUCKET_NAME" ] || [ -z "$GCP_PROJECT_NAME" ]; then
+    echo "Warning: GCP_BUCKET_NAME or GCP_PROJECT_NAME not set - GCS storage features will not be available"
+fi
+
+# Music generation features
+if [ -z "$SUNO_API_KEY" ]; then
+    echo "Warning: SUNO_API_KEY not set - Music generation features will not be available"
+fi
+
 echo "Feature check complete"
 echo
 
@@ -50,7 +61,7 @@ LOG_FILE="${SCRIPT_DIR}/logs/test_run_${MODE}_${TEST_TYPE}_${TIMESTAMP}.log"
 mkdir -p "/tmp/GANGLIA"
 
 # Clean up any stale credential files/directories
-rm -rf /tmp/gcp-credentials.json /tmp/youtube_token.json
+rm -rf /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
 
 # Set status file based on test type
 case "$TEST_TYPE" in
@@ -106,21 +117,37 @@ fi
 chmod 600 /tmp/gcp-credentials.json
 
 # Setup YouTube credentials
+if [ -f "/tmp/youtube_credentials.json" ]; then
+    echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
+else
+    if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
+        # Local development - copy from original credentials file
+        echo "[DEBUG] Copying YouTube credentials from $YOUTUBE_CREDENTIALS_FILE"
+        cat "$YOUTUBE_CREDENTIALS_FILE" > /tmp/youtube_credentials.json
+    else
+        # CI or direct content - use environment variable content
+        echo "[DEBUG] Using YouTube credentials from environment variable"
+        printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > /tmp/youtube_credentials.json
+    fi
+fi
+
+# Setup YouTube token
 if [ -f "/tmp/youtube_token.json" ]; then
-    echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json" | tee -a "$LOG_FILE"
+    echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
 else
     if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
         # Local development - copy from original token file
-        echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE" | tee -a "$LOG_FILE"
+        echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE"
         cat "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
     else
         # CI or direct content - use environment variable content
-        echo "[DEBUG] Using YouTube token from environment variable" | tee -a "$LOG_FILE"
+        echo "[DEBUG] Using YouTube token from environment variable"
         printf "%s" "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
     fi
 fi
 
 # Set permissions on credentials
+chmod 600 /tmp/youtube_credentials.json
 chmod 600 /tmp/youtube_token.json
 
 case $MODE in
@@ -165,12 +192,14 @@ case $MODE in
             # Run costly unit tests first
             docker run --rm \
                 -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
+                -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
                 -v /tmp/youtube_token.json:/tmp/youtube_token.json \
                 -e OPENAI_API_KEY \
                 -e GCP_BUCKET_NAME \
                 -e GCP_PROJECT_NAME \
                 -e SUNO_API_KEY \
                 -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
+                -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
                 -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
                 ganglia:latest \
                 /bin/sh -c "pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
@@ -179,7 +208,7 @@ case $MODE in
             if [ $UNIT_EXIT_CODE -ne 0 ]; then
                 echo "Costly unit tests failed in Docker with exit code $UNIT_EXIT_CODE" | tee -a "$LOG_FILE"
                 echo $UNIT_EXIT_CODE > "$STATUS_FILE"
-                rm -f /tmp/gcp-credentials.json /tmp/youtube_token.json
+                rm -f /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
                 exit $UNIT_EXIT_CODE
             fi
             
@@ -191,18 +220,20 @@ case $MODE in
         # Run Docker with credentials mount and pass through environment variables
         docker run --rm \
             -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
+            -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
             -v /tmp/youtube_token.json:/tmp/youtube_token.json \
             -e OPENAI_API_KEY \
             -e GCP_BUCKET_NAME \
             -e GCP_PROJECT_NAME \
             -e SUNO_API_KEY \
             -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
+            -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
             -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
             ganglia:latest \
             /bin/sh -c "pytest ${TEST_DIR} -v -s $([ "$TEST_TYPE" = "unit" ] && echo "-m 'not costly'")" 2>&1 | tee -a "$LOG_FILE"
         TEST_EXIT_CODE=${PIPESTATUS[0]}
         echo $TEST_EXIT_CODE > "$STATUS_FILE"
-        rm -f /tmp/gcp-credentials.json /tmp/youtube_token.json
+        rm -f /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
         exit $TEST_EXIT_CODE
         ;;
 esac 

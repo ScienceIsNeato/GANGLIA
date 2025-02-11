@@ -33,8 +33,7 @@ from tests.integration.test_helpers import (
     validate_caption_accuracy,
     post_test_results_to_youtube
 )
-from utils.file_utils import get_tempdir
-from ttv.log_messages import LOG_TTV_DIR_CREATED
+from utils.file_utils import get_tempdir, get_timestamped_ttv_dir
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +84,9 @@ def test_simulated_pipeline_execution():
     with open(get_tempdir() + "/test_output.log", "w", encoding='utf-8') as f:
         f.write(output)
 
-    # Get the output directory from the output
-    output_dir = output.split(LOG_TTV_DIR_CREATED)[1].split("\n")[0]
-    print(f"Detected output directory: {output_dir}")
+    # Get the output directory directly
+    output_dir = get_timestamped_ttv_dir()
+    print(f"Using TTV directory: {output_dir}")
 
     # Validate all segments are present
     validate_segment_count(output, SIMULATED_PIPELINE_CONFIG)
