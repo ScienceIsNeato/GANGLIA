@@ -8,6 +8,26 @@ if command -v direnv >/dev/null 2>&1; then
     eval "$(direnv export bash)"
 fi
 
+# Check for required credentials and warn about missing features
+declare -A CRED_FEATURES=(
+    ["GOOGLE_APPLICATION_CREDENTIALS"]="Google Cloud Speech/TTS and GCS storage"
+    ["YOUTUBE_TOKEN_FILE"]="YouTube video upload tests"
+    ["OPENAI_API_KEY"]="OpenAI GPT and DALL-E features"
+    ["GCP_BUCKET_NAME"]="GCS storage features"
+    ["GCP_PROJECT_NAME"]="GCS and Google API features"
+    ["SUNO_API_KEY"]="Music generation features"
+)
+
+# Print warnings for missing credentials
+echo "Checking available features based on credentials..."
+for cred in "${!CRED_FEATURES[@]}"; do
+    if [ -z "${!cred}" ]; then
+        echo "Warning: $cred not set - ${CRED_FEATURES[$cred]} will not be available"
+    fi
+done
+echo "Feature check complete"
+echo
+
 # Check if we have exactly two arguments
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <mode> <test_type>"
@@ -67,32 +87,35 @@ fi
 if [ -f "/tmp/gcp-credentials.json" ]; then
     echo "[DEBUG] GAC file already exists at /tmp/gcp-credentials.json" | tee -a "$LOG_FILE"
 else
-    if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-        # It's a file path, copy the contents
+    if [ -n "$CI" ]; then
+        # In CI, credentials should be base64 decoded from GOOGLE_APPLICATION_CREDENTIALS
+        echo "[DEBUG] Running in CI, decoding base64 GAC from GOOGLE_APPLICATION_CREDENTIALS" | tee -a "$LOG_FILE"
+        echo "$GOOGLE_APPLICATION_CREDENTIALS" | base64 -d > /tmp/gcp-credentials.json
+    elif [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+        # Local development with file path
         echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS" | tee -a "$LOG_FILE"
         cat "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/gcp-credentials.json
     else
-        # Not a file, assume it's the JSON content
-        echo "[DEBUG] GAC is not a file, treating as JSON content" | tee -a "$LOG_FILE"
+        # Fallback - treat as JSON content
+        echo "[DEBUG] GAC provided as content" | tee -a "$LOG_FILE"
         printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/gcp-credentials.json
     fi
 fi
+
+# Set permissions on credentials
+chmod 600 /tmp/gcp-credentials.json
 
 # Setup YouTube credentials
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json" | tee -a "$LOG_FILE"
 else
-    if [ -n "$CI" ]; then
-        # In CI, token should be provided directly in YOUTUBE_TOKEN_FILE
-        echo "[DEBUG] Running in CI, using token content from YOUTUBE_TOKEN_FILE" | tee -a "$LOG_FILE"
-        printf "%s" "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
-    elif [ -f "$YOUTUBE_TOKEN_FILE" ]; then
-        # Local development with file path
-        echo "[DEBUG] YouTube token is a file at $YOUTUBE_TOKEN_FILE" | tee -a "$LOG_FILE"
+    if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
+        # Local development - copy from original token file
+        echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE" | tee -a "$LOG_FILE"
         cat "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
     else
-        # Fallback - treat as JSON content
-        echo "[DEBUG] YouTube token provided as content" | tee -a "$LOG_FILE"
+        # CI or direct content - use environment variable content
+        echo "[DEBUG] Using YouTube token from environment variable" | tee -a "$LOG_FILE"
         printf "%s" "$YOUTUBE_TOKEN_FILE" > /tmp/youtube_token.json
     fi
 fi
