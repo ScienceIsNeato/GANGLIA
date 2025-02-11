@@ -183,25 +183,8 @@ if [ -f "/tmp/youtube_token.json" ]; then
         exit 1
     fi
 else
-    # Ensure parent directory exists
-    mkdir -p "/tmp"
-    
-    # Remove any existing file or directory
-    rm -rf "/tmp/youtube_token.json"
-    touch "/tmp/youtube_token.json"
-    
-    # Write token content
-    echo "[DEBUG] Writing YouTube token content"
-    if ! printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json"; then
-        echo "Error: Failed to write YouTube token content"
-        exit 1
-    fi
-    
-    # Verify the file contains valid JSON
-    if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube token file"
-        exit 1
-    fi
+    echo "Error: YouTube token file not found at /tmp/youtube_token.json"
+    exit 1
 fi
 
 # Set restrictive permissions
