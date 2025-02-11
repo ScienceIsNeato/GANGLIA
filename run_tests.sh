@@ -98,64 +98,136 @@ fi
 if [ -f "/tmp/gcp-credentials.json" ]; then
     echo "[DEBUG] GAC file already exists at /tmp/gcp-credentials.json"
 else
-    # Clear current contents of GAC file
+    # Ensure parent directory exists
+    mkdir -p "/tmp"
+    
+    # Remove any existing file or directory
     rm -rf "/tmp/gcp-credentials.json"
-
+    touch "/tmp/gcp-credentials.json"
+    
     if [ -n "$CI" ]; then
         # In CI, credentials should be base64 decoded from GOOGLE_APPLICATION_CREDENTIALS
         echo "[DEBUG] Running in CI, decoding base64 GAC from GOOGLE_APPLICATION_CREDENTIALS"
-        echo "$GOOGLE_APPLICATION_CREDENTIALS" | base64 -d > "/tmp/gcp-credentials.json.tmp" && mv "/tmp/gcp-credentials.json.tmp" "/tmp/gcp-credentials.json"
+        if ! echo "$GOOGLE_APPLICATION_CREDENTIALS" | base64 -d > "/tmp/gcp-credentials.json"; then
+            echo "Error: Failed to decode base64 credentials"
+            exit 1
+        fi
+        # Verify the file is not empty and contains valid JSON
+        if ! jq empty "/tmp/gcp-credentials.json" 2>/dev/null; then
+            echo "Error: Invalid JSON in credentials file"
+            exit 1
+        fi
     elif [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
         # Local development with file path
         echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS"
-        cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json.tmp" && mv "/tmp/gcp-credentials.json.tmp" "/tmp/gcp-credentials.json"
+        if ! cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json"; then
+            echo "Error: Failed to copy credentials file"
+            exit 1
+        fi
     else
         # Fallback - treat as JSON content
         echo "[DEBUG] GAC provided as content"
-        printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > "/tmp/gcp-credentials.json.tmp" && mv "/tmp/gcp-credentials.json.tmp" "/tmp/gcp-credentials.json"
+        if ! printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > "/tmp/gcp-credentials.json"; then
+            echo "Error: Failed to write credentials content"
+            exit 1
+        fi
     fi
 fi
+
+# Verify the credentials file exists and is a regular file
+if [ ! -f "/tmp/gcp-credentials.json" ]; then
+    echo "Error: /tmp/gcp-credentials.json is not a regular file"
+    exit 1
+fi
+
+# Set restrictive permissions
+chmod 600 "/tmp/gcp-credentials.json"
 
 # Setup YouTube credentials
 if [ -f "/tmp/youtube_credentials.json" ]; then
     echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
 else
-    # Clear current contents of YouTube credentials file
+    # Ensure parent directory exists
+    mkdir -p "/tmp"
+    
+    # Remove any existing file or directory
     rm -rf "/tmp/youtube_credentials.json"
-
+    touch "/tmp/youtube_credentials.json"
+    
     if [ -f "$YOUTUBE_CREDENTIALS_FILE" ]; then
         # Local development - copy from original credentials file
         echo "[DEBUG] Copying YouTube credentials from $YOUTUBE_CREDENTIALS_FILE"
-        cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json.tmp" && mv "/tmp/youtube_credentials.json.tmp" "/tmp/youtube_credentials.json"
+        if ! cp "$YOUTUBE_CREDENTIALS_FILE" "/tmp/youtube_credentials.json"; then
+            echo "Error: Failed to copy YouTube credentials file"
+            exit 1
+        fi
     else
         # CI or direct content - use environment variable content
         echo "[DEBUG] Using YouTube credentials from environment variable"
-        printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json.tmp" && mv "/tmp/youtube_credentials.json.tmp" "/tmp/youtube_credentials.json"
+        if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
+            echo "Error: Failed to write YouTube credentials content"
+            exit 1
+        fi
+    fi
+    
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube credentials file"
+        exit 1
     fi
 fi
+
+# Verify the credentials file exists and is a regular file
+if [ ! -f "/tmp/youtube_credentials.json" ]; then
+    echo "Error: /tmp/youtube_credentials.json is not a regular file"
+    exit 1
+fi
+
+# Set restrictive permissions
+chmod 600 "/tmp/youtube_credentials.json"
 
 # Setup YouTube token
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
 else
-    # Clear current contents of YouTube token file
+    # Ensure parent directory exists
+    mkdir -p "/tmp"
+    
+    # Remove any existing file or directory
     rm -rf "/tmp/youtube_token.json"
-
+    touch "/tmp/youtube_token.json"
+    
     if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
         # Local development - copy from original token file
         echo "[DEBUG] Copying YouTube token from $YOUTUBE_TOKEN_FILE"
-        cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json.tmp" && mv "/tmp/youtube_token.json.tmp" "/tmp/youtube_token.json"
+        if ! cp "$YOUTUBE_TOKEN_FILE" "/tmp/youtube_token.json"; then
+            echo "Error: Failed to copy YouTube token file"
+            exit 1
+        fi
     else
         # CI or direct content - use environment variable content
         echo "[DEBUG] Using YouTube token from environment variable"
-        printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json.tmp" && mv "/tmp/youtube_token.json.tmp" "/tmp/youtube_token.json"
+        if ! printf "%s" "$YOUTUBE_TOKEN_FILE" > "/tmp/youtube_token.json"; then
+            echo "Error: Failed to write YouTube token content"
+            exit 1
+        fi
+    fi
+    
+    # Verify the file contains valid JSON
+    if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube token file"
+        exit 1
     fi
 fi
 
-# Set permissions on credentials
-chmod 600 /tmp/gcp-credentials.json
-chmod 600 /tmp/youtube_credentials.json
-chmod 600 /tmp/youtube_token.json
+# Verify the token file exists and is a regular file
+if [ ! -f "/tmp/youtube_token.json" ]; then
+    echo "Error: /tmp/youtube_token.json is not a regular file"
+    exit 1
+fi
+
+# Set restrictive permissions
+chmod 600 "/tmp/youtube_token.json"
 
 case $MODE in
     "local")
