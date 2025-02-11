@@ -81,8 +81,9 @@ def test_instrumental_generation_no_fallback_needed():
     assert result == "/mock/path/to/audio.mp3"
 
 
+@pytest.mark.costly
 def test_instrumental_generation_with_retries_then_success():
-    """Test that retries work before succeeding."""
+    """Test instrumental generation with retries that eventually succeeds."""
     # Fail 3 times then succeed
     suno_backend = MockSunoBackend(fail_count=3)
     meta_backend = MockMetaBackend()
@@ -107,8 +108,9 @@ def test_instrumental_generation_with_retries_then_success():
     assert result == "/mock/path/to/audio.mp3"
 
 
+@pytest.mark.costly
 def test_instrumental_generation_with_retries_then_fallback():
-    """Test that Meta fallback is used after all retries fail."""
+    """Test instrumental generation with retries that falls back to secondary backend."""
     suno_backend = MockSunoBackend(should_fail=True)
     meta_backend = MockMetaBackend()
     
@@ -152,8 +154,9 @@ def test_lyrics_generation_no_fallback():
     assert result is None  # Should fail without fallback
 
 
+@pytest.mark.costly
 def test_instrumental_generation_no_fallback_configured():
-    """Test behavior when no fallback is configured."""
+    """Test instrumental generation with no fallback configured."""
     suno_backend = MockSunoBackend(should_fail=True)
     
     generator = MusicGenerator()

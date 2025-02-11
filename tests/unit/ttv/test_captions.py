@@ -154,6 +154,7 @@ def test_caption_text_completeness():
     assert set(words) == set(processed_words), "Not all words from original caption are present in processed output"
 
 
+@pytest.mark.costly
 def test_font_size_and_variation():
     """Test that font sizes are properly scaled and varied based on video dimensions and word length"""
     # Create test video with specific dimensions
@@ -200,6 +201,7 @@ def test_font_size_and_variation():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_caption_positioning():
     """Test that captions stay within the safe viewing area"""
     # Create test video with specific dimensions
@@ -282,6 +284,7 @@ def test_create_srt_captions():
             os.unlink(srt_path)
 
 
+@pytest.mark.costly
 def test_audio_aligned_captions():
     """Test creation of a video with audio-aligned captions"""
     # Generate audio using Google TTS first to get its duration
@@ -390,6 +393,7 @@ def test_audio_aligned_captions():
             os.remove(audio_path)
 
 
+@pytest.mark.costly
 def test_text_wrapping():
     """Test that text wrapping handles long text properly"""
     # Create test video
@@ -434,6 +438,7 @@ def test_text_wrapping():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_text_rendering_features():
     """Test various text rendering features including emoji handling"""
     # Create test video
@@ -478,6 +483,7 @@ def test_text_rendering_features():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_vibrant_color_palette():
     """Test that the vibrant color palette generates appropriate colors for different backgrounds"""
     # Create test video
@@ -548,6 +554,7 @@ def test_vibrant_color_palette():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_no_word_overlap():
     """Test that words in captions do not overlap each other"""
     # Create test video
@@ -632,6 +639,7 @@ def test_no_word_overlap():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_deterministic_color_selection():
     """Test that color selection is deterministic based on background color."""
     # Create test videos with different background colors
