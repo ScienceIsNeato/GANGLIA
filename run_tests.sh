@@ -17,8 +17,8 @@ if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
 fi
 
 # YouTube features
-if [ -z "$YOUTUBE_CREDENTIALS_FILE" ]; then
-    echo "Warning: YOUTUBE_CREDENTIALS_FILE not set - YouTube video upload tests will not be available"
+if [ -z "$YOUTUBE_CREDENTIALS_FILE" ] && [ -z "$YOUTUBE_TOKEN_FILE" ]; then
+    echo "Warning: YOUTUBE_CREDENTIALS_FILE and YOUTUBE_TOKEN_FILE not set - YouTube video upload tests will not be available"
 fi
 
 # OpenAI features
