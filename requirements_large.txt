@@ -7,8 +7,8 @@ accelerate>=0.27.0
 openai-whisper>=20231117
 
 # Video and Image Processing
+opencv-python>=4.9.0.80
 moviepy>=1.0.3
-opencv-python>=4.8.0
 
 # Data Processing and Scientific Computing
 numpy>=1.24.3

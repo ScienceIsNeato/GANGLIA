@@ -14,7 +14,8 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from logger import Logger
-from utils import run_ffmpeg_command, upload_to_gcs
+from utils.ffmpeg_utils import run_ffmpeg_command
+from utils.cloud_utils import upload_to_gcs
 from .audio_alignment import create_word_level_captions
 from .captions import CaptionEntry, create_dynamic_captions, create_static_captions
 
@@ -90,7 +91,7 @@ def concatenate_video_segments(
     Args:
         video_segments: List of video file paths to concatenate
         output_dir: Directory for output files
-        force_reencode: Whether to force re-encoding of streams (needed for closing credits)
+        force_reencode: Whether to force re-encoding of all streams
         
     Returns:
         Optional[str]: Path to output video if successful, None otherwise
@@ -124,8 +125,13 @@ def concatenate_video_segments(
             # Re-encode both video and audio streams
             cmd = base_cmd + VIDEO_ENCODING_ARGS + AUDIO_ENCODING_ARGS + [output_path]
         else:
-            # Just copy streams without re-encoding
-            cmd = base_cmd + ["-c", "copy", output_path]
+            # Copy video stream and normalize audio
+            cmd = base_cmd + [
+                # Copy video stream
+                "-c:v", "copy",
+                # Normalize audio to consistent format
+                "-af", f"aformat=sample_fmts=fltp:sample_rates={AUDIO_SAMPLE_RATE}:channel_layouts=stereo"
+            ] + AUDIO_ENCODING_ARGS + [output_path]
 
         result = run_ffmpeg_command(cmd)
         if not result:
@@ -248,11 +254,9 @@ def assemble_final_video(
             )
             if main_video_with_background_music_path:
                 final_output_path = main_video_with_background_music_path
-                Logger.print_info(f"Successfully added background music from {music_path}")
-                Logger.print_info(f"Main video with music path: {main_video_with_background_music_path}")
             else:
                 Logger.print_warning("Failed to add background music, using video without music")
-                main_video_with_background_music_path = main_video_path
+                final_output_path = main_video_path
         else:
             Logger.print_info("No background music specified, skipping...")
             main_video_with_background_music_path = main_video_path

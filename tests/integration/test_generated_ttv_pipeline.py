@@ -16,7 +16,6 @@ import pytest
 
 # Local application imports
 from utils import get_tempdir
-from ttv.log_messages import LOG_TTV_DIR_CREATED
 from tests.integration.test_data.config_generator import generate_config
 from tests.integration.test_helpers import (
     validate_segment_count,
@@ -26,7 +25,9 @@ from tests.integration.test_helpers import (
     validate_closing_credits_duration,
     validate_background_music,
     validate_gcs_upload,
-    validate_caption_accuracy
+    validate_caption_accuracy,
+    post_test_results_to_youtube,
+    get_output_dir_from_logs
 )
 
 logger = logging.getLogger(__name__)
@@ -69,24 +70,28 @@ def test_generated_pipeline_execution():
     process.wait()
 
     # Save output to a file for debugging
-    with open(get_tempdir() + "/test_output.log", "w", encoding="utf-8") as f:
+    with open(get_tempdir() + "/test_output.log", "w", encoding='utf-8') as f:
         f.write(output)
 
-    # Get the output directory from the output
-    output_dir = output.split(LOG_TTV_DIR_CREATED)[1].split("\n")[0]
-    print(f"Detected output directory: {output_dir}")
+    # Get output directory from logs
+    output_dir = get_output_dir_from_logs(output)
+    print(f"Using TTV directory: {output_dir}")
 
     # Validate all segments are present
     validate_segment_count(output, config_path)
 
     # Validate segment durations
-    total_video_duration = validate_audio_video_durations(config_path, output_dir)
+    total_video_duration = validate_audio_video_durations(
+        config_path, output
+    )
 
     # Validate background music was added successfully
     validate_background_music(output)
 
     # Add closing credits duration to total video duration
-    closing_credits_duration = validate_closing_credits_duration(output, config_path)
+    closing_credits_duration = validate_closing_credits_duration(
+        output, config_path
+    )
     total_video_duration += closing_credits_duration
 
     # Validate final video
@@ -99,5 +104,28 @@ def test_generated_pipeline_execution():
     # Validate GCS upload
     validate_gcs_upload(bucket_name, project_name)
 
-
     print("\n=== Test Complete ===\n")
+
+    # Upload test results to YouTube if enabled
+    if os.getenv('UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE', 'false').lower() == 'true':
+        # Restore stdout/stderr
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        # Post results to YouTube if we have a final video
+        if final_video_path and os.path.exists(final_video_path):
+            try:
+                video_url = post_test_results_to_youtube(
+                    test_name="TTV Pipeline Integration Test (Generated)",
+                    final_video_path=final_video_path,
+                    additional_info={
+                        "python_version": sys.version,
+                        "platform": sys.platform,
+                        "environment": "local",
+                        "test_type": "integration"
+                    },
+                    config_path=config_path
+                )
+                print(f"\nIntegration test results uploaded to YouTube: {video_url}")
+            except Exception as e:
+                print(f"Failed to upload integration test results to YouTube: {e}")

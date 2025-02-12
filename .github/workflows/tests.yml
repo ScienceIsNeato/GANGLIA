@@ -24,6 +24,25 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
+    - name: Set up YouTube credentials
+      run: |
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
+        chmod 600 /tmp/youtube_credentials.json
+      env:
+        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+
+    - name: Set up YouTube token
+      run: |
+        # Decode and validate token
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
+        if ! jq empty /tmp/youtube_token.json 2>/dev/null; then
+          echo "Error: Invalid JSON in decoded token file"
+          exit 1
+        fi
+        chmod 600 /tmp/youtube_token.json
+      env:
+        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
     
@@ -34,11 +53,16 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
+        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
       run: ./run_tests.sh docker unit
     
     - name: Clean up
       if: always()
-      run: rm -f /tmp/gcp-credentials.json
+      run: |
+        rm -f /tmp/gcp-credentials.json
+        rm -f /tmp/youtube_token.json
 
   smoke-tests:
     needs: unit-tests
@@ -58,6 +82,22 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
+    - name: Set up YouTube credentials
+      run: |
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
+        chmod 600 /tmp/youtube_credentials.json
+      env:
+        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+
+    - name: Set up YouTube token
+      run: |
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
+        # Verify JSON format
+        jq empty /tmp/youtube_token.json || (echo "Invalid JSON in token file" && exit 1)
+        chmod 600 /tmp/youtube_token.json
+      env:
+        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
     
@@ -68,11 +108,16 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'true'
+        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
       run: ./run_tests.sh docker smoke
     
     - name: Clean up
       if: always()
-      run: rm -f /tmp/gcp-credentials.json
+      run: |
+        rm -f /tmp/gcp-credentials.json
+        rm -f /tmp/youtube_token.json
 
   integration-tests:
     if: github.event_name == 'pull_request'
@@ -91,6 +136,22 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
 
+    - name: Set up YouTube credentials
+      run: |
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
+        chmod 600 /tmp/youtube_credentials.json
+      env:
+        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+
+    - name: Set up YouTube token
+      run: |
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
+        # Verify JSON format
+        jq empty /tmp/youtube_token.json || (echo "Invalid JSON in token file" && exit 1)
+        chmod 600 /tmp/youtube_token.json
+      env:
+        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
     
@@ -101,9 +162,14 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
+        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'true'
       run: ./run_tests.sh docker integration
     
     - name: Clean up
       if: always()
-      run: rm -f /tmp/gcp-credentials.json
+      run: |
+        rm -f /tmp/gcp-credentials.json
+        rm -f /tmp/youtube_token.json
 

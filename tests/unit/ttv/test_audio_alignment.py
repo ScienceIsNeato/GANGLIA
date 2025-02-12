@@ -1,6 +1,7 @@
 """Tests for audio alignment functionality."""
 
 import sys
+import pytest
 sys.path.append("..")  # Add parent directory to Python path
 # pylint: disable=import-error,wrong-import-position
 from tts import GoogleTTS
@@ -59,7 +60,7 @@ def test_caption_generation_from_audio():
         if os.path.exists(audio_path):
             os.remove(audio_path)
 
-
+@pytest.mark.costly
 def test_closing_credits_with_music():
     """Test word alignment with the closing credits song."""
     try:

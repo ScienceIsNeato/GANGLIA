@@ -29,7 +29,9 @@ from ttv.captions import (
     split_into_words
 )
 from ttv.color_utils import get_vibrant_palette, get_contrasting_color, mix_colors
-from utils import get_tempdir, run_ffmpeg_command
+from utils.file_utils import get_tempdir
+from utils.ffmpeg_utils import run_ffmpeg_command
+from utils.video_utils import create_test_video
 
 def get_default_font():
     """Get the default font path for testing."""
@@ -43,43 +45,6 @@ def get_default_font():
         if os.path.exists(path):
             return path
     return None
-
-def create_test_video(duration=5, size=(1920, 1080), color=None):
-    """Create a simple colored background video for testing with a silent audio track"""
-    # Generate random color if none provided
-    if color is None:
-        # Generate vibrant colors by ensuring at least one channel is high
-        channels = [random.randint(0, 255) for _ in range(3)]
-        max_channel = max(channels)
-        if max_channel < 128:  # If all channels are too dark
-            boost_channel = random.randint(0, 2)  # Choose a random channel to boost
-            channels[boost_channel] = random.randint(128, 255)  # Make it brighter
-        color = tuple(channels)
-
-    # Create a colored image using PIL
-    image = Image.new('RGB', size, color)
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as img_file:
-        image.save(img_file.name)
-
-        # First create video with silent audio
-        video_path = img_file.name.replace('.png', '.mp4')
-
-        # Create video with silent audio track
-        ffmpeg_cmd = [
-            "ffmpeg", "-y", "-loop", "1", "-i", img_file.name,
-            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-            "-c:v", "libx264", "-t", str(duration),
-            "-c:a", "aac", "-b:a", "192k",
-            "-pix_fmt", "yuv420p", video_path
-        ]
-        result = run_ffmpeg_command(ffmpeg_cmd)
-        if result is None:
-            Logger.print_error("Failed to create test video")
-            return None
-
-        # Clean up temporary files
-        os.unlink(img_file.name)
-        return video_path
 
 def play_test_video(video_path):
     """Play the test video using ffplay."""
@@ -189,6 +154,7 @@ def test_caption_text_completeness():
     assert set(words) == set(processed_words), "Not all words from original caption are present in processed output"
 
 
+@pytest.mark.costly
 def test_font_size_and_variation():
     """Test that font sizes are properly scaled and varied based on video dimensions and word length"""
     # Create test video with specific dimensions
@@ -235,6 +201,7 @@ def test_font_size_and_variation():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_caption_positioning():
     """Test that captions stay within the safe viewing area"""
     # Create test video with specific dimensions
@@ -317,6 +284,7 @@ def test_create_srt_captions():
             os.unlink(srt_path)
 
 
+@pytest.mark.costly
 def test_audio_aligned_captions():
     """Test creation of a video with audio-aligned captions"""
     # Generate audio using Google TTS first to get its duration
@@ -425,6 +393,7 @@ def test_audio_aligned_captions():
             os.remove(audio_path)
 
 
+@pytest.mark.costly
 def test_text_wrapping():
     """Test that text wrapping handles long text properly"""
     # Create test video
@@ -469,6 +438,7 @@ def test_text_wrapping():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_text_rendering_features():
     """Test various text rendering features including emoji handling"""
     # Create test video
@@ -513,6 +483,7 @@ def test_text_rendering_features():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_vibrant_color_palette():
     """Test that the vibrant color palette generates appropriate colors for different backgrounds"""
     # Create test video
@@ -583,6 +554,7 @@ def test_vibrant_color_palette():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_no_word_overlap():
     """Test that words in captions do not overlap each other"""
     # Create test video
@@ -667,6 +639,7 @@ def test_no_word_overlap():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_deterministic_color_selection():
     """Test that color selection is deterministic based on background color."""
     # Create test videos with different background colors
@@ -700,7 +673,7 @@ def test_deterministic_color_selection():
                 input_video=input_video_path,
                 captions=[caption],
                 output_path=output_path,
-        min_font_size=32,
+                min_font_size=32,
                 max_font_ratio=1.5
             )
             

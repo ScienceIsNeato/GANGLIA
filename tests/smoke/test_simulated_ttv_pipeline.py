@@ -30,16 +30,19 @@ from tests.integration.test_helpers import (
     validate_segment_count,
     validate_background_music,
     validate_gcs_upload,
-    validate_caption_accuracy
+    validate_caption_accuracy,
+    post_test_results_to_youtube,
+    get_output_dir_from_logs
 )
-from utils import get_tempdir
-from ttv.log_messages import LOG_TTV_DIR_CREATED
+from utils.file_utils import get_tempdir
 
 logger = logging.getLogger(__name__)
 
 # Path to the test config files
 SIMULATED_PIPELINE_CONFIG = "tests/integration/test_data/simulated_pipeline_config.json"
 
+# Flag to control YouTube upload in smoke tests
+UPLOAD_SMOKE_TESTS_TO_YOUTUBE = os.getenv('UPLOAD_SMOKE_TESTS_TO_YOUTUBE', 'false').lower() == 'true'
 
 def test_simulated_pipeline_execution():
     """Test the full TTV pipeline with simulated responses for music and image generation.
@@ -81,17 +84,15 @@ def test_simulated_pipeline_execution():
     # Save output to a file for debugging
     with open(get_tempdir() + "/test_output.log", "w", encoding='utf-8') as f:
         f.write(output)
-
-    # Get the output directory from the output
-    output_dir = output.split(LOG_TTV_DIR_CREATED)[1].split("\n")[0]
-    print(f"Detected output directory: {output_dir}")
-
+    # Get output directory from logs
+    output_dir = get_output_dir_from_logs(output)
+    print(f"Using TTV directory: {output_dir}")
     # Validate all segments are present
     validate_segment_count(output, SIMULATED_PIPELINE_CONFIG)
 
     # Validate segment durations
     total_video_duration = validate_audio_video_durations(
-        SIMULATED_PIPELINE_CONFIG, output_dir
+        SIMULATED_PIPELINE_CONFIG, output
     )
 
     # Validate background music was added successfully
@@ -103,6 +104,8 @@ def test_simulated_pipeline_execution():
     )
     total_video_duration += closing_credits_duration
 
+
+
     # Validate final video
     final_video_path = validate_final_video_path(output_dir)
     validate_total_duration(final_video_path, total_video_duration)
@@ -113,7 +116,28 @@ def test_simulated_pipeline_execution():
     # Validate GCS upload
     validate_gcs_upload(bucket_name, project_name)
 
-    # Clean up
-    # os.remove(final_video_path)  # Commented out to preserve files for debugging
-    # uploaded_file.delete()  # Commented out to preserve GCS files for debugging
     print("\n=== Test Complete ===\n")
+
+
+    if UPLOAD_SMOKE_TESTS_TO_YOUTUBE:
+        # Restore stdout/stderr
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        # Post results to YouTube if we have a final video
+        if final_video_path and os.path.exists(final_video_path):
+            try:
+                video_url = post_test_results_to_youtube(
+                    test_name="TTV Pipeline Smoke Test",
+                    final_video_path=final_video_path,
+                    additional_info={
+                        "python_version": sys.version,
+                        "platform": sys.platform,
+                        "environment": "local",
+                        "test_type": "smoke"
+                    },
+                    config_path=SIMULATED_PIPELINE_CONFIG
+                )
+                print(f"\nSmoke test results uploaded to YouTube: {video_url}")
+            except Exception as e:
+                print(f"Failed to upload smoke test results to YouTube: {e}")

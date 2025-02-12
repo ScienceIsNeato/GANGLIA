@@ -15,6 +15,13 @@ pandas>=2.0.0
 SpeechRecognition>=3.10.0
 gTTS>=2.5.0
 google-cloud-speech>=2.21.0
+moviepy==2.1.2  # Specific version for TTV pipeline compatibility
+
+# Google APIs and Authentication
+google-api-python-client>=2.108.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+httplib2>=0.22.0
 
 # Audio Processing
 sounddevice>=0.4.6
@@ -26,7 +33,6 @@ pydub>=0.25.1
 # Image and Media Handling
 pillow>=10.0.0
 python-magic>=0.4.27
-opencv-python>=4.9.0.80
 
 # Development dependencies
 pylint>=3.0.3  # For code linting and style checking
