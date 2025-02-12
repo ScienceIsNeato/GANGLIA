@@ -31,10 +31,10 @@ from tests.integration.test_helpers import (
     validate_background_music,
     validate_gcs_upload,
     validate_caption_accuracy,
-    post_test_results_to_youtube,
     get_output_dir_from_logs
 )
 from utils.file_utils import get_tempdir
+from social_media.youtube_client import YouTubeClient
 
 logger = logging.getLogger(__name__)
 
@@ -127,9 +127,10 @@ def test_simulated_pipeline_execution():
         # Post results to YouTube if we have a final video
         if final_video_path and os.path.exists(final_video_path):
             try:
-                video_url = post_test_results_to_youtube(
-                    test_name="TTV Pipeline Smoke Test",
-                    final_video_path=final_video_path,
+                client = YouTubeClient()
+                video_url = client.create_video_post(
+                    title=f"GANGLIA Integration Test: TTV Pipeline (Smoke)",
+                    video_path=final_video_path,
                     additional_info={
                         "python_version": sys.version,
                         "platform": sys.platform,

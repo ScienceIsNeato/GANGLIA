@@ -241,6 +241,8 @@ case $MODE in
                 -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
                 -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
                 -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
+                -e UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE \
+                -e UPLOAD_SMOKE_TESTS_TO_YOUTUBE \
                 ganglia:latest \
                 /bin/sh -c "pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
             UNIT_EXIT_CODE=${PIPESTATUS[0]}
@@ -272,6 +274,8 @@ case $MODE in
             -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
             -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
             -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
+            -e UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE \
+            -e UPLOAD_SMOKE_TESTS_TO_YOUTUBE \
             ganglia:latest \
             /bin/sh -c "pytest ${TEST_DIR} -v -s $([ "$TEST_TYPE" = "unit" ] && echo "-m 'not costly'")" 2>&1 | tee -a "$LOG_FILE"
         TEST_EXIT_CODE=${PIPESTATUS[0]}

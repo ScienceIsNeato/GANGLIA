@@ -26,9 +26,9 @@ from tests.integration.test_helpers import (
     validate_background_music,
     validate_gcs_upload,
     validate_caption_accuracy,
-    post_test_results_to_youtube,
     get_output_dir_from_logs
 )
+from social_media.youtube_client import YouTubeClient
 
 logger = logging.getLogger(__name__)
 
@@ -115,9 +115,10 @@ def test_generated_pipeline_execution():
         # Post results to YouTube if we have a final video
         if final_video_path and os.path.exists(final_video_path):
             try:
-                video_url = post_test_results_to_youtube(
-                    test_name="TTV Pipeline Integration Test (Generated)",
-                    final_video_path=final_video_path,
+                client = YouTubeClient()
+                video_url = client.create_video_post(
+                    title=f"GANGLIA Integration Test: TTV Pipeline (Generated)",
+                    video_path=final_video_path,
                     additional_info={
                         "python_version": sys.version,
                         "platform": sys.platform,
@@ -129,3 +130,5 @@ def test_generated_pipeline_execution():
                 print(f"\nIntegration test results uploaded to YouTube: {video_url}")
             except Exception as e:
                 print(f"Failed to upload integration test results to YouTube: {e}")
+    else:
+        print("YouTube upload disabled")

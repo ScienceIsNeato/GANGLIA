@@ -8,6 +8,10 @@ This module provides functionality for:
 """
 
 import os
+import re
+import json
+import subprocess
+import datetime
 
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
@@ -237,4 +241,138 @@ class YouTubeClient:
             
         except Exception as e:
             Logger.print_error(f"Failed to get video status: {str(e)}")
-            return {} 
+            return {}
+
+    def create_video_post(
+        self,
+        title: str,
+        video_path: str,
+        additional_info: Optional[Dict[str, Any]] = None,
+        config_path: Optional[str] = None
+    ) -> str:
+        """Create and upload a video post to YouTube with rich metadata.
+        
+        Args:
+            title: Title of the video
+            video_path: Path to the video file to upload
+            additional_info: Optional dictionary of additional information
+            config_path: Optional path to configuration file
+            
+        Returns:
+            str: URL of uploaded video, or empty string if upload failed
+        """
+        if not os.path.exists(video_path):
+            Logger.print_info("Skipping YouTube upload: Video file not found")
+            return ""
+
+        try:
+            Logger.print_info("Attempting to upload video to YouTube...")
+
+            def sanitize_text(text: str, max_length: int = 5000) -> str:
+                """Sanitize text for YouTube description."""
+                # Remove ANSI escape codes
+                text = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', text)
+                # Keep only printable ASCII characters
+                text = ''.join(char for char in text if char.isprintable() or char in '\n\t')
+                # Truncate if too long
+                if len(text) > max_length:
+                    text = text[:max_length-3] + "..."
+                return text
+            
+            # Get description from git
+            def get_git_description() -> str:
+                """Get description from either PR or latest commit."""
+                try:
+                    # Try to get PR description first
+                    result = subprocess.run(
+                        ["gh", "pr", "view", "--json", "title,body"],
+                        capture_output=True,
+                        text=True
+                    )
+                    if result.returncode == 0:
+                        pr_info = json.loads(result.stdout)
+                        return f"{pr_info['title']}\n\n{pr_info['body']}"
+                except Exception:
+                    pass  # Fall back to commit message
+                
+                try:
+                    # Get the most recent commit message
+                    result = subprocess.run(
+                        ["git", "log", "-1", "--pretty=%B"],
+                        capture_output=True,
+                        text=True
+                    )
+                    if result.returncode == 0:
+                        return result.stdout.strip()
+                except Exception:
+                    pass
+                
+                return "No description available"
+
+            description = get_git_description()
+            
+            # Add project information
+            project_info = [
+                "",
+                "🌟 About GANGLIA",
+                "GANGLIA is an open-source project that automates the creation of engaging social media content.",
+                "It uses AI to generate and synchronize video, audio, and captions for a seamless storytelling experience.",
+                "",
+                "🔗 Project Links",
+                "- GitHub: https://github.com/ScienceIsNeato/ganglia",
+                ""
+            ]
+            
+            # Add config information if provided
+            config_info = []
+            if config_path and os.path.exists(config_path):
+                try:
+                    with open(config_path, encoding='utf-8') as f:
+                        config = json.loads(f.read())
+                        config_info = [
+                            "",
+                            "📝 Configuration Used",
+                            "```json",
+                            json.dumps(config, indent=2),
+                            "```",
+                            ""
+                        ]
+                except Exception as e:
+                    Logger.print_error(f"Failed to read config file: {e}")
+            
+            # Add metadata at the end
+            metadata_lines = [
+                "",
+                "🔍 Information",
+                f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            ]
+            
+            if additional_info:
+                metadata_lines.extend([
+                    "",
+                    "💻 Additional Information",
+                    "```json",
+                    json.dumps(additional_info, indent=2),
+                    "```"
+                ])
+            
+            # Combine all sections and sanitize
+            full_description = description + "\n" + "\n".join(project_info + config_info + metadata_lines)
+            sanitized_description = sanitize_text(full_description)
+            
+            # Upload to YouTube
+            result = self.upload_video(
+                video_path,
+                title=title,
+                description=sanitized_description,
+                privacy_status="public",  # Make videos public for community feedback
+                tags=["ganglia", "ai", "video-generation", "python"]
+            )
+            
+            if not result.success:
+                raise RuntimeError(f"Failed to upload video: {result.error}")
+            
+            return f"https://www.youtube.com/watch?v={result.video_id}"
+        except Exception as e:
+            Logger.print_error(f"Failed to create video post: {e}")
+            return "" 
