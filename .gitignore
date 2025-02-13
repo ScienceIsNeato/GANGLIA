@@ -33,3 +33,5 @@ tests/integration/ttv/test_outputs/
 # Logs
 /logs
 
+ganglia_minified.py
+

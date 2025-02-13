@@ -6,9 +6,9 @@
 For individual test functions, use python command in agent window:
 ```python
 {
-  "command": "python -m pytest tests/path/to/test_file.py::test_function_name -v -s",
+  "command": "nohup python -m pytest tests/path/to/test_file.py::test_function_name -v -s > /dev/null 2>&1 &",
   "explanation": "Running individual test function",
-  "is_background": false,  # Embedded in agent window
+  "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
 }
 ```
@@ -17,9 +17,9 @@ For individual test functions, use python command in agent window:
 For complete test files, use python command in agent window:
 ```python
 {
-  "command": "python -m pytest tests/path/to/test_file.py -v -s",
+  "command": "nohup python -m pytest tests/path/to/test_file.py -v -s > /dev/null 2>&1 &",
   "explanation": "Running test module",
-  "is_background": false,  # Embedded in agent window
+  "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
 }
 ```
@@ -29,18 +29,18 @@ For running full test suites:
 1. First ALWAYS use run_tests.sh wrapper to start test in Composer window:
 ```python
 {
-  "command": "./run_tests.sh local unit",
+  "command": "nohup ./run_tests.sh local unit > /dev/null 2>&1 &",
   "explanation": "Running full test suite in Composer window",
-  "is_background": true,  # CRITICAL: Must be true to use Composer window
+  "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
 }
 ```
-2. Then IMMEDIATELY start log monitoring in agent window:
+2. Then IMMEDIATELY start log monitoring:
 ```python
 {
-  "command": "tail -f logs/test_run_local_unit_*.log",
-  "explanation": "Monitoring test output in agent window",
-  "is_background": false,
+  "command": "./utils/monitor_tests.sh",
+  "explanation": "Monitoring test output",
+  "is_background": false,  # Keep log monitoring in foreground
   "require_user_approval": false
 }
 ```
@@ -50,18 +50,18 @@ For running smoke tests:
 1. First start test in Composer window:
 ```python
 {
-  "command": "./run_tests.sh local smoke",
+  "command": "nohup ./run_tests.sh docker smoke > /dev/null 2>&1 &",
   "explanation": "Running smoke tests in Composer window",
-  "is_background": true,  # CRITICAL: Must be true to use Composer window
+  "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
 }
 ```
-2. Then IMMEDIATELY start log monitoring in agent window:
+2. Then IMMEDIATELY start log monitoring:
 ```python
 {
-  "command": "tail -f logs/test_run_local_smoke_*.log",
-  "explanation": "Monitoring test output in agent window",
-  "is_background": false,
+  "command": "./utils/monitor_tests.sh",
+  "explanation": "Monitoring test output",
+  "is_background": false,  # Keep log monitoring in foreground
   "require_user_approval": false
 }
 ```
@@ -71,18 +71,18 @@ For running integration tests:
 1. First start test in Composer window:
 ```python
 {
-  "command": "./run_tests.sh local integration",
+  "command": "nohup ./run_tests.sh docker integration > /dev/null 2>&1 &",
   "explanation": "Running integration tests in Composer window",
-  "is_background": true,  # CRITICAL: Must be true to use Composer window
+  "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
 }
 ```
-2. Then IMMEDIATELY start log monitoring in agent window:
+2. Then IMMEDIATELY start log monitoring:
 ```python
 {
-  "command": "tail -f logs/test_run_local_integration_*.log",
-  "explanation": "Monitoring test output in agent window",
-  "is_background": false,
+  "command": "./utils/monitor_tests.sh",
+  "explanation": "Monitoring test output",
+  "is_background": false,  # Keep log monitoring in foreground
   "require_user_approval": false
 }
 ```
@@ -169,3 +169,17 @@ All test runs above Root System level generate timestamped log files:
 - Contains full test output and debug information
 - Preserved for debugging and analysis
 - MUST be monitored in real-time during test execution 
+
+## Decision Making and Proactivity Rules
+1. Be proactive - take your best guess and proceed rather than asking for confirmation
+2. When encountering a decision point:
+   - Make a reasoned choice based on available context
+   - Document the choice and rationale in your response
+   - Proceed with implementation
+   - Let the user course-correct if needed
+3. Avoid blocking on user input unless absolutely necessary
+4. If multiple reasonable approaches exist:
+   - Choose the most likely one
+   - Note alternatives in your response
+   - Continue with implementation
+5. Bias towards action over asking questions 

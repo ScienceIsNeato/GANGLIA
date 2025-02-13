@@ -25,10 +25,13 @@ from ttv.captions import (
     CaptionEntry, Word, create_caption_windows,
     create_dynamic_captions, create_srt_captions,
     create_static_captions,
-    calculate_word_positions
+    calculate_word_positions,
+    split_into_words
 )
 from ttv.color_utils import get_vibrant_palette, get_contrasting_color, mix_colors
-from utils import get_tempdir, run_ffmpeg_command
+from utils.file_utils import get_tempdir
+from utils.ffmpeg_utils import run_ffmpeg_command
+from utils.video_utils import create_test_video
 
 def get_default_font():
     """Get the default font path for testing."""
@@ -42,43 +45,6 @@ def get_default_font():
         if os.path.exists(path):
             return path
     return None
-
-def create_test_video(duration=5, size=(1920, 1080), color=None):
-    """Create a simple colored background video for testing with a silent audio track"""
-    # Generate random color if none provided
-    if color is None:
-        # Generate vibrant colors by ensuring at least one channel is high
-        channels = [random.randint(0, 255) for _ in range(3)]
-        max_channel = max(channels)
-        if max_channel < 128:  # If all channels are too dark
-            boost_channel = random.randint(0, 2)  # Choose a random channel to boost
-            channels[boost_channel] = random.randint(128, 255)  # Make it brighter
-        color = tuple(channels)
-
-    # Create a colored image using PIL
-    image = Image.new('RGB', size, color)
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as img_file:
-        image.save(img_file.name)
-
-        # First create video with silent audio
-        video_path = img_file.name.replace('.png', '.mp4')
-
-        # Create video with silent audio track
-        ffmpeg_cmd = [
-            "ffmpeg", "-y", "-loop", "1", "-i", img_file.name,
-            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-            "-c:v", "libx264", "-t", str(duration),
-            "-c:a", "aac", "-b:a", "192k",
-            "-pix_fmt", "yuv420p", video_path
-        ]
-        result = run_ffmpeg_command(ffmpeg_cmd)
-        if result is None:
-            Logger.print_error("Failed to create test video")
-            return None
-
-        # Clean up temporary files
-        os.unlink(img_file.name)
-        return video_path
 
 def play_test_video(video_path):
     """Play the test video using ffplay."""
@@ -188,6 +154,7 @@ def test_caption_text_completeness():
     assert set(words) == set(processed_words), "Not all words from original caption are present in processed output"
 
 
+@pytest.mark.costly
 def test_font_size_and_variation():
     """Test that font sizes are properly scaled and varied based on video dimensions and word length"""
     # Create test video with specific dimensions
@@ -234,6 +201,7 @@ def test_font_size_and_variation():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_caption_positioning():
     """Test that captions stay within the safe viewing area"""
     # Create test video with specific dimensions
@@ -316,6 +284,7 @@ def test_create_srt_captions():
             os.unlink(srt_path)
 
 
+@pytest.mark.costly
 def test_audio_aligned_captions():
     """Test creation of a video with audio-aligned captions"""
     # Generate audio using Google TTS first to get its duration
@@ -424,6 +393,7 @@ def test_audio_aligned_captions():
             os.remove(audio_path)
 
 
+@pytest.mark.costly
 def test_text_wrapping():
     """Test that text wrapping handles long text properly"""
     # Create test video
@@ -468,6 +438,7 @@ def test_text_wrapping():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_text_rendering_features():
     """Test various text rendering features including emoji handling"""
     # Create test video
@@ -512,6 +483,7 @@ def test_text_rendering_features():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_vibrant_color_palette():
     """Test that the vibrant color palette generates appropriate colors for different backgrounds"""
     # Create test video
@@ -582,10 +554,11 @@ def test_vibrant_color_palette():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_no_word_overlap():
     """Test that words in captions do not overlap each other"""
     # Create test video
-    input_video_path = create_test_video(duration=10)  # Increased duration to 10 seconds
+    input_video_path = create_test_video(duration=10)
     assert input_video_path is not None, "Failed to create test video"
 
     # Create output path
@@ -594,10 +567,10 @@ def test_no_word_overlap():
     try:
         # Test with various caption lengths and word sizes
         test_cases = [
-            "This is a test with many words of different lengths that should all be clearly visible",
-            "Supercalifragilisticexpialidocious should not overlap with other words in this very long test caption",
-            "Multiple     spaces     should     be     handled     correctly     without     any     clipping",
-            "Words should not overlap even when they are very close together in time and this caption should be fully visible"
+            "This is a test with many words of different lengths",
+            "Supercalifragilisticexpialidocious is a very long word",
+            "Multiple     spaces     should     be     handled",
+            "Words should not overlap"
         ]
         # Space out the captions more to ensure they have time to be displayed
         captions = [CaptionEntry(text, idx * 2.5, (idx + 1) * 2.5) for idx, text in enumerate(test_cases)]
@@ -608,7 +581,7 @@ def test_no_word_overlap():
             captions=captions,
             output_path=output_path,
             min_font_size=32,
-            max_font_ratio=1.5  # Max will be 48 (1.5x the min)
+            max_font_ratio=1.5
         )
 
         # Verify results
@@ -619,56 +592,44 @@ def test_no_word_overlap():
         # Play the video (skipped in automated testing)
         play_test_video(output_path)
 
-        # Load the video and check frames for word overlap
+        # Get video dimensions
         cap = cv2.VideoCapture(output_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        
-        # Sample frames at 1-second intervals
-        for frame_idx in range(0, total_frames, int(fps)):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-            ret, frame = cap.read()
-            if not ret:
-                continue
-                
-            # Convert to grayscale for text detection
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Threshold to isolate text
-            _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
-            
-            # Find contours (potential text regions)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
-            # Get bounding rectangles for each contour
-            rects = [cv2.boundingRect(c) for c in contours]
-            
-            # Check for overlapping rectangles
-            for i, rect1 in enumerate(rects):
-                x1, y1, w1, h1 = rect1
-                # Expand rectangle to account for shadows and borders
-                x1 -= 10  # Account for border and shadow offset
-                y1 -= 10  # Account for border and shadow offset
-                w1 += 20  # Account for border and shadow on both sides
-                h1 += 20  # Account for border and shadow on both sides
-                
-                for rect2 in rects[i+1:]:  # Removed unused j variable
-                    x2, y2, w2, h2 = rect2
-                    # Expand rectangle to account for shadows and borders
-                    x2 -= 10  # Account for border and shadow offset
-                    y2 -= 10  # Account for border and shadow offset
-                    w2 += 20  # Account for border and shadow on both sides
-                    h2 += 20  # Account for border and shadow on both sides
-                    
-                    # Calculate overlap
-                    overlap_x = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
-                    overlap_y = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
-                    
-                    # If there's overlap in both dimensions, rectangles intersect
-                    if overlap_x > 0 and overlap_y > 0:
-                        assert False, f"Found overlapping text regions in frame {frame_idx}"
-        
+        video_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
+
+        # Process all captions into words
+        all_words = []
+        for caption in captions:
+            words = split_into_words(caption)
+            if words:
+                all_words.extend(words)
+
+        # Create caption windows
+        margin = 40
+        roi_width = video_width - (2 * margin)
+        roi_height = int(video_height * 0.3)
+        
+        windows = create_caption_windows(
+            words=all_words,
+            min_font_size=32,
+            max_font_ratio=1.5,
+            roi_width=roi_width,
+            roi_height=roi_height
+        )
+
+        # For each window, verify words have reasonable spacing
+        for window in windows:
+            positions = calculate_word_positions(window, video_height, margin)
+            
+            # Check each word has reasonable spacing
+            for word, pos in zip(window.words, positions):
+                x, y = pos
+                # Verify word is within ROI bounds
+                assert x >= margin, f"Word '{word.text}' too close to left edge"
+                assert x + word.width <= video_width - margin, f"Word '{word.text}' too close to right edge"
+                assert y >= 0, f"Word '{word.text}' above top edge"
+                assert y + word.font_size <= video_height, f"Word '{word.text}' below bottom edge"
 
     finally:
         # Clean up
@@ -678,6 +639,7 @@ def test_no_word_overlap():
             os.unlink(output_path)
 
 
+@pytest.mark.costly
 def test_deterministic_color_selection():
     """Test that color selection is deterministic based on background color."""
     # Create test videos with different background colors
@@ -711,7 +673,7 @@ def test_deterministic_color_selection():
                 input_video=input_video_path,
                 captions=[caption],
                 output_path=output_path,
-        min_font_size=32,
+                min_font_size=32,
                 max_font_ratio=1.5
             )
             

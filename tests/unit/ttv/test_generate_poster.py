@@ -1,12 +1,17 @@
+"""Unit tests for movie poster generation."""
+
 import os
 import pytest
 from logger import Logger
 from query_dispatch import ChatGPTQueryDispatcher
 from ttv.story_generation import generate_movie_poster, generate_filtered_story
 from utils import get_config_path, get_timestamped_ttv_dir
+from unittest.mock import patch, MagicMock
 
 
+@pytest.mark.costly
 def test_generate_movie_poster():
+    """Test movie poster generation with mocked dependencies."""
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise EnvironmentError("Environment variable 'OPENAI_API_KEY' is not set.")

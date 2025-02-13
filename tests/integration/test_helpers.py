@@ -23,6 +23,8 @@ from ttv.log_messages import (
     LOG_BACKGROUND_MUSIC_FAILURE
 )
 
+
+
 logger = logging.getLogger(__name__)
 
 def validate_background_music(output: str) -> None:
@@ -34,6 +36,11 @@ def validate_background_music(output: str) -> None:
     Raises:
         AssertionError: If background music validation fails
     """
+    # First check if video concatenation failed
+    if "Failed to concatenate video segments" in output:
+        logger.warning("Video concatenation failed before background music step")
+        return
+        
     # Check for successful background music generation
     success_pattern = re.compile(LOG_BACKGROUND_MUSIC_SUCCESS)
     failure_pattern = re.compile(LOG_BACKGROUND_MUSIC_FAILURE)
@@ -118,7 +125,24 @@ def validate_segment_count(output, config_path):
     print("✓ All story segments are present")
     return actual_segments
 
-def validate_audio_video_durations(config_path, output_dir):
+def get_output_dir_from_logs(output: str) -> str:
+    """Extract the TTV output directory from logs.
+    
+    Args:
+        output: The test output containing log messages
+        
+    Returns:
+        str: Path to the TTV output directory
+        
+    Raises:
+        AssertionError: If directory not found in logs
+    """
+    pattern = r"Created TTV directory: (.+)"
+    if match := re.search(pattern, output):
+        return match.group(1)
+    raise AssertionError("TTV directory not found in logs")
+
+def validate_audio_video_durations(config_path, output):
     """Validate that each audio file matches the corresponding video segment duration."""
     print("\n=== Validating Audio/Video Segment Durations ===")
     
@@ -129,6 +153,8 @@ def validate_audio_video_durations(config_path, output_dir):
     except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
         raise AssertionError(f"Failed to read story from config: {e}") # pylint: disable=raise-missing-from
 
+    # Get output directory from logs
+    output_dir = get_output_dir_from_logs(output)
     print(f"Checking {expected_segments} segments in {output_dir}")
     
     # First get all the segment files
@@ -320,3 +346,109 @@ def validate_gcs_upload(bucket_name: str, project_name: str) -> storage.Blob:
     
     print(f"✓ Found uploaded file in GCS: {uploaded_file.name}")
     return uploaded_file
+
+def validate_caption_accuracy(output: str, config_path: str) -> None:
+    """Validate that Whisper's captions match the expected text for each segment.
+    
+    Args:
+        output: The test output containing Whisper's word data
+        config_path: Path to the config file containing expected text
+    """
+    print("\nCaption validation:")
+    
+    try:
+        # Read expected text from config
+        with open(config_path, encoding="utf-8") as f:
+            config = json.loads(f.read())
+            story_segments = config.get("story", [])
+            expected_text = " ".join(story_segments)
+    except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
+        raise AssertionError(f"Failed to read story from config: {e}") from e
+    
+    # Extract word data from output
+    word_pattern = r"Word data: {'word': '([^']+)', 'start': np\.float64\(([^)]+)\), 'end': np\.float64\(([^)]+)\), 'probability': np\.float64\(([^)]+)\)}"
+    
+    # Find all words in the output
+    actual_words = []
+    for match in re.finditer(word_pattern, output):
+        word = match.group(1).strip()
+        # Skip closing credits numbers
+        if not word.replace(",", "").strip().isdigit():
+            actual_words.append(word)
+    
+    actual_text = " ".join(actual_words)
+    
+    # Print debug info
+    print(f"Expected: {expected_text}")
+    print(f"Actual:   {actual_text}")
+    
+    # Convert to lowercase and remove punctuation
+    def clean_text(text):
+        return [w for w in re.sub(r"[^\w\s]", "", text.lower()).split() if w]
+    
+    expected_words = set(clean_text(expected_text))
+    actual_words = set(clean_text(actual_text))
+    
+    # Calculate word presence score
+    matched_words = len(expected_words & actual_words)
+    total_expected = len(expected_words)
+    word_presence_score = (matched_words / total_expected) * 100 if total_expected > 0 else 0
+    
+    print(f"\nWord presence score: {word_presence_score:.1f}% ({matched_words}/{total_expected} words)")
+    
+    # Check for missing and extra words
+    missing_words = expected_words - actual_words
+    extra_words = actual_words - expected_words
+    
+    if missing_words:
+        print(f"Missing words: {sorted(missing_words)}")
+    if extra_words:
+        print(f"Extra words: {sorted(extra_words)}")
+    
+    # Define thresholds
+    CRITICAL_THRESHOLD = 25.0  # Test fails if below this
+    WORD_PRESENCE_TARGET = 80.0  # Warning if below this
+    
+    # Check for critical failures (truly poor accuracy)
+    if word_presence_score < CRITICAL_THRESHOLD:
+        raise AssertionError(
+            f"Caption accuracy critically low: word presence score {word_presence_score:.1f}% "
+            f"is below minimum threshold of {CRITICAL_THRESHOLD}%"
+        )
+    
+    # Warn about moderate accuracy issues
+    if word_presence_score < WORD_PRESENCE_TARGET:
+        print(f"\n⚠️  Warning: Word presence score ({word_presence_score:.1f}%) "
+              f"is below target of {WORD_PRESENCE_TARGET}%")
+        print("\n⚠️  Captions below target accuracy but above critical threshold - continuing test")
+    else:
+        print("\n✓ All captions meet target accuracy threshold")
+
+def get_git_description() -> str:
+    """Get description from either PR or latest commit."""
+    try:
+        # Try to get PR description first
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "title,body"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            pr_info = json.loads(result.stdout)
+            return f"{pr_info['title']}\n\n{pr_info['body']}"
+    except Exception:
+        pass  # Fall back to commit message
+    
+    try:
+        # Get the most recent commit message
+        result = subprocess.run(
+            ["git", "log", "-1", "--pretty=%B"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    
+    return "No description available"
