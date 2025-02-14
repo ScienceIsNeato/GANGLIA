@@ -17,12 +17,12 @@ import pytest
 # Local application imports
 from utils import get_tempdir
 from tests.integration.test_data.config_generator import generate_config
-from tests.integration.test_helpers import (
-    validate_segment_count,
+from tests.test_helpers import (
     validate_audio_video_durations,
     validate_final_video_path,
     validate_total_duration,
     validate_closing_credits_duration,
+    validate_segment_count,
     validate_background_music,
     validate_gcs_upload,
     validate_caption_accuracy,

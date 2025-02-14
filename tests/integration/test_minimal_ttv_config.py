@@ -7,7 +7,7 @@ import pytest
 
 # Local application imports
 from ttv.ttv import text_to_video
-from tests.integration.test_helpers import validate_gcs_upload
+from tests.test_helpers import validate_gcs_upload
 
 logger = logging.getLogger(__name__)
 
