@@ -6,9 +6,10 @@ import requests
 from lyrics_lib import LyricsGenerator
 from logger import Logger
 from music_backends.base import MusicBackend
+from music_backends.suno_interface import SunoInterface
 from utils import get_tempdir
-class SunoMusicBackend(MusicBackend):
-    """Suno API implementation for music generation."""
+class FoxAISunoBackend(MusicBackend, SunoInterface):
+    """FoxAI's Suno API implementation for music generation."""
     
     def __init__(self):
         self.api_base_url = 'https://api.sunoaiapi.com/api/v1'
@@ -22,10 +23,27 @@ class SunoMusicBackend(MusicBackend):
         self.audio_directory = get_tempdir() + "/music"
         os.makedirs(self.audio_directory, exist_ok=True)
     
-    def start_generation(self, prompt: str, with_lyrics: bool = False, **kwargs) -> str:
-        """Start the generation process via API."""
+    def start_generation(self, prompt: str, with_lyrics: bool = False, title: str = None, tags: str = None, **kwargs) -> str:
+        """Start the generation process via API.
+        
+        Args:
+            prompt: Text description of the desired music
+            with_lyrics: Whether to generate with lyrics
+            title: Title for the generated song (optional)
+            tags: Style tags/descriptors for the song (optional)
+            **kwargs: Additional parameters including story_text for lyrics
+            
+        Returns:
+            str: Job ID for tracking progress, or None if generation fails
+        """
         model = kwargs.get('model', 'chirp-v3-5')
         duration = kwargs.get('duration', 30)  # Default to 30 seconds if not specified
+        
+        # Add title and tags to kwargs if provided
+        if title:
+            kwargs['title'] = title
+        if tags:
+            kwargs['style'] = tags  # Use tags as style information
         
         if with_lyrics and 'story_text' in kwargs:
             return self._start_lyrical_song_job(prompt, model, kwargs['story_text'], kwargs.get('query_dispatcher'))
@@ -259,4 +277,4 @@ class SunoMusicBackend(MusicBackend):
             status, progress = self.check_progress(job_id)
             if progress >= 100:
                 return self.get_result(job_id)
-            time.sleep(5) 
+            time.sleep(5)

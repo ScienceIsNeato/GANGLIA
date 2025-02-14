@@ -1,11 +1,13 @@
-"""Test helper functions for integration tests.
+"""Test helper functions for all test types.
 
-This module provides utility functions for integration testing, including:
+This module provides utility functions for unit, integration, and third-party testing, including:
 - Video and audio duration measurement
 - Configuration file handling
 - Process completion waiting
 - File validation
 - Test log parsing
+- Audio playback
+- Text color analysis
 """
 
 import os
@@ -14,8 +16,11 @@ import subprocess
 import time
 import json
 import logging
-from google.cloud import storage
+import cv2
+import numpy as np
+from collections import Counter
 from logger import Logger
+from ttv.color_utils import get_vibrant_palette
 from ttv.log_messages import (
     LOG_CLOSING_CREDITS_DURATION,
     LOG_FFPROBE_COMMAND,
@@ -23,9 +28,24 @@ from ttv.log_messages import (
     LOG_BACKGROUND_MUSIC_FAILURE
 )
 
-
-
 logger = logging.getLogger(__name__)
+
+def play_audio(func):
+    """Decorator to play audio file after test if PLAYBACK_MEDIA_IN_TESTS is true."""
+    def wrapper(*args, **kwargs):
+        audio_path = func(*args, **kwargs)
+        if os.environ.get('PLAYBACK_MEDIA_IN_TESTS') == 'true':
+            try:
+                # Use ffplay with -nodisp to hide video window and -autoexit to quit after playback
+                # -exitonkeydown makes it exit if any key is pressed
+                subprocess.run([
+                    "ffplay", "-nodisp", "-autoexit", "-exitonkeydown",
+                    audio_path
+                ], check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to play audio: {e}")
+        return audio_path
+    return wrapper
 
 def validate_background_music(output: str) -> None:
     """Validate background music generation and addition.
@@ -253,202 +273,102 @@ def validate_total_duration(final_video_path, main_video_duration):
         f"({expected_duration:.2f}s)"
     )
 
-def validate_closing_credits_duration(output, config_path):
-    """Validate that the closing credits audio and video durations match."""
-    print("\n=== Validating Closing Credits Duration ===")
-    
-    duration_match = re.search(f'{LOG_CLOSING_CREDITS_DURATION}: (\\d+\\.\\d+)s', output)
-    if duration_match:
-        audio_duration = float(duration_match.group(1))
-        print(f"✓ Generated closing credits duration: {audio_duration:.2f}s")
-        return audio_duration
-    
-    try:
-        with open(config_path, encoding='utf-8') as f:
-            config = json.loads(f.read())
-            if 'closing_credits' in config and isinstance(config['closing_credits'], str):
-                credits_path = config['closing_credits']
-                audio_duration = get_audio_duration(credits_path)
-                print(
-                    f"✓ Pre-loaded closing credits ({os.path.basename(credits_path)}) "
-                    f"duration: {audio_duration:.2f}s"
-                )
-                return audio_duration
-    except (IOError, ValueError) as e:
-        print(f"Failed to read closing credits from config: {e}")
-        
-    print("No closing credits found")
-    return 0.0
-
-def read_story_from_config(config_file_path):
-    """Read and parse a story configuration file."""
-    try:
-        with open(config_file_path, encoding='utf-8') as f:
-            return json.load(f)
-    except (IOError, ValueError) as e:
-        raise AssertionError(f'Failed to read story from config: {e}') from e
-
-def read_story_from_config_file(config_file_path):
-    """Read and parse a story configuration file with error handling."""
-    try:
-        with open(config_file_path, encoding='utf-8') as f:
-            return json.load(f)
-    except (IOError, ValueError) as e:
-        raise AssertionError(f'Failed to read story from config: {e}') from e
-
-def read_story_from_config_file_with_retry(config_file_path):
-    """Read and parse a story configuration file with retry on failure."""
-    try:
-        with open(config_file_path, encoding='utf-8') as f:
-            return json.load(f)
-    except (IOError, ValueError) as e:
-        Logger.print_error(f"Failed to read story from config: {e}")
-        return None
-
-def read_story_from_config_file_with_retry_and_wait(config_file_path):
-    """Read and parse a story configuration file with retry and wait."""
-    try:
-        with open(config_file_path, encoding='utf-8') as f:
-            return json.load(f)
-    except (IOError, ValueError) as e:
-        Logger.print_error(f"Failed to read story from config: {e}")
-        return None
-
-def validate_gcs_upload(bucket_name: str, project_name: str) -> storage.Blob:
-    """Validate that a file was uploaded to GCS and return the uploaded file blob.
+def find_closest_palette_color(color):
+    """Find the closest color from the vibrant palette.
     
     Args:
-        bucket_name: The name of the GCS bucket
-        project_name: The GCP project name
+        color: (B,G,R) color tuple
         
     Returns:
-        storage.Blob: The most recently uploaded video file blob
-        
-    Raises:
-        AssertionError: If no uploaded file is found or if the file doesn't exist
+        tuple: (closest_color, difference)
     """
-    print("\n=== Validating GCS Upload ===")
-    storage_client = storage.Client(project=project_name)
-    bucket = storage_client.get_bucket(bucket_name)
-    
-    # List blobs in test_outputs directory
-    blobs = list(bucket.list_blobs(prefix="test_outputs/"))
-    
-    # Find the most recently uploaded file
-    uploaded_file = None
-    for blob in blobs:
-        if blob.name.endswith("_final_video.mp4"):
-            if not uploaded_file or blob.time_created > uploaded_file.time_created:
-                uploaded_file = blob
-    
-    assert uploaded_file is not None, "Failed to find uploaded video in GCS"
-    assert uploaded_file.exists(), "Uploaded file does not exist in GCS"
-    
-    print(f"✓ Found uploaded file in GCS: {uploaded_file.name}")
-    return uploaded_file
+    palette = get_vibrant_palette()
+    color_diffs = [sum(abs(c1 - c2) for c1, c2 in zip(color, palette_color)) 
+                  for palette_color in palette]
+    min_diff = min(color_diffs)
+    closest_color = palette[color_diffs.index(min_diff)]
+    return closest_color, min_diff
 
-def validate_caption_accuracy(output: str, config_path: str) -> None:
-    """Validate that Whisper's captions match the expected text for each segment.
+def get_text_colors_from_frame(frame):
+    """Extract text colors from a video frame by finding text character borders and fill.
     
     Args:
-        output: The test output containing Whisper's word data
-        config_path: Path to the config file containing expected text
+        frame: The video frame to analyze
+        
+    Returns:
+        tuple: (text_color, stroke_color) where each color is a tuple of (B,G,R) values
     """
-    print("\nCaption validation:")
+    # Convert to grayscale for edge detection
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
-    try:
-        # Read expected text from config
-        with open(config_path, encoding="utf-8") as f:
-            config = json.loads(f.read())
-            story_segments = config.get("story", [])
-            expected_text = " ".join(story_segments)
-    except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
-        raise AssertionError(f"Failed to read story from config: {e}") from e
+    # Use Canny edge detection to find text borders
+    edges = cv2.Canny(gray, 100, 200)
     
-    # Extract word data from output
-    word_pattern = r"Word data: {'word': '([^']+)', 'start': np\.float64\(([^)]+)\), 'end': np\.float64\(([^)]+)\), 'probability': np\.float64\(([^)]+)\)}"
+    # Dilate edges to get stroke area
+    kernel = np.ones((3,3), np.uint8)
+    stroke_area = cv2.dilate(edges, kernel, iterations=1)
     
-    # Find all words in the output
-    actual_words = []
-    for match in re.finditer(word_pattern, output):
-        word = match.group(1).strip()
-        # Skip closing credits numbers
-        if not word.replace(",", "").strip().isdigit():
-            actual_words.append(word)
+    # Create a mask for the text fill area (inside the strokes)
+    fill_area = cv2.floodFill(stroke_area.copy(), None, (0,0), 255)[1]
+    fill_area = cv2.bitwise_not(fill_area)
+    fill_area = cv2.erode(fill_area, kernel, iterations=1)
     
-    actual_text = " ".join(actual_words)
+    # Get colors from stroke and fill areas
+    stroke_colors = frame[stroke_area > 0]
+    fill_colors = frame[fill_area > 0]
     
-    # Print debug info
-    print(f"Expected: {expected_text}")
-    print(f"Actual:   {actual_text}")
+    if len(stroke_colors) == 0 or len(fill_colors) == 0:
+        print("No text colors found")
+        return None, None
     
-    # Convert to lowercase and remove punctuation
-    def clean_text(text):
-        return [w for w in re.sub(r"[^\w\s]", "", text.lower()).split() if w]
+    # Get the most common colors
+    fill_color_counts = Counter([tuple(int(x) for x in color) for color in fill_colors])
+    sorted_fill_colors = sorted(fill_color_counts.items(), key=lambda x: x[1], reverse=True)
     
-    expected_words = set(clean_text(expected_text))
-    actual_words = set(clean_text(actual_text))
+    # Find the most common color that's close to a palette color
+    text_color = None
+    min_diff = float('inf')
+    for color, _ in sorted_fill_colors:
+        closest_color, diff = find_closest_palette_color(color)
+        if diff < min_diff:
+            text_color = closest_color
+            min_diff = diff
+            if diff <= 30:  # If we find a close match, use it immediately
+                break
     
-    # Calculate word presence score
-    matched_words = len(expected_words & actual_words)
-    total_expected = len(expected_words)
-    word_presence_score = (matched_words / total_expected) * 100 if total_expected > 0 else 0
+    if text_color is None:
+        print("No colors close to palette found")
+        return None, None
     
-    print(f"\nWord presence score: {word_presence_score:.1f}% ({matched_words}/{total_expected} words)")
+    # Create stroke color as exactly 1/3 intensity of text color
+    stroke_color = tuple(max(1, c // 3) for c in text_color)
     
-    # Check for missing and extra words
-    missing_words = expected_words - actual_words
-    extra_words = actual_words - expected_words
-    
-    if missing_words:
-        print(f"Missing words: {sorted(missing_words)}")
-    if extra_words:
-        print(f"Extra words: {sorted(extra_words)}")
-    
-    # Define thresholds
-    CRITICAL_THRESHOLD = 25.0  # Test fails if below this
-    WORD_PRESENCE_TARGET = 80.0  # Warning if below this
-    
-    # Check for critical failures (truly poor accuracy)
-    if word_presence_score < CRITICAL_THRESHOLD:
-        raise AssertionError(
-            f"Caption accuracy critically low: word presence score {word_presence_score:.1f}% "
-            f"is below minimum threshold of {CRITICAL_THRESHOLD}%"
-        )
-    
-    # Warn about moderate accuracy issues
-    if word_presence_score < WORD_PRESENCE_TARGET:
-        print(f"\n⚠️  Warning: Word presence score ({word_presence_score:.1f}%) "
-              f"is below target of {WORD_PRESENCE_TARGET}%")
-        print("\n⚠️  Captions below target accuracy but above critical threshold - continuing test")
-    else:
-        print("\n✓ All captions meet target accuracy threshold")
+    print(f"Found text color: {text_color}, stroke color: {stroke_color}")
+    return text_color, stroke_color
 
-def get_git_description() -> str:
-    """Get description from either PR or latest commit."""
-    try:
-        # Try to get PR description first
-        result = subprocess.run(
-            ["gh", "pr", "view", "--json", "title,body"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            pr_info = json.loads(result.stdout)
-            return f"{pr_info['title']}\n\n{pr_info['body']}"
-    except Exception:
-        pass  # Fall back to commit message
+def get_text_colors_from_video(video_path, frame_idx=0):
+    """Extract text colors from a specific frame in a video.
+    
+    Args:
+        video_path: Path to the video file
+        frame_idx: Index of the frame to analyze
+        
+    Returns:
+        tuple: (text_color, stroke_color) where each color is a tuple of (B,G,R) values,
+               or (None, None) if colors cannot be extracted
+    """
+    cap = cv2.VideoCapture(video_path)
     
     try:
-        # Get the most recent commit message
-        result = subprocess.run(
-            ["git", "log", "-1", "--pretty=%B"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception:
-        pass
-    
-    return "No description available"
+        # Set frame position
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        
+        # Read frame
+        ret, frame = cap.read()
+        if not ret:
+            return None, None
+            
+        return get_text_colors_from_frame(frame)
+        
+    finally:
+        cap.release() 

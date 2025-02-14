@@ -64,13 +64,15 @@ class MetaMusicBackend(MusicBackend):
             else:
                 Logger.print_info("CUDA not available, using CPU")
     
-    def start_generation(self, prompt: str, story_text: str = None, **kwargs) -> str:
+    def start_generation(self, prompt: str, with_lyrics: bool = False, title: str = None, tags: str = None, **kwargs) -> str:
         """Start the generation process in a separate thread.
         
         Args:
             prompt: The text prompt for music generation
-            story_text: Optional story text for lyric-based generation
-            **kwargs: Additional keyword arguments for generation
+            with_lyrics: Whether to generate with lyrics
+            title: Title for the generated song (optional)
+            tags: Style tags/descriptors for the song (optional)
+            **kwargs: Additional parameters including story_text for lyrics
             
         Returns:
             str: A unique job ID for tracking generation progress
@@ -84,7 +86,9 @@ class MetaMusicBackend(MusicBackend):
                 'status': 'Starting',
                 'progress': 0,
                 'output_path': None,
-                'error': None
+                'error': None,
+                'title': title,
+                'tags': tags
             }, f)
         
         # Start generation thread

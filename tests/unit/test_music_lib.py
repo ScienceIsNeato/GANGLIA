@@ -1,9 +1,11 @@
 import pytest
 from unittest.mock import Mock, patch
 from music_lib import MusicGenerator, _exponential_backoff
-from music_backends import SunoMusicBackend, MetaMusicBackend
+from music_backends.gcui_suno import GcuiSunoBackend
+from music_backends import MetaMusicBackend
+from ttv.config_loader import TTVConfig
 
-class MockSunoBackend(SunoMusicBackend):
+class MockSunoBackend(GcuiSunoBackend):
     def __init__(self, should_fail=False, fail_count=None):
         self.should_fail = should_fail
         self.fail_count = fail_count  # Number of times to fail before succeeding

@@ -52,6 +52,7 @@ jobs:
         GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
+        SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
         YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
@@ -107,6 +108,7 @@ jobs:
         GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
+        SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
         YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'true'
@@ -161,6 +163,7 @@ jobs:
         GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
+        SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
         GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
         YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
         YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
