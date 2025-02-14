@@ -22,7 +22,7 @@ import subprocess
 import sys
 import os
 import pytest
-from tests.integration.test_helpers import (
+from tests.test_helpers import (
     validate_audio_video_durations,
     validate_final_video_path,
     validate_total_duration,
@@ -129,7 +129,7 @@ def test_simulated_pipeline_execution():
             try:
                 client = YouTubeClient()
                 video_url = client.create_video_post(
-                    title=f"GANGLIA Integration Test: TTV Pipeline (Smoke)",
+                    title="GANGLIA Integration Test: TTV Pipeline (Smoke)",
                     video_path=final_video_path,
                     additional_info={
                         "python_version": sys.version,

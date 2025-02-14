@@ -32,8 +32,8 @@ if [ -z "$GCP_BUCKET_NAME" ] || [ -z "$GCP_PROJECT_NAME" ]; then
 fi
 
 # Music generation features
-if [ -z "$SUNO_API_KEY" ]; then
-    echo "Warning: SUNO_API_KEY not set - Music generation features will not be available"
+if [ -z "$SUNO_API_KEY" ] || [ -z "$SUNO_API_URL" ]; then
+    echo "Warning: SUNO_API_KEY or SUNO_API_URL not set - Music generation features will not be available"
 fi
 
 echo "Feature check complete"
@@ -238,6 +238,7 @@ case $MODE in
                 -e GCP_BUCKET_NAME \
                 -e GCP_PROJECT_NAME \
                 -e SUNO_API_KEY \
+                -e SUNO_API_URL \
                 -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
                 -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
                 -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
@@ -271,6 +272,7 @@ case $MODE in
             -e GCP_BUCKET_NAME \
             -e GCP_PROJECT_NAME \
             -e SUNO_API_KEY \
+            -e SUNO_API_URL \
             -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
             -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
             -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \

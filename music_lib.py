@@ -1,6 +1,6 @@
 """Music generation library providing a unified interface for multiple music generation backends.
 
-This module implements a music generation service that can use different backends (Meta, Suno)
+This module implements a music generation service that can use different backends (Meta, GcuiSuno)
 with fallback support, retry mechanisms, and progress tracking.
 """
 
@@ -8,7 +8,8 @@ import os
 import time
 import subprocess
 from logger import Logger
-from music_backends import MetaMusicBackend, SunoMusicBackend
+from music_backends import MetaMusicBackend
+from music_backends.gcui_suno import GcuiSunoBackend
 from ttv.config_loader import TTVConfig
 from typing import Optional, Any, Tuple
 
@@ -53,11 +54,12 @@ class MusicGenerator:
             if backend_name == "meta":
                 self.backend = MetaMusicBackend()
                 self.fallback_backend = None
-            else:  # Default to Suno with Meta as fallback
-                self.backend = SunoMusicBackend()
+            else:  # Default to GcuiSuno with Meta as fallback
+                self.backend = GcuiSunoBackend()
                 self.fallback_backend = MetaMusicBackend()
             
-            Logger.print_info(f"Using {backend_name} backend for music generation with Meta as fallback")
+            Logger.print_info(f"Using {backend_name} backend for music generation" + 
+                            " with Meta as fallback" if backend_name != "meta" else "")
     
     def generate_instrumental(self, prompt: str, **kwargs) -> str:
         """Generate instrumental music from a text prompt."""
@@ -104,7 +106,13 @@ class MusicGenerator:
         """Attempt to generate music with the specified backend."""
         try:
             # Start generation
-            job_id = backend.start_generation(prompt, with_lyrics=False, **kwargs)
+            job_id = backend.start_generation(
+                prompt=prompt,
+                with_lyrics=kwargs.get('with_lyrics', False),  # Get with_lyrics from kwargs
+                title=kwargs.get('title'),
+                tags=kwargs.get('tags'),
+                **kwargs
+            )
             if not job_id:
                 Logger.print_error(f"Failed to start generation with {backend.__class__.__name__}")
                 return None
@@ -138,7 +146,13 @@ class MusicGenerator:
         # Start generation
         kwargs['story_text'] = story_text
         kwargs['query_dispatcher'] = kwargs.get('query_dispatcher')  # Forward query_dispatcher
-        job_id = self.backend.start_generation(prompt, with_lyrics=True, **kwargs)
+        job_id = self.backend.start_generation(
+            prompt=prompt,
+            with_lyrics=True,
+            title=kwargs.get('title'),
+            tags=kwargs.get('tags'),
+            **kwargs
+        )
         if not job_id:
             Logger.print_error("Failed to start generation")
             return None

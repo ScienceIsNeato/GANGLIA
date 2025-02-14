@@ -73,13 +73,15 @@ Once GANGLIA is running, it will listen for voice prompts. When you're ready to 
 
 GANGLIA can be used without API keys for certain features. However, if you want to utilize features that require API keys, you'll need to set up your API keys for the respective services.
 
-To set up the API keys, copy the `.env.template` file in the root directory of the project and rename it to `.env`. Then, update the values for the features you want to use.
+To set up the API keys, copy the `.envrc.template` file in the root directory of the project and rename it to `.envrc`. Then, update the values for the features you want to use.
 
 Here's a table of features, their implementation names, and the corresponding environment variable names for the `.env` file:
 
 | Feature            | Implementation Name | Environment Variable      |
 |--------------------|---------------------|---------------------------|
 | AI Backend         | OpenAI GPT-4        | OPENAI_API_KEY            |
+| Music Generation   | Suno MusicGen       | SUNO_API_KEY, SUNO_API_URL |
+| YouTube Upload     | YouTube API         | YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET |
 
 ## TTS (Text To Speech)
 
@@ -389,3 +391,28 @@ Common pytest options:
 - `-s`: Show print statements (don't capture stdout)
 - `-k "test_name"`: Run tests matching the given name
 - `--pdb`: Drop into debugger on test failures
+
+## Setting up YouTube Integration (Optional)
+
+GANGLIA can automatically upload test results to YouTube. To enable this feature:
+
+1. Set up a Google Cloud Project and enable the YouTube Data API v3
+2. Create OAuth 2.0 credentials in the Google Cloud Console:
+   - Go to APIs & Services > Credentials
+   - Create OAuth 2.0 Client ID
+   - Download the client configuration
+
+3. Configure the YouTube environment variables in your `.envrc`:
+   ```bash
+   export YOUTUBE_CLIENT_ID="your-client-id"
+   export YOUTUBE_CLIENT_SECRET="your-client-secret"
+   export YOUTUBE_CREDENTIALS_FILE="$HOME/.config/ganglia/youtube_credentials.json"
+   ```
+
+4. Configure test upload settings:
+   ```bash
+   export UPLOAD_SMOKE_TESTS_TO_YOUTUBE="false"      # Set to "true" to upload smoke test results
+   export UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE="true"  # Set to "true" to upload integration test results
+   ```
+
+The first time you run tests with YouTube upload enabled, you'll be prompted to authenticate through your browser. The credentials will be saved to the path specified in `YOUTUBE_CREDENTIALS_FILE` for future use.

@@ -28,10 +28,11 @@ from ttv.captions import (
     calculate_word_positions,
     split_into_words
 )
-from ttv.color_utils import get_vibrant_palette, get_contrasting_color, mix_colors
+from ttv.color_utils import get_vibrant_palette
 from utils.file_utils import get_tempdir
 from utils.ffmpeg_utils import run_ffmpeg_command
 from utils.video_utils import create_test_video
+from tests.test_helpers import get_text_colors_from_video
 
 def get_default_font():
     """Get the default font path for testing."""
@@ -520,7 +521,6 @@ def test_vibrant_color_palette():
         play_test_video(output_path)
 
         # Get actual colors from the video
-        from tests.unit.ttv.test_helpers import get_text_colors_from_video
         text_color, stroke_color = get_text_colors_from_video(output_path)
         assert text_color is not None, "Failed to extract text color from video"
         assert stroke_color is not None, "Failed to extract stroke color from video"
@@ -683,7 +683,6 @@ def test_deterministic_color_selection():
             assert os.path.getsize(output_path) > 0, "Output file is empty"
             
             # Get colors from the video
-            from tests.unit.ttv.test_helpers import get_text_colors_from_video
             text_color, _ = get_text_colors_from_video(output_path)
             assert text_color is not None, "Failed to extract text color from video"
             
