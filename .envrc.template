@@ -8,7 +8,17 @@ export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/application_default_
                                               # This is the default location after running 'gcloud auth application-default login'
 
 # Audio Generation Services
-export SUNO_API_KEY="your-key-here"           # MusicGen/AudioGen API key for music/sound generation
+export SUNO_API_KEY="your-key-here"           # MusicGen/AudioGen API key for music generation
+export SUNO_API_URL="your-url-here"           # MusicGen/AudioGen API URL
+
+# YouTube Configuration
+export YOUTUBE_CLIENT_ID="your-client-id-here"                                     # OAuth 2.0 Client ID from Google Cloud Console
+export YOUTUBE_CLIENT_SECRET="your-client-secret-here"                             # OAuth 2.0 Client Secret from Google Cloud Console
+export YOUTUBE_CREDENTIALS_FILE="$HOME/.config/ganglia/youtube_credentials.json"   # Path to YouTube OAuth credentials file
+
+# Test Upload Configuration
+export UPLOAD_SMOKE_TESTS_TO_YOUTUBE="false"      # Whether to upload smoke test results to YouTube
+export UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE="true"  # Whether to upload integration test results to YouTube
 
 # Test Configuration
 export PLAYBACK_MEDIA_IN_TESTS="true"         # Controls whether audio/video is played during tests
