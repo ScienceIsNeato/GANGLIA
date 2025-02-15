@@ -7,88 +7,16 @@ on:
     branches: [ '**' ]
 
 jobs:
-  suno-api-test:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-    
-    - name: Set up Google Application Credentials
-      run: |
-        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
-        chmod 600 /tmp/gcp-credentials.json
-      env:
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
-
-    - name: Set up YouTube credentials
-      run: |
-        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
-        chmod 600 /tmp/youtube_credentials.json
-      env:
-        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
-
-    - name: Set up YouTube token
-      run: |
-        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
-        if ! jq empty /tmp/youtube_token.json 2>/dev/null; then
-          echo "Error: Invalid JSON in decoded token file"
-          exit 1
-        fi
-        chmod 600 /tmp/youtube_token.json
-      env:
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
-
-    - name: Make run_tests.sh executable
-      run: chmod +x run_tests.sh
-    
-    - name: Run Suno API test
-      env:
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        GCP_BUCKET_NAME: ${{ secrets.GCP_BUCKET_NAME }}
-        GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
-        SUNO_API_KEY: ${{ secrets.SUNO_API_KEY }}
-        SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
-        UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
-        UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
-      run: |
-        docker build -t ganglia:latest .
-        docker run --rm \
-          -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
-          -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
-          -v /tmp/youtube_token.json:/tmp/youtube_token.json \
-          -e OPENAI_API_KEY \
-          -e GCP_BUCKET_NAME \
-          -e GCP_PROJECT_NAME \
-          -e SUNO_API_KEY \
-          -e SUNO_API_URL \
-          -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
-          -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
-          -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
-          ganglia:latest \
-          python -m pytest tests/third_party/test_gcui_suno_live.py -v -s
-    
-    - name: Clean up
-      if: always()
-      run: |
-        rm -f /tmp/gcp-credentials.json
-        rm -f /tmp/youtube_token.json
-        rm -f /tmp/youtube_credentials.json
-
   unit-tests:
-    if: github.event_name == 'push' && false  # Temporarily disabled
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
-    
+
     - name: Set up Google Application Credentials
       run: |
         echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
@@ -117,7 +45,7 @@ jobs:
 
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
-    
+
     - name: Run unit tests
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -130,7 +58,7 @@ jobs:
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
       run: ./run_tests.sh docker unit
-    
+
     - name: Clean up
       if: always()
       run: |
@@ -138,16 +66,16 @@ jobs:
         rm -f /tmp/youtube_token.json
 
   smoke-tests:
-    if: github.event_name == 'push' && false  # Temporarily disabled
     needs: unit-tests
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
-    
+
     - name: Set up Google Application Credentials
       run: |
         echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
@@ -173,7 +101,7 @@ jobs:
 
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
-    
+
     - name: Run smoke tests
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -186,7 +114,7 @@ jobs:
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'true'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
       run: ./run_tests.sh docker smoke
-    
+
     - name: Clean up
       if: always()
       run: |
@@ -194,15 +122,15 @@ jobs:
         rm -f /tmp/youtube_token.json
 
   integration-tests:
-    if: github.event_name == 'pull_request' && false  # Temporarily disabled
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
-    
+
     - name: Set up Google Application Credentials
       run: |
         echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
@@ -228,7 +156,7 @@ jobs:
 
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
-    
+
     - name: Run integration tests
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -242,10 +170,9 @@ jobs:
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'true'
       run: ./run_tests.sh docker integration
-    
+
     - name: Clean up
       if: always()
       run: |
         rm -f /tmp/gcp-credentials.json
         rm -f /tmp/youtube_token.json
-
