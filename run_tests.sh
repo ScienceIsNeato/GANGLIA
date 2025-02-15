@@ -97,11 +97,11 @@ if [ -f "/tmp/gcp-credentials.json" ]; then
 else
     # Ensure parent directory exists
     mkdir -p "/tmp"
-    
+
     # Remove any existing file or directory
     rm -rf "/tmp/gcp-credentials.json"
     touch "/tmp/gcp-credentials.json"
-    
+
     if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
         # Local development with file path
         echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS"
@@ -119,7 +119,7 @@ else
             exit 1
         fi
     fi
-    
+
     # Verify the file contains valid JSON
     if ! jq empty "/tmp/gcp-credentials.json" 2>/dev/null; then
         echo "Error: Invalid JSON in credentials file"
@@ -139,7 +139,7 @@ chmod 600 "/tmp/gcp-credentials.json"
 # Setup YouTube credentials
 if [ -f "/tmp/youtube_credentials.json" ]; then
     echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
-    
+
     # Verify the file contains valid JSON
     if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube credentials file"
@@ -148,18 +148,18 @@ if [ -f "/tmp/youtube_credentials.json" ]; then
 else
     # Ensure parent directory exists
     mkdir -p "/tmp"
-    
+
     # Remove any existing file or directory
     rm -rf "/tmp/youtube_credentials.json"
     touch "/tmp/youtube_credentials.json"
-    
+
     # Write credentials content
     echo "[DEBUG] Writing YouTube credentials content"
     if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
         echo "Error: Failed to write YouTube credentials content"
         exit 1
     fi
-    
+
     # Verify the file contains valid JSON
     if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube credentials file"
@@ -173,7 +173,7 @@ chmod 600 "/tmp/youtube_credentials.json"
 # Setup YouTube token
 if [ -f "/tmp/youtube_token.json" ]; then
     echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
-    
+
     # Verify the file contains valid JSON
     if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
         echo "Error: Invalid JSON in YouTube token file"
@@ -198,13 +198,13 @@ case $MODE in
             echo "Executing: python -m pytest tests/unit/ -v -s -m 'costly'" | tee -a "$LOG_FILE"
             eval "python -m pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
             UNIT_EXIT_CODE=${PIPESTATUS[0]}
-            
+
             if [ $UNIT_EXIT_CODE -ne 0 ]; then
                 echo "Costly unit tests failed with exit code $UNIT_EXIT_CODE" | tee -a "$LOG_FILE"
                 echo $UNIT_EXIT_CODE > "$STATUS_FILE"
                 exit $UNIT_EXIT_CODE
             fi
-            
+
             # Then run smoke tests
             echo "Executing smoke tests..." | tee -a "$LOG_FILE"
             echo "Executing: python -m pytest ${TEST_DIR} -v -s" | tee -a "$LOG_FILE"
@@ -220,7 +220,7 @@ case $MODE in
     "docker")
         # Build the Docker image
         docker build -t ganglia:latest . 2>&1 | tee -a "$LOG_FILE" || exit 1
-        
+
         # Show the command that will be run
         if [[ "$TEST_TYPE" == "unit" ]]; then
             echo "Command to be run inside Docker: pytest ${TEST_DIR} -v -s -m 'not costly'" | tee -a "$LOG_FILE"
@@ -247,19 +247,19 @@ case $MODE in
                 ganglia:latest \
                 /bin/sh -c "pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
             UNIT_EXIT_CODE=${PIPESTATUS[0]}
-            
+
             if [ $UNIT_EXIT_CODE -ne 0 ]; then
                 echo "Costly unit tests failed in Docker with exit code $UNIT_EXIT_CODE" | tee -a "$LOG_FILE"
                 echo $UNIT_EXIT_CODE > "$STATUS_FILE"
                 rm -f /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
                 exit $UNIT_EXIT_CODE
             fi
-            
+
             echo "Running smoke tests in Docker..." | tee -a "$LOG_FILE"
         else
             echo "Command to be run inside Docker: pytest ${TEST_DIR} -v -s" | tee -a "$LOG_FILE"
         fi
-        
+
         # Run Docker with credentials mount and pass through environment variables
         docker run --rm \
             -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
@@ -285,5 +285,4 @@ case $MODE in
         rm -f /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
         exit $TEST_EXIT_CODE
         ;;
-esac 
-
+esac

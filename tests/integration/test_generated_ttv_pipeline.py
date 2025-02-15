@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.costly
 def test_generated_pipeline_execution():
     """Test execution of TTV pipeline with generated content (music, images).
-    
+
     This test verifies:
     1. DALL-E generated images
     2. Audio generation and synchronization
@@ -89,9 +89,7 @@ def test_generated_pipeline_execution():
     validate_background_music(output)
 
     # Add closing credits duration to total video duration
-    closing_credits_duration = validate_closing_credits_duration(
-        output, config_path
-    )
+    closing_credits_duration = validate_closing_credits_duration(output)
     total_video_duration += closing_credits_duration
 
     # Validate final video
@@ -117,7 +115,7 @@ def test_generated_pipeline_execution():
             try:
                 client = YouTubeClient()
                 video_url = client.create_video_post(
-                    title=f"GANGLIA Integration Test: TTV Pipeline (Generated)",
+                    title="GANGLIA Integration Test: TTV Pipeline (Generated)",
                     video_path=final_video_path,
                     additional_info={
                         "python_version": sys.version,

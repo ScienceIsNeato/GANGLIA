@@ -46,7 +46,7 @@ UPLOAD_SMOKE_TESTS_TO_YOUTUBE = os.getenv('UPLOAD_SMOKE_TESTS_TO_YOUTUBE', 'fals
 
 def test_simulated_pipeline_execution():
     """Test the full TTV pipeline with simulated responses for music and image generation.
-    
+
     This test verifies:
     1. Image generation/loading from preloaded directory
     2. Audio generation and synchronization
@@ -99,9 +99,7 @@ def test_simulated_pipeline_execution():
     validate_background_music(output)
 
     # Add closing credits duration to total video duration
-    closing_credits_duration = validate_closing_credits_duration(
-        output, SIMULATED_PIPELINE_CONFIG
-    )
+    closing_credits_duration = validate_closing_credits_duration(output)
     total_video_duration += closing_credits_duration
 
 
