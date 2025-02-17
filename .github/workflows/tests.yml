@@ -10,9 +10,26 @@ jobs:
   unit-tests:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Add environment check to validate required secrets
+    env:
+      CHECK_SECRETS: ${{ secrets.GCP_SA_KEY_BASE64 != '' &&
+                        secrets.YOUTUBE_CREDENTIALS_BASE64 != '' &&
+                        secrets.YOUTUBE_TOKEN_BASE64 != '' &&
+                        secrets.OPENAI_API_KEY != '' &&
+                        secrets.GCP_BUCKET_NAME != '' &&
+                        secrets.GCP_PROJECT_NAME != '' &&
+                        secrets.FOXAI_SUNO_API_KEY != '' &&
+                        secrets.SUNO_API_URL != '' }}
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Verify required secrets
+      run: |
+        if [[ "$CHECK_SECRETS" != "true" ]]; then
+          echo "Error: Required secrets are not set"
+          exit 1
+        fi
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -22,36 +39,35 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
     - name: Get GANGLIA temp directory
+      id: tempdir
       run: |
-        echo "GANGLIA_TEMP_DIR=$(python3 -c "import sys; sys.path.append('$PWD'); from utils.file_utils import get_tempdir; print(get_tempdir())")" >> $GITHUB_ENV
-        mkdir -p $GANGLIA_TEMP_DIR/logs
+        TEMP_DIR=$(python3 -c "import sys; sys.path.append('$PWD'); from utils.file_utils import get_tempdir; print(get_tempdir())")
+        echo "GANGLIA_TEMP_DIR=$TEMP_DIR" >> $GITHUB_ENV
+        mkdir -p $TEMP_DIR/{logs,credentials}
 
     - name: Set up Google Application Credentials
       run: |
-        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
-        chmod 600 /tmp/gcp-credentials.json
-      env:
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
 
     - name: Set up YouTube credentials
       run: |
-        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
-        chmod 600 /tmp/youtube_credentials.json
-      env:
-        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
 
     - name: Set up YouTube token
       run: |
         # Decode and validate token
-        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
-        if ! jq empty /tmp/youtube_token.json 2>/dev/null; then
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/youtube_token.json
+        if ! jq empty $GANGLIA_TEMP_DIR/credentials/youtube_token.json 2>/dev/null; then
           echo "Error: Invalid JSON in decoded token file"
           exit 1
         fi
-        chmod 600 /tmp/youtube_token.json
-      env:
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/youtube_token.json
 
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
@@ -63,11 +79,10 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         FOXAI_SUNO_API_KEY: ${{ secrets.FOXAI_SUNO_API_KEY }}
         SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        GOOGLE_APPLICATION_CREDENTIALS: $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
+        YOUTUBE_TOKEN_FILE: $GANGLIA_TEMP_DIR/credentials/youtube_token.json
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
-        GANGLIA_TEMP_DIR: ${{ env.GANGLIA_TEMP_DIR }}
       run: ./run_tests.sh docker unit
 
     - name: Display Test Links
@@ -95,16 +110,32 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -f /tmp/gcp-credentials.json
-        rm -f /tmp/youtube_token.json
+        rm -rf $GANGLIA_TEMP_DIR/credentials
 
   smoke-tests:
     needs: unit-tests
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Add environment check to validate required secrets
+    env:
+      CHECK_SECRETS: ${{ secrets.GCP_SA_KEY_BASE64 != '' &&
+                        secrets.YOUTUBE_CREDENTIALS_BASE64 != '' &&
+                        secrets.YOUTUBE_TOKEN_BASE64 != '' &&
+                        secrets.OPENAI_API_KEY != '' &&
+                        secrets.GCP_BUCKET_NAME != '' &&
+                        secrets.GCP_PROJECT_NAME != '' &&
+                        secrets.FOXAI_SUNO_API_KEY != '' &&
+                        secrets.SUNO_API_URL != '' }}
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Verify required secrets
+      run: |
+        if [[ "$CHECK_SECRETS" != "true" ]]; then
+          echo "Error: Required secrets are not set"
+          exit 1
+        fi
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -114,33 +145,34 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
     - name: Get GANGLIA temp directory
+      id: tempdir
       run: |
-        echo "GANGLIA_TEMP_DIR=$(python3 -c "import sys; sys.path.append('$PWD'); from utils.file_utils import get_tempdir; print(get_tempdir())")" >> $GITHUB_ENV
-        mkdir -p $GANGLIA_TEMP_DIR/logs
+        TEMP_DIR=$(python3 -c "import sys; sys.path.append('$PWD'); from utils.file_utils import get_tempdir; print(get_tempdir())")
+        echo "GANGLIA_TEMP_DIR=$TEMP_DIR" >> $GITHUB_ENV
+        mkdir -p $TEMP_DIR/{logs,credentials}
 
     - name: Set up Google Application Credentials
       run: |
-        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
-        chmod 600 /tmp/gcp-credentials.json
-      env:
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
 
     - name: Set up YouTube credentials
       run: |
-        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
-        chmod 600 /tmp/youtube_credentials.json
-      env:
-        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
 
     - name: Set up YouTube token
       run: |
-        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
-        # Verify JSON format
-        jq empty /tmp/youtube_token.json || (echo "Invalid JSON in token file" && exit 1)
-        chmod 600 /tmp/youtube_token.json
-      env:
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/youtube_token.json
+        if ! jq empty $GANGLIA_TEMP_DIR/credentials/youtube_token.json 2>/dev/null; then
+          echo "Error: Invalid JSON in token file"
+          exit 1
+        fi
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/youtube_token.json
 
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
@@ -152,11 +184,10 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         FOXAI_SUNO_API_KEY: ${{ secrets.FOXAI_SUNO_API_KEY }}
         SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        GOOGLE_APPLICATION_CREDENTIALS: $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
+        YOUTUBE_TOKEN_FILE: $GANGLIA_TEMP_DIR/credentials/youtube_token.json
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'true'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'false'
-        GANGLIA_TEMP_DIR: ${{ env.GANGLIA_TEMP_DIR }}
       run: ./run_tests.sh docker smoke
 
     - name: Display Test Links
@@ -184,15 +215,31 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -f /tmp/gcp-credentials.json
-        rm -f /tmp/youtube_token.json
+        rm -rf $GANGLIA_TEMP_DIR/credentials
 
   integration-tests:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # Add environment check to validate required secrets
+    env:
+      CHECK_SECRETS: ${{ secrets.GCP_SA_KEY_BASE64 != '' &&
+                        secrets.YOUTUBE_CREDENTIALS_BASE64 != '' &&
+                        secrets.YOUTUBE_TOKEN_BASE64 != '' &&
+                        secrets.OPENAI_API_KEY != '' &&
+                        secrets.GCP_BUCKET_NAME != '' &&
+                        secrets.GCP_PROJECT_NAME != '' &&
+                        secrets.FOXAI_SUNO_API_KEY != '' &&
+                        secrets.SUNO_API_URL != '' }}
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Verify required secrets
+      run: |
+        if [[ "$CHECK_SECRETS" != "true" ]]; then
+          echo "Error: Required secrets are not set"
+          exit 1
+        fi
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -202,33 +249,34 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
     - name: Get GANGLIA temp directory
+      id: tempdir
       run: |
-        echo "GANGLIA_TEMP_DIR=$(python3 -c "import sys; sys.path.append('$PWD'); from utils.file_utils import get_tempdir; print(get_tempdir())")" >> $GITHUB_ENV
-        mkdir -p $GANGLIA_TEMP_DIR/logs
+        TEMP_DIR=$(python3 -c "import sys; sys.path.append('$PWD'); from utils.file_utils import get_tempdir; print(get_tempdir())")
+        echo "GANGLIA_TEMP_DIR=$TEMP_DIR" >> $GITHUB_ENV
+        mkdir -p $TEMP_DIR/{logs,credentials}
 
     - name: Set up Google Application Credentials
       run: |
-        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > /tmp/gcp-credentials.json
-        chmod 600 /tmp/gcp-credentials.json
-      env:
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
+        echo "${{ secrets.GCP_SA_KEY_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
 
     - name: Set up YouTube credentials
       run: |
-        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > /tmp/youtube_credentials.json
-        chmod 600 /tmp/youtube_credentials.json
-      env:
-        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
+        echo "${{ secrets.YOUTUBE_CREDENTIALS_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
 
     - name: Set up YouTube token
       run: |
-        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > /tmp/youtube_token.json
-        # Verify JSON format
-        jq empty /tmp/youtube_token.json || (echo "Invalid JSON in token file" && exit 1)
-        chmod 600 /tmp/youtube_token.json
-      env:
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > $GANGLIA_TEMP_DIR/credentials/youtube_token.json
+        if ! jq empty $GANGLIA_TEMP_DIR/credentials/youtube_token.json 2>/dev/null; then
+          echo "Error: Invalid JSON in token file"
+          exit 1
+        fi
+        chmod 600 $GANGLIA_TEMP_DIR/credentials/youtube_token.json
 
     - name: Make run_tests.sh executable
       run: chmod +x run_tests.sh
@@ -240,12 +288,11 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         FOXAI_SUNO_API_KEY: ${{ secrets.FOXAI_SUNO_API_KEY }}
         SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
-        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-credentials.json
-        YOUTUBE_CREDENTIALS_FILE: /tmp/youtube_credentials.json
-        YOUTUBE_TOKEN_FILE: /tmp/youtube_token.json
+        GOOGLE_APPLICATION_CREDENTIALS: $GANGLIA_TEMP_DIR/credentials/gcp-credentials.json
+        YOUTUBE_CREDENTIALS_FILE: $GANGLIA_TEMP_DIR/credentials/youtube_credentials.json
+        YOUTUBE_TOKEN_FILE: $GANGLIA_TEMP_DIR/credentials/youtube_token.json
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'true'
-        GANGLIA_TEMP_DIR: ${{ env.GANGLIA_TEMP_DIR }}
       run: ./run_tests.sh docker integration
 
     - name: Display Test Links
@@ -273,5 +320,4 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -f /tmp/gcp-credentials.json
-        rm -f /tmp/youtube_token.json
+        rm -rf $GANGLIA_TEMP_DIR/credentials
