@@ -59,8 +59,8 @@ class MusicGenerator:
                 self.backend = GcuiSunoBackend()
                 self.fallback_backend = FoxAISunoBackend()
 
-            Logger.print_info(f"Using {backend_name} backend for music generation" +
-                            " with Meta as fallback" if backend_name != "meta" else "")
+            Logger.print_info(f"MusicGenerator initialized with backend: {self.backend.__class__.__name__},"
+                              f" and fallback: {self.fallback_backend.__class__.__name__}")
 
     def generate_instrumental(self, prompt: str, **kwargs) -> str:
         """Generate instrumental music from a text prompt."""
@@ -140,8 +140,12 @@ class MusicGenerator:
             Logger.print_error(f"Error with {backend.__class__.__name__}: {str(e)}")
             return None
 
-    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> str:
-        """Generate music with lyrics from a text prompt and story."""
+    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> tuple[str, str]:
+        """Generate music with lyrics from a text prompt and story.
+
+        Returns:
+            tuple[str, str]: Tuple containing (audio_file_path, lyrics) or (None, None) if generation fails
+        """
         Logger.print_info(f"Generating music with lyrics. Prompt: {prompt}, Story length: {len(story_text)}")
 
         # Start generation
@@ -156,7 +160,7 @@ class MusicGenerator:
         )
         if not job_id:
             Logger.print_error("Failed to start generation")
-            return None
+            return None, None
 
         # Poll for completion
         while True:
@@ -168,7 +172,7 @@ class MusicGenerator:
 
             time.sleep(5)  # Wait before checking again
 
-        # Get result
+        # Get result and lyrics
         return self.backend.get_result(job_id)
 
     def generate_music(self, prompt: str, with_lyrics: bool = False, story_text: str = None,
@@ -385,18 +389,17 @@ class MusicGenerator:
             return None, None
 
         Logger.print_info(f"{thread_prefix}Generating closing credits with prompt: {prompt}")
-        closing_credits_path = self.generate_with_lyrics(
+        closing_credits_path, lyrics = self.generate_with_lyrics(
             prompt=prompt,
             story_text=story_text,
             query_dispatcher=query_dispatcher,
             output_path=os.path.join(output_dir, "closing_credits.mp3")
         )
 
-        # TODO: Extract lyrics from generation result
-        lyrics = None
-
         if closing_credits_path:
             Logger.print_info(f"{thread_prefix}Successfully generated closing credits at: {closing_credits_path}")
+            if lyrics:
+                Logger.print_info(f"{thread_prefix}Generated lyrics: {lyrics}")
             return closing_credits_path, lyrics
 
         Logger.print_error(f"{thread_prefix}Failed to generate closing credits")

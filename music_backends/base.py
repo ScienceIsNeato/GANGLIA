@@ -4,13 +4,19 @@ import time
 class MusicBackend(ABC):
     """Base class for music generation backends."""
 
+    # Default duration for credits music in seconds
+    DEFAULT_CREDITS_DURATION = 60
+
     @abstractmethod
-    def generate_instrumental(self, prompt: str, **kwargs) -> str:
+    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30) -> str:
         """Generate instrumental music from a text prompt.
 
         Args:
-            prompt (str): Text description of the desired music.
-            **kwargs: Additional backend-specific parameters.
+            prompt: Text description of the desired music
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            wait_audio: Whether to wait for audio generation
+            duration: Duration in seconds (default: 30)
 
         Returns:
             str: Path to the generated audio file.
@@ -18,32 +24,60 @@ class MusicBackend(ABC):
         pass
 
     @abstractmethod
-    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> str:
+    def generate_with_lyrics(
+            self,
+            prompt: str,
+            story_text: str,
+            title: str = None,
+            tags: str = None,
+            query_dispatcher = None,
+            wait_audio: bool = False,
+            duration: int = None
+        ) -> tuple[str, str]:
         """Generate music with lyrics from a text prompt and story.
 
         Args:
-            prompt (str): Text description of the desired music style.
-            story_text (str): Story text to generate lyrics from.
-            **kwargs: Additional backend-specific parameters.
+            prompt: Text description of the desired music style
+            story_text: Story text to generate lyrics from
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            query_dispatcher: Query dispatcher for lyric generation
+            wait_audio: Whether to wait for audio generation
+            duration: Duration in seconds (default: DEFAULT_CREDITS_DURATION)
 
         Returns:
-            str: Path to the generated audio file.
+            tuple[str, str]: Tuple containing (audio_file_path, lyrics) or (None, None) if generation fails
         """
         pass
 
     @abstractmethod
-    def start_generation(self, prompt: str, with_lyrics: bool = False, title: str = None, tags: str = None, **kwargs) -> str:
+    def start_generation(
+            self,
+            prompt: str,
+            with_lyrics: bool = False,
+            title: str = None,
+            tags: str = None,
+            story_text: str = None,
+            wait_audio: bool = False,
+            query_dispatcher = None,
+            model: str = 'chirp-v3-5',
+            duration: int = None
+        ) -> str:
         """Start the generation process and return a job ID or identifier.
 
         Args:
-            prompt (str): Text description of the desired music.
-            with_lyrics (bool): Whether to generate with lyrics.
-            title (str, optional): Title for the generated song.
-            tags (str, optional): Style tags/descriptors for the song.
-            **kwargs: Additional backend-specific parameters including story_text for lyrics.
+            prompt: Text description of the desired music
+            with_lyrics: Whether to generate with lyrics
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            story_text: Story text for lyric generation
+            wait_audio: Whether to wait for audio generation
+            query_dispatcher: Query dispatcher for lyric generation
+            model: Model to use for generation (default: chirp-v3-5)
+            duration: Duration in seconds (default: 30 for instrumental, DEFAULT_CREDITS_DURATION for lyrics)
 
         Returns:
-            str: Job ID or identifier for tracking progress.
+            str: Job ID for tracking progress, or None if generation fails
         """
         pass
 
@@ -52,10 +86,10 @@ class MusicBackend(ABC):
         """Check the progress of a generation job.
 
         Args:
-            job_id (str): Job ID or identifier from start_generation.
+            job_id: The job ID to check progress for
 
         Returns:
-            tuple[str, float]: Status message and progress percentage (0-100).
+            tuple[str, float]: Status message and progress percentage (0-100)
         """
         pass
 
@@ -64,10 +98,10 @@ class MusicBackend(ABC):
         """Get the result of a completed generation job.
 
         Args:
-            job_id (str): Job ID or identifier from start_generation.
+            job_id: The job ID to get results for
 
         Returns:
-            str: Path to the generated audio file.
+            str: Path to the generated audio file, or None if failed
         """
         pass
 

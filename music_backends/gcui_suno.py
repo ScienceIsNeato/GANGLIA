@@ -30,15 +30,32 @@ class GcuiSunoBackend(MusicBackend, SunoInterface):
                 Logger.print_error(f"Failed to initialize Suno API connection: {str(e)}")
                 # Don't raise here - let start_generation handle errors
 
-    def start_generation(self, prompt: str, with_lyrics: bool = False, title: str = None, tags: str = None, **kwargs) -> str:
+        Logger.print_info("GcuiSunoBackend initialized")
+
+    def start_generation(
+            self,
+            prompt: str,
+            with_lyrics: bool = False,
+            title: str = None,
+            tags: str = None,
+            story_text: str = None,
+            wait_audio: bool = False,
+            query_dispatcher = None,
+            model: str = 'chirp-v3-5',
+            duration: int = None
+        ) -> str:
         """Start the generation process via API.
 
         Args:
             prompt: Text description of the desired music
             with_lyrics: Whether to generate with lyrics
-            title: Title for the generated song (optional)
-            tags: Style tags/descriptors for the song (optional)
-            **kwargs: Additional parameters including story_text for lyrics
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            story_text: Story text for lyric generation
+            wait_audio: Whether to wait for audio generation
+            query_dispatcher: Query dispatcher for lyric generation
+            model: Model to use for generation
+            duration: Duration in seconds (default: 30 for instrumental, DEFAULT_CREDITS_DURATION for lyrics)
 
         Returns:
             str: Job ID for tracking progress, or None if generation fails
@@ -48,11 +65,11 @@ class GcuiSunoBackend(MusicBackend, SunoInterface):
             return None
 
         try:
-            if with_lyrics and 'story_text' in kwargs:
+            if with_lyrics and story_text:
                 # First generate lyrics if needed
                 lyrics_response = requests.post(
                     f"{self.api_base_url}/api/generate_lyrics",
-                    json={"prompt": kwargs['story_text']},
+                    json={"prompt": story_text},
                     timeout=30
                 )
                 if lyrics_response.status_code != 200:
@@ -60,24 +77,40 @@ class GcuiSunoBackend(MusicBackend, SunoInterface):
                     return None
                 lyrics_data = lyrics_response.json()
 
+                # Use default credits duration if none specified
+                actual_duration = duration if duration is not None else self.DEFAULT_CREDITS_DURATION
+
+                # Enhance prompt with duration and title context
+                enhanced_prompt = f"Create a {actual_duration}-second {prompt}"
+                if title:
+                    enhanced_prompt = f"{enhanced_prompt} titled '{title}'"
+
                 # Use custom_generate for more control over lyrics and style
                 data = {
-                    "prompt": prompt,  # Use the music style prompt
+                    "prompt": enhanced_prompt,  # Use the enhanced prompt with duration
                     "lyrics": lyrics_data.get('text', ''),  # Get generated lyrics
-                    "tags": tags or kwargs.get('tags', 'folk acoustic'),  # Use provided tags or default
-                    "title": title or kwargs.get('title', 'Generated Song'),  # Use provided title or default
+                    "tags": tags or 'folk acoustic',  # Use provided tags or default
+                    "title": title or 'Generated Song',  # Use provided title or default
                     "make_instrumental": False,
-                    "wait_audio": kwargs.get('wait_audio', False)
+                    "wait_audio": wait_audio
                 }
                 endpoint = f"{self.api_base_url}/api/custom_generate"
             else:
+                # Use default credits duration for instrumentals if none specified
+                actual_duration = duration if duration is not None else self.DEFAULT_CREDITS_DURATION
+
+                # Enhance prompt with duration and title context
+                enhanced_prompt = f"Create a {actual_duration}-second {prompt}"
+                if title:
+                    enhanced_prompt = f"{enhanced_prompt} titled '{title}'"
+
                 # Use standard generate for instrumental
                 data = {
-                    "prompt": prompt,
-                    "tags": tags or kwargs.get('tags', 'instrumental'),  # Use provided tags or default
-                    "title": title or kwargs.get('title', 'Generated Instrumental'),  # Use provided title or default
+                    "prompt": enhanced_prompt,  # Use the enhanced prompt with duration
+                    "tags": tags or 'instrumental',  # Use provided tags or default
+                    "title": title or 'Generated Instrumental',  # Use provided title or default
                     "make_instrumental": True,
-                    "wait_audio": kwargs.get('wait_audio', False)
+                    "wait_audio": wait_audio
                 }
                 endpoint = f"{self.api_base_url}/api/generate"
 
@@ -221,9 +254,16 @@ class GcuiSunoBackend(MusicBackend, SunoInterface):
             Logger.print_error(f"Failed to get start time for job {job_id}: {e}")
             return time.time()
 
-    def generate_instrumental(self, prompt: str, **kwargs) -> str:
+    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30) -> str:
         """Generate instrumental music (blocking)."""
-        job_id = self.start_generation(prompt, with_lyrics=False, **kwargs)
+        job_id = self.start_generation(
+            prompt=prompt,
+            with_lyrics=False,
+            title=title,
+            tags=tags,
+            wait_audio=wait_audio,
+            duration=duration
+        )
         if not job_id:
             return None
 
@@ -233,15 +273,61 @@ class GcuiSunoBackend(MusicBackend, SunoInterface):
                 return self.get_result(job_id)
             time.sleep(5)
 
-    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> str:
-        """Generate music with lyrics (blocking)."""
-        kwargs['story_text'] = story_text
-        job_id = self.start_generation(prompt, with_lyrics=True, **kwargs)
+    def generate_with_lyrics(
+            self,
+            prompt: str,
+            story_text: str,
+            title: str = None,
+            tags: str = None,
+            query_dispatcher = None,
+            wait_audio: bool = False,
+            duration: int = None
+        ) -> tuple[str, str]:
+        """Generate music with lyrics (blocking).
+
+        Args:
+            prompt: The text prompt describing the desired music
+            story_text: The story text to generate lyrics from
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            query_dispatcher: Query dispatcher for lyric generation
+            wait_audio: Whether to wait for audio generation
+            duration: Duration in seconds (default: DEFAULT_CREDITS_DURATION)
+
+        Returns:
+            tuple[str, str]: Tuple containing (audio_file_path, lyrics) or (None, None) if generation fails
+        """
+        job_id = self.start_generation(
+            prompt=prompt,
+            with_lyrics=True,
+            story_text=story_text,
+            title=title,
+            tags=tags,
+            query_dispatcher=query_dispatcher,
+            wait_audio=wait_audio,
+            duration=duration
+        )
         if not job_id:
-            return None
+            return None, None
+
+        # Get the lyrics from the API response
+        lyrics = None
+        try:
+            lyrics_response = requests.post(
+                f"{self.api_base_url}/api/generate_lyrics",
+                json={"prompt": story_text},
+                timeout=30
+            )
+            if lyrics_response.status_code == 200:
+                lyrics_data = lyrics_response.json()
+                lyrics = lyrics_data.get('text', '')
+        except Exception as e:
+            Logger.print_error(f"Failed to extract lyrics: {str(e)}")
+            return None, None
 
         while True:
             _, progress = self.check_progress(job_id)
             if progress >= 100:
-                return self.get_result(job_id)
+                result = self.get_result(job_id)
+                return result, lyrics if result else (None, None)
             time.sleep(5)

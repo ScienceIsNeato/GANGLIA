@@ -153,7 +153,7 @@ def test_lyrics_generation_no_fallback():
     assert not meta_backend.check_progress_called
     assert not meta_backend.get_result_called
 
-    assert result is None  # Should fail without fallback
+    assert result == (None, None)  # Should return (None, None) when failing without fallback
 
 
 @pytest.mark.costly

@@ -22,33 +22,54 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         }
         self.audio_directory = get_tempdir() + "/music"
         os.makedirs(self.audio_directory, exist_ok=True)
+        Logger.print_info("FoxAISunoBackend initialized")
 
-    def start_generation(self, prompt: str, with_lyrics: bool = False, title: str = None, tags: str = None, **kwargs) -> str:
+    def start_generation(
+            self,
+            prompt: str,
+            with_lyrics: bool = False,
+            title: str = None,
+            tags: str = None,
+            story_text: str = None,
+            wait_audio: bool = False,
+            query_dispatcher = None,
+            model: str = 'chirp-v3-5',
+            duration: int = None
+        ) -> str:
         """Start the generation process via API.
 
         Args:
             prompt: Text description of the desired music
             with_lyrics: Whether to generate with lyrics
-            title: Title for the generated song (optional)
-            tags: Style tags/descriptors for the song (optional)
-            **kwargs: Additional parameters including story_text for lyrics
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            story_text: Story text for lyric generation
+            wait_audio: Whether to wait for audio generation
+            query_dispatcher: Query dispatcher for lyric generation
+            model: Model to use for generation (default: chirp-v3-5)
+            duration: Duration in seconds (default: 30 for instrumental, DEFAULT_CREDITS_DURATION for lyrics)
 
         Returns:
             str: Job ID for tracking progress, or None if generation fails
         """
-        model = kwargs.get('model', 'chirp-v3-5')
-        duration = kwargs.get('duration', 30)  # Default to 30 seconds if not specified
-
-        # Add title and tags to kwargs if provided
-        if title:
-            kwargs['title'] = title
-        if tags:
-            kwargs['style'] = tags  # Use tags as style information
-
-        if with_lyrics and 'story_text' in kwargs:
-            return self._start_lyrical_song_job(prompt, model, kwargs['story_text'], kwargs.get('query_dispatcher'))
+        if with_lyrics and story_text:
+            return self._start_lyrical_song_job(
+                prompt=prompt,
+                model=model,
+                story_text=story_text,
+                query_dispatcher=query_dispatcher,
+                title=title,
+                tags=tags,
+                duration=duration
+            )
         else:
-            return self._start_instrumental_song_job(prompt, duration, model)
+            return self._start_instrumental_song_job(
+                prompt=prompt,
+                model=model,
+                title=title,
+                tags=tags,
+                duration=duration
+            )
 
     def check_progress(self, job_id: str) -> tuple[str, float]:
         """Check the progress of a generation job via API."""
@@ -117,17 +138,32 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
             Logger.print_error(f"Failed to get result: {str(e)}")
             return None
 
-    def _start_instrumental_song_job(self, prompt: str, duration: int, model: str) -> str:
+    def _start_instrumental_song_job(
+            self,
+            prompt: str,
+            model: str,
+            title: str = None,
+            tags: str = None,
+            duration: int = 30
+        ) -> str:
         """Start a job for instrumental music generation."""
-        endpoint = f"{self.api_base_url}/gateway/generate/gpt_desc"
+        endpoint = f"{self.api_base_url}/gateway/generate"
 
-        # Modify prompt to specify duration in a more natural way
-        commercial_prompt = f"Create a {prompt} that is exactly {duration} seconds long"
+        # Use default 30 seconds for instrumentals if none specified
+        actual_duration = duration if duration is not None else 30
+
+        # Enhance prompt with duration and title context
+        enhanced_prompt = f"Create a {actual_duration}-second {prompt}"
+        if title:
+            enhanced_prompt = f"{enhanced_prompt} titled '{title}'"
 
         data = {
-            "gpt_description_prompt": commercial_prompt,
+            "prompt": enhanced_prompt,
             "make_instrumental": True,
-            "mv": model,
+            "model_version": model,
+            "title": title or "Generated Instrumental",
+            "tags": tags or "instrumental",
+            "duration": actual_duration
         }
 
         logging_headers = self.headers.copy()
@@ -163,25 +199,50 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
 
         return None
 
-    def _start_lyrical_song_job(self, prompt, model, story_text, query_dispatcher):
+    def _start_lyrical_song_job(
+            self,
+            prompt: str,
+            model: str,
+            story_text: str,
+            query_dispatcher,
+            title: str = None,
+            tags: str = None,
+            duration: int = None
+        ) -> str:
         """Start a job for music generation with lyrics."""
         try:
-            lyrics_generator = LyricsGenerator()
-            lyrics_json = lyrics_generator.generate_song_lyrics(story_text, query_dispatcher)
-            lyrics_data = json.loads(lyrics_json)
+            # Get lyrics from query dispatcher
+            lyrics_data = query_dispatcher.send_query(story_text)
+
+            # Handle both string and dict responses
+            if isinstance(lyrics_data, str):
+                try:
+                    lyrics_data = json.loads(lyrics_data)
+                except json.JSONDecodeError:
+                    lyrics_data = {"style": "pop", "lyrics": lyrics_data}
 
             style = lyrics_data.get('style', 'pop')
-            lyrics = lyrics_data.get('lyrics', '')
+            lyrics = lyrics_data.get('text', '') or lyrics_data.get('lyrics', '')
 
-            endpoint = f"{self.api_base_url}/gateway/generate/gpt_desc"
+            endpoint = f"{self.api_base_url}/gateway/generate"  # Changed endpoint
 
-            # Create a natural language prompt that includes style and lyrics
-            commercial_prompt = f"Create a 30-second {style} song with these exact lyrics:\n{lyrics}"
+            # Use default credits duration if none specified
+            actual_duration = duration if duration is not None else self.DEFAULT_CREDITS_DURATION
+
+            # Enhance prompt with duration, style, and title context
+            enhanced_prompt = f"Create a {actual_duration}-second {style} song"
+            if title:
+                enhanced_prompt = f"{enhanced_prompt} titled '{title}'"
+            enhanced_prompt = f"{enhanced_prompt} with these exact lyrics:\n{lyrics}"
 
             data = {
-                "gpt_description_prompt": commercial_prompt,
+                "prompt": enhanced_prompt,  # Use prompt directly
                 "make_instrumental": False,  # This is a lyrical song
-                "mv": model
+                "model_version": model,  # Changed from mv to model_version
+                "title": title or "Generated Song",
+                "tags": tags or style,
+                "duration": actual_duration,
+                "lyrics": lyrics
             }
 
             logging_headers = self.headers.copy()
@@ -218,7 +279,7 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
             return None
 
         except Exception as e:
-            Logger.print_error(f"Failed to start lyrical job: {str(e)}")
+            Logger.print_error(f"Failed to start lyrical song job: {str(e)}")
             return None
 
     def _download_audio(self, audio_url, job_id):
@@ -255,9 +316,16 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         except:
             return time.time()
 
-    # Keep these methods for backward compatibility
-    def generate_instrumental(self, prompt: str, **kwargs) -> str:
-        job_id = self.start_generation(prompt, with_lyrics=False, **kwargs)
+    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30) -> str:
+        """Generate instrumental music (blocking)."""
+        job_id = self.start_generation(
+            prompt=prompt,
+            with_lyrics=False,
+            title=title,
+            tags=tags,
+            wait_audio=wait_audio,
+            duration=duration
+        )
         if not job_id:
             return None
 
@@ -267,14 +335,57 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
                 return self.get_result(job_id)
             time.sleep(5)
 
-    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> str:
-        kwargs['story_text'] = story_text
-        job_id = self.start_generation(prompt, with_lyrics=True, **kwargs)
+    def generate_with_lyrics(
+            self,
+            prompt: str,
+            story_text: str,
+            title: str = None,
+            tags: str = None,
+            query_dispatcher = None,
+            wait_audio: bool = False,
+            duration: int = None
+        ) -> tuple[str, str]:
+        """Generate music with lyrics and return both the audio file path and lyrics.
+
+        Args:
+            prompt: The text prompt describing the desired music
+            story_text: The story text to generate lyrics from
+            title: Title for the generated song
+            tags: Style tags/descriptors for the song
+            query_dispatcher: Query dispatcher for lyric generation
+            wait_audio: Whether to wait for audio generation
+            duration: Duration in seconds (default: DEFAULT_CREDITS_DURATION)
+
+        Returns:
+            tuple[str, str]: Tuple containing (audio_file_path, lyrics) or (None, None) if generation fails
+        """
+        job_id = self.start_generation(
+            prompt=prompt,
+            with_lyrics=True,
+            story_text=story_text,
+            title=title,
+            tags=tags,
+            query_dispatcher=query_dispatcher,
+            wait_audio=wait_audio,
+            duration=duration
+        )
         if not job_id:
-            return None
+            return None, None
+
+        # Get the lyrics that were generated for this job
+        lyrics = None
+        try:
+            lyrics_generator = LyricsGenerator()
+            lyrics_json = lyrics_generator.generate_song_lyrics(story_text, query_dispatcher)
+            lyrics_data = json.loads(lyrics_json)
+            lyrics = lyrics_data.get('lyrics', '')
+        except Exception as e:
+            Logger.print_error(f"Failed to extract lyrics: {str(e)}")
+            return None, None
 
         while True:
             status, progress = self.check_progress(job_id)
             if progress >= 100:
-                return self.get_result(job_id)
+                result = self.get_result(job_id)
+                return result, lyrics if result else (None, None)
             time.sleep(5)

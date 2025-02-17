@@ -146,9 +146,12 @@ YOUTUBE_CREDS_FILE="${CREDS_DIR}/youtube_credentials.json"
 if [ -f "$YOUTUBE_CREDS_FILE" ]; then
     echo "[DEBUG] YouTube credentials file already exists at $YOUTUBE_CREDS_FILE"
 
+    # Clean up any trailing characters
+    tr -d '\r\n%' < "$YOUTUBE_CREDS_FILE" > "${YOUTUBE_CREDS_FILE}.tmp" && mv "${YOUTUBE_CREDS_FILE}.tmp" "$YOUTUBE_CREDS_FILE"
+
     # Verify the file contains valid JSON
     if ! jq empty "$YOUTUBE_CREDS_FILE" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube credentials file"
+        echo "Error: Invalid JSON in YouTube credentials file at $YOUTUBE_CREDS_FILE"
         exit 1
     fi
 else
@@ -156,16 +159,33 @@ else
     rm -rf "$YOUTUBE_CREDS_FILE"
     touch "$YOUTUBE_CREDS_FILE"
 
-    # Write credentials content
-    echo "[DEBUG] Writing YouTube credentials content"
-    if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "$YOUTUBE_CREDS_FILE"; then
-        echo "Error: Failed to write YouTube credentials content"
-        exit 1
+    # Clean up the credentials file path
+    CLEAN_YOUTUBE_CREDS_PATH=$(printf "%s" "$YOUTUBE_CREDENTIALS_FILE" | tr -d '\r\n%')
+
+    # Copy or write credentials content
+    if [ -f "$CLEAN_YOUTUBE_CREDS_PATH" ]; then
+        # Local development with file path
+        echo "[DEBUG] YouTube credentials is a file at $CLEAN_YOUTUBE_CREDS_PATH"
+        if [ "$CLEAN_YOUTUBE_CREDS_PATH" != "$YOUTUBE_CREDS_FILE" ]; then
+            # Read and clean up the content before writing
+            tr -d '\r\n%' < "$CLEAN_YOUTUBE_CREDS_PATH" > "$YOUTUBE_CREDS_FILE"
+            if [ $? -ne 0 ]; then
+                echo "Error: Failed to copy and clean YouTube credentials from $CLEAN_YOUTUBE_CREDS_PATH"
+                exit 1
+            fi
+        fi
+    else
+        # Treat as JSON content
+        echo "[DEBUG] YouTube credentials provided as content"
+        # Clean up any trailing characters before writing
+        printf "%s" "$YOUTUBE_CREDENTIALS_FILE" | tr -d '\r\n%' > "$YOUTUBE_CREDS_FILE"
     fi
 
     # Verify the file contains valid JSON
     if ! jq empty "$YOUTUBE_CREDS_FILE" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube credentials file"
+        echo "Error: Invalid JSON in YouTube credentials file at $YOUTUBE_CREDS_FILE"
+        echo "Content of file:"
+        cat "$YOUTUBE_CREDS_FILE"
         exit 1
     fi
 fi
@@ -174,22 +194,50 @@ fi
 chmod 600 "$YOUTUBE_CREDS_FILE"
 
 # Setup YouTube token
-YOUTUBE_TOKEN_FILE="${CREDS_DIR}/youtube_token.json"
-if [ -f "$YOUTUBE_TOKEN_FILE" ]; then
-    echo "[DEBUG] YouTube token file already exists at $YOUTUBE_TOKEN_FILE"
+YOUTUBE_TOKEN_DEST="${CREDS_DIR}/youtube_token.json"
+if [ -f "$YOUTUBE_TOKEN_DEST" ]; then
+    echo "[DEBUG] YouTube token file already exists at $YOUTUBE_TOKEN_DEST"
+
+    # Clean up any trailing characters
+    tr -d '\r\n%' < "$YOUTUBE_TOKEN_DEST" > "${YOUTUBE_TOKEN_DEST}.tmp" && mv "${YOUTUBE_TOKEN_DEST}.tmp" "$YOUTUBE_TOKEN_DEST"
 
     # Verify the file contains valid JSON
-    if ! jq empty "$YOUTUBE_TOKEN_FILE" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube token file"
+    if ! jq empty "$YOUTUBE_TOKEN_DEST" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube token file at $YOUTUBE_TOKEN_DEST"
+        echo "Content of file:"
+        cat "$YOUTUBE_TOKEN_DEST"
         exit 1
     fi
 else
-    echo "Error: YouTube token file not found at $YOUTUBE_TOKEN_FILE"
-    exit 1
+    # Clean up the token file path
+    CLEAN_YOUTUBE_TOKEN_PATH=$(printf "%s" "$YOUTUBE_TOKEN_FILE" | tr -d '\r\n%')
+
+    if [ -f "$CLEAN_YOUTUBE_TOKEN_PATH" ]; then
+        # Local development with file path
+        echo "[DEBUG] YouTube token is a file at $CLEAN_YOUTUBE_TOKEN_PATH"
+        # Read and clean up the content before writing
+        tr -d '\r\n%' < "$CLEAN_YOUTUBE_TOKEN_PATH" > "$YOUTUBE_TOKEN_DEST"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to copy and clean YouTube token from $CLEAN_YOUTUBE_TOKEN_PATH"
+            exit 1
+        fi
+    else
+        echo "Error: YouTube token file not found at $CLEAN_YOUTUBE_TOKEN_PATH"
+        exit 1
+    fi
+
+    # Verify the file contains valid JSON
+    if ! jq empty "$YOUTUBE_TOKEN_DEST" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube token file at $YOUTUBE_TOKEN_DEST"
+        echo "Content of file:"
+        cat "$YOUTUBE_TOKEN_DEST"
+        exit 1
+    fi
 fi
 
-# Set restrictive permissions
-chmod 600 "$YOUTUBE_TOKEN_FILE"
+# Update YOUTUBE_TOKEN_FILE to point to the copied file
+YOUTUBE_TOKEN_FILE="$YOUTUBE_TOKEN_DEST"
+export YOUTUBE_TOKEN_FILE
 
 case $MODE in
     "local")

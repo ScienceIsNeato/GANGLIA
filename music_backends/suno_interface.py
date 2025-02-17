@@ -57,7 +57,7 @@ class SunoInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> str:
+    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> tuple[str, str]:
         """Generate music with lyrics (blocking).
 
         Args:
@@ -66,6 +66,6 @@ class SunoInterface(ABC):
             **kwargs: Additional arguments like model, etc.
 
         Returns:
-            str: Path to the generated audio file, or None if failed
+            tuple[str, str]: Tuple containing (audio_file_path, lyrics) or (None, None) if failed
         """
         pass
