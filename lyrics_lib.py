@@ -4,7 +4,7 @@ import random
 from logger import Logger
 
 example_lyrical_styles = [
-    "rock", "pop", "jazz", "blues", "hip hop", 
+    "rock", "pop", "jazz", "blues", "hip hop",
     "country", "classical", "reggae", "metal", "folk"
 ]
 
@@ -14,7 +14,7 @@ class LyricsGenerator:
 
     def generate_song_lyrics(self, story_text, query_dispatcher, target_duration=30):
         """Generate song lyrics based on the story text.
-        
+
         Args:
             story_text: The story to base the lyrics on
             query_dispatcher: The query dispatcher to use for generation
@@ -48,7 +48,7 @@ class LyricsGenerator:
         """
 
         response = query_dispatcher.send_query(prompt)
-        
+
         # Try to parse the response as JSON
         try:
             json_data = json.loads(response)
@@ -58,7 +58,7 @@ class LyricsGenerator:
             lines = response.strip().split('\n')
             style = "upbeat pop"  # Default style
             lyrics = []
-            
+
             for line in lines:
                 line = line.strip()
                 if line.startswith('"style":'):
@@ -67,7 +67,7 @@ class LyricsGenerator:
                     lyrics = [line.split(':')[1].strip().strip('",')]
                 elif not line.startswith('{') and not line.startswith('}'):
                     lyrics.append(line.strip().strip('",'))
-            
+
             # Create a properly formatted JSON response
             formatted_response = {
                 "style": style,
@@ -79,7 +79,7 @@ class LyricsGenerator:
 
     def determine_lyrical_style(self, story_text, query_dispatcher):
         Logger.print_info("Determining lyrical style with ChatGPT.")
-        
+
         prompt = (
             f"Based on the following story, suggest an appropriate lyrical style for a song:\n\n{story_text}\n\n"
             "Possible styles include: " + ", ".join(example_lyrical_styles) + ".\n\n"

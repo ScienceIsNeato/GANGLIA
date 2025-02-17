@@ -34,11 +34,11 @@ SCOPES = [
 
 # Get paths from environment or use defaults in ~/.config/ganglia
 TOKEN_FILE = os.getenv(
-    'YOUTUBE_TOKEN_FILE', 
+    'YOUTUBE_TOKEN_FILE',
     os.path.expanduser('~/.config/ganglia/youtube_token.json')
 )
 CREDENTIALS_FILE = os.getenv(
-    'YOUTUBE_CREDENTIALS_FILE', 
+    'YOUTUBE_CREDENTIALS_FILE',
     os.path.expanduser('~/.config/ganglia/youtube_credentials.json')
 )
 
@@ -55,27 +55,27 @@ class VideoUploadResult:
 
 class YouTubeClient:
     """Client for uploading content to YouTube using the YouTube Data API."""
-    
+
     API_SERVICE_NAME = "youtube"
     API_VERSION = "v3"
-    
+
     def __init__(self):
         """Initialize YouTube client with OAuth authentication."""
         self.credentials = self._get_credentials()
         self.youtube: Resource = build(
-            self.API_SERVICE_NAME, 
-            self.API_VERSION, 
+            self.API_SERVICE_NAME,
+            self.API_VERSION,
             credentials=self.credentials
         )
-    
+
     def _get_credentials(self) -> Credentials:
         """Get OAuth credentials.
-        
+
         Returns:
             Credentials: OAuth credentials
         """
         credentials = None
-        
+
         # Load existing token if it exists
         if os.path.exists(TOKEN_FILE):
             try:
@@ -84,7 +84,7 @@ class YouTubeClient:
                 return credentials
             except Exception as e:
                 Logger.print_error(f"Failed to load existing credentials: {e}")
-        
+
         # If no valid credentials available, let the user login
         if not credentials or not credentials.valid:
             if credentials and credentials.expired and credentials.refresh_token:
@@ -94,7 +94,7 @@ class YouTubeClient:
                 except Exception as e:
                     Logger.print_error(f"Failed to refresh credentials: {e}")
                     credentials = None
-            
+
             if not credentials:
                 if not os.path.exists(CREDENTIALS_FILE):
                     raise FileNotFoundError(
@@ -102,14 +102,14 @@ class YouTubeClient:
                         "Please either provide a valid token or download the OAuth client configuration from the "
                         "Google Cloud Console and save it to this location."
                     )
-                
+
                 # Run the OAuth flow
                 flow = InstalledAppFlow.from_client_secrets_file(
                     CREDENTIALS_FILE,
                     SCOPES,
                     redirect_uri='http://localhost:8090'
                 )
-                
+
                 Logger.print_info(
                     "No valid YouTube credentials found. Opening browser for authentication..."
                 )
@@ -119,44 +119,44 @@ class YouTubeClient:
                     prompt='consent'
                 )
                 Logger.print_info("Successfully authenticated with YouTube")
-                
+
                 # Save the credentials for future use
                 with open(TOKEN_FILE, 'w', encoding='utf-8') as token:
                     token.write(credentials.to_json())
                 Logger.print_info(f"Saved credentials to {TOKEN_FILE}")
-        
+
         return credentials
-    
+
     def upload_video(
-        self, 
-        video_path: str, 
+        self,
+        video_path: str,
         title: str,
         description: Optional[str] = None,
         privacy_status: str = "public",  # Default to public
         tags: Optional[list] = None
     ) -> VideoUploadResult:
         """Upload a video to YouTube.
-        
+
         Args:
             video_path: Path to the video file
             title: Title of the video
             description: Optional video description
             privacy_status: Privacy status ('private', 'unlisted', or 'public')
             tags: Optional list of video tags
-            
+
         Returns:
             VideoUploadResult: Result of the upload attempt
         """
         if not os.path.exists(video_path):
             return VideoUploadResult(
-                success=False, 
+                success=False,
                 error=f"Video file not found: {video_path}"
             )
-            
+
         def attempt_upload():
             try:
                 Logger.print_info(f"Uploading video to YouTube: {video_path}")
-                
+
                 body = {
                     'snippet': {
                         'title': title,
@@ -169,14 +169,14 @@ class YouTubeClient:
                         'selfDeclaredMadeForKids': False
                     }
                 }
-                
+
                 # Create MediaFileUpload object
                 media = MediaFileUpload(
                     video_path,
                     mimetype='video/*',
                     resumable=True
                 )
-                
+
                 # Call the API to insert the video
                 # pylint: disable=no-member
                 request = self.youtube.videos().insert(
@@ -184,46 +184,46 @@ class YouTubeClient:
                     body=body,
                     media_body=media
                 )
-                
+
                 response = None
                 while response is None:
                     status, response = request.next_chunk()
                     if status:
                         Logger.print_info(f"Upload progress: {int(status.progress() * 100)}%")
-                
+
                 video_id = response['id']
                 video_url = f"https://www.youtube.com/watch?v={video_id}"
                 Logger.print_info(f"Successfully uploaded video to YouTube: {video_url}")
                 return VideoUploadResult(success=True, video_id=video_id)
-                
+
             except HttpError as e:
                 error_msg = f"HTTP error occurred: {e.resp.status} {e.content}"
                 Logger.print_error(error_msg)
                 return VideoUploadResult(success=False, error=error_msg)
-                
+
             except Exception as e:
                 error_msg = f"An error occurred: {str(e)}"
                 Logger.print_error(error_msg)
                 return VideoUploadResult(success=False, error=error_msg)
-        
+
         # Try uploading with exponential backoff
         result = exponential_backoff(
             attempt_upload,
             max_retries=3,
             initial_delay=1.0
         )
-        
+
         return result if result else VideoUploadResult(
-            success=False, 
+            success=False,
             error="Failed after retries"
         )
-    
+
     def get_video_status(self, video_id: str) -> Dict[str, Any]:
         """Get the status of a video.
-        
+
         Args:
             video_id: The ID of the video
-            
+
         Returns:
             dict: Video status information
         """
@@ -234,11 +234,11 @@ class YouTubeClient:
                 id=video_id
             )
             response = request.execute()
-            
+
             if response['items']:
                 return response['items'][0]
             return {}
-            
+
         except Exception as e:
             Logger.print_error(f"Failed to get video status: {str(e)}")
             return {}
@@ -251,13 +251,13 @@ class YouTubeClient:
         config_path: Optional[str] = None
     ) -> str:
         """Create and upload a video post to YouTube with rich metadata.
-        
+
         Args:
             title: Title of the video
             video_path: Path to the video file to upload
             additional_info: Optional dictionary of additional information
             config_path: Optional path to configuration file
-            
+
         Returns:
             str: URL of uploaded video, or empty string if upload failed
         """
@@ -278,7 +278,7 @@ class YouTubeClient:
                 if len(text) > max_length:
                     text = text[:max_length-3] + "..."
                 return text
-            
+
             # Get description from git
             def get_git_description() -> str:
                 """Get description from either PR or latest commit."""
@@ -294,7 +294,7 @@ class YouTubeClient:
                         return f"{pr_info['title']}\n\n{pr_info['body']}"
                 except Exception:
                     pass  # Fall back to commit message
-                
+
                 try:
                     # Get the most recent commit message
                     result = subprocess.run(
@@ -306,11 +306,11 @@ class YouTubeClient:
                         return result.stdout.strip()
                 except Exception:
                     pass
-                
+
                 return "No description available"
 
             description = get_git_description()
-            
+
             # Add project information
             project_info = [
                 "",
@@ -322,7 +322,7 @@ class YouTubeClient:
                 "- GitHub: https://github.com/ScienceIsNeato/ganglia",
                 ""
             ]
-            
+
             # Add config information if provided
             config_info = []
             if config_path and os.path.exists(config_path):
@@ -339,14 +339,14 @@ class YouTubeClient:
                         ]
                 except Exception as e:
                     Logger.print_error(f"Failed to read config file: {e}")
-            
+
             # Add metadata at the end
             metadata_lines = [
                 "",
                 "🔍 Information",
                 f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ]
-            
+
             if additional_info:
                 metadata_lines.extend([
                     "",
@@ -355,11 +355,11 @@ class YouTubeClient:
                     json.dumps(additional_info, indent=2),
                     "```"
                 ])
-            
+
             # Combine all sections and sanitize
             full_description = description + "\n" + "\n".join(project_info + config_info + metadata_lines)
             sanitized_description = sanitize_text(full_description)
-            
+
             # Upload to YouTube
             result = self.upload_video(
                 video_path,
@@ -368,11 +368,11 @@ class YouTubeClient:
                 privacy_status="public",  # Make videos public for community feedback
                 tags=["ganglia", "ai", "video-generation", "python"]
             )
-            
+
             if not result.success:
                 raise RuntimeError(f"Failed to upload video: {result.error}")
-            
+
             return f"https://www.youtube.com/watch?v={result.video_id}"
         except Exception as e:
             Logger.print_error(f"Failed to create video post: {e}")
-            return "" 
+            return ""

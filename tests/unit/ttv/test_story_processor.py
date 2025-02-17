@@ -26,20 +26,20 @@ from utils import get_tempdir
 @pytest.fixture
 def tts_mock():
     """Provide a mock TTS instance for testing.
-    
+
     Returns:
         MagicMock: A mock TTS instance that returns a test audio file path
     """
     mock = MagicMock()
     mock.convert_text_to_speech.return_value = (
-        True, 
+        True,
         os.path.join(get_tempdir(), "tts/test_audio.mp3")
     )
     return mock
 
 class TestStoryProcessor(unittest.TestCase):
     """Test suite for the story processor module.
-    
+
     Tests the end-to-end functionality of the story processor, including:
     - Story processing with file-based credits
     - Image and movie poster generation
@@ -59,7 +59,7 @@ class TestStoryProcessor(unittest.TestCase):
         self, mock_create_video, mock_generate_image, mock_generate_poster
     ):
         """Test story processor with file-based credits.
-        
+
         Verifies that the story processor correctly handles all aspects of
         video generation when using file-based credits, including:
         - TTS conversion
@@ -70,7 +70,7 @@ class TestStoryProcessor(unittest.TestCase):
         # Mock dependencies
         mock_tts = Mock()
         mock_tts.convert_text_to_speech.return_value = (
-            True, 
+            True,
             os.path.join(self.temp_dir, "test_audio.mp3")
         )
         mock_query_dispatcher = Mock(spec=ChatGPTQueryDispatcher)
@@ -83,7 +83,7 @@ class TestStoryProcessor(unittest.TestCase):
 
         # Mock image generation for each sentence
         mock_generate_image.return_value = (
-            os.path.join(self.temp_dir, "test_image.png"), 
+            os.path.join(self.temp_dir, "test_image.png"),
             True
         )
 
@@ -107,7 +107,7 @@ class TestStoryProcessor(unittest.TestCase):
             )
         )
 
-        with patch('ttv.story_processor.MusicGenerator', 
+        with patch('ttv.story_processor.MusicGenerator',
                   return_value=mock_music_gen):
             # Call process_story
             result = process_story(
@@ -202,7 +202,7 @@ class TestStoryProcessor(unittest.TestCase):
         self, mock_create_video, mock_generate_image, mock_generate_poster
     ):
         """Test that the story processor handles failures gracefully.
-        
+
         Verifies proper error handling for various failure scenarios:
         - TTS conversion failure
         - Image generation failure
@@ -237,7 +237,7 @@ class TestStoryProcessor(unittest.TestCase):
             )
         )
 
-        with patch('ttv.story_processor.MusicGenerator', 
+        with patch('ttv.story_processor.MusicGenerator',
                   return_value=mock_music_gen):
             # Call process_story
             result = process_story(
@@ -268,35 +268,35 @@ class TestStoryProcessor(unittest.TestCase):
         # Mock dependencies
         mock_tts = Mock()
         mock_tts.convert_text_to_speech.return_value = (
-            True, 
+            True,
             os.path.join(self.temp_dir, "test_audio.mp3")
         )
         mock_query_dispatcher = Mock(spec=ChatGPTQueryDispatcher)
         mock_music_gen = Mock()
-        
+
         # Mock movie poster generation
         mock_generate_poster.return_value = os.path.join(
             self.temp_dir, "movie_poster.png"
         )
-        
+
         # Mock image generation for each sentence
         mock_generate_image.return_value = (
-            os.path.join(self.temp_dir, "test_image.png"), 
+            os.path.join(self.temp_dir, "test_image.png"),
             True
         )
-        
+
         # Mock video segment creation
         mock_create_video.return_value = True
-        
+
         # Set up mock responses for content filtering
         mock_query_dispatcher.send_query.return_value = json.dumps({
             "filtered_text": "Test filtered text",
             "is_safe": True
         })
-        
+
         # Mock closing credits failure
         mock_music_gen.get_closing_credits.return_value = (None, None)
-        
+
         # Create a test config with closing credits that will fail
         test_config = TTVConfig(
             style="test style",
@@ -307,8 +307,8 @@ class TestStoryProcessor(unittest.TestCase):
                 prompt="This will fail"
             )
         )
-        
-        with patch('ttv.story_processor.MusicGenerator', 
+
+        with patch('ttv.story_processor.MusicGenerator',
                   return_value=mock_music_gen):
             # Call process_story
             segments, _, closing_credits, poster, _ = process_story(
@@ -321,7 +321,7 @@ class TestStoryProcessor(unittest.TestCase):
                 story_title=test_config.title,
                 config=test_config
             )
-            
+
             # Verify that we got video segments even though credits failed
             self.assertIsNotNone(segments, "Should have video segments even if credits fail")
             self.assertEqual(len(segments), len(test_config.story),

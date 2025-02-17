@@ -12,13 +12,13 @@ def count_syllables(word):
     word = word.lower()
     count = 0
     vowels = "aeiouy"
-    
+
     # Handle special cases
     if not word:
         return 0
     elif word.endswith('e'):
         word = word[:-1]
-    
+
     # Count vowel groups
     prev_char_is_vowel = False
     for char in word:
@@ -26,7 +26,7 @@ def count_syllables(word):
         if is_vowel and not prev_char_is_vowel:
             count += 1
         prev_char_is_vowel = is_vowel
-    
+
     # Ensure at least one syllable
     return max(1, count)
 
@@ -39,7 +39,7 @@ def test_generate_lyrics():
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise EnvironmentError("Environment variable 'OPENAI_API_KEY' is not set.")
-    
+
     story_text = (
         "This is a story about a brave knight named Stephanie, a dragon named Steve, "
         "and their shared love of Philadelphia. They traveled with their friends Arthur, "
@@ -74,4 +74,4 @@ def test_generate_lyrics():
         # Basic validation
         assert lyrics != "", "ERROR: Generated lyrics are empty"
         assert lyrics != story_text, "ERROR: Generated lyrics are identical to the input story"
-        assert style and isinstance(style, str), "ERROR: Style should be a non-empty string" 
+        assert style and isinstance(style, str), "ERROR: Style should be a non-empty string"
