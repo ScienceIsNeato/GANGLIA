@@ -168,7 +168,74 @@ All test runs above Root System level generate timestamped log files:
 - Location: `logs/test_run_MODE_TYPE_TIMESTAMP.log`
 - Contains full test output and debug information
 - Preserved for debugging and analysis
-- MUST be monitored in real-time during test execution 
+- MUST be monitored in real-time during test execution
+
+## Issue Reporting Protocol
+When reporting an issue, follow these steps:
+
+### Information Gathering
+Required information to be collected in a single interaction:
+1. Issue Type:
+   - bug: A problem with existing functionality
+   - enhancement: A new feature or improvement
+   - documentation: Documentation-related issues
+   - test: Test-related issues
+   - ci: CI/CD pipeline issues
+
+2. Title: A clear, concise title that summarizes the issue
+
+3. Description Template:
+```markdown
+### Current Behavior
+[What is happening now]
+
+### Expected Behavior
+[What should happen instead]
+
+### Steps to Reproduce (if applicable)
+1. [First Step]
+2. [Second Step]
+3. [...]
+
+### Additional Context
+- Environment: [e.g., local/CI, OS, relevant versions]
+- Related Components: [e.g., TTV, Tests, Music Generation]
+- Impact Level: [low/medium/high]
+```
+
+### Issue Creation Process
+1. Present the formatted issue using the template above
+2. After approval, create the issue using gh cli:
+```bash
+gh issue create \
+  --title "TITLE" \
+  --body "BODY" \
+  --label "TYPE"
+```
+3. Display the created issue URL
+
+### Example Usage
+For the credits cutoff issue:
+```bash
+gh issue create \
+  --title "Video credits abruptly cut off at 30 seconds in integration tests" \
+  --body "### Current Behavior
+Credits section in generated videos is being cut off at exactly 30 seconds during integration tests.
+
+### Expected Behavior
+Credits should play completely without being cut off.
+
+### Steps to Reproduce
+1. Run integration tests
+2. Check generated video output
+3. Observe credits section ending abruptly at 30s mark
+
+### Additional Context
+- Environment: CI pipeline
+- Related Components: TTV, Integration Tests
+- Impact Level: medium" \
+  --label "bug"
+```
 
 ## Decision Making and Proactivity Rules
 1. Be proactive - take your best guess and proceed rather than asking for confirmation
@@ -182,4 +249,4 @@ All test runs above Root System level generate timestamped log files:
    - Choose the most likely one
    - Note alternatives in your response
    - Continue with implementation
-5. Bias towards action over asking questions 
+5. Bias towards action over asking questions

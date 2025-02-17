@@ -80,7 +80,7 @@ Here's a table of features, their implementation names, and the corresponding en
 | Feature            | Implementation Name | Environment Variable      |
 |--------------------|---------------------|---------------------------|
 | AI Backend         | OpenAI GPT-4        | OPENAI_API_KEY            |
-| Music Generation   | Suno MusicGen       | SUNO_API_KEY, SUNO_API_URL |
+| Music Generation   | Suno MusicGen       | FOXAI_SUNO_API_KEY, SUNO_API_URL |
 | YouTube Upload     | YouTube API         | YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET |
 
 ## TTS (Text To Speech)
@@ -93,19 +93,6 @@ Here's a table of features, their implementation names, and the corresponding en
     - coqui is an incredible voice synthesis service that offers endless options for speechification
     - when using Coqui as TTS, set up the coqui_config.json in the project root (see section below)
 
-#### Setting up Coqui TTS Configuration
-
-If you want to use Coqui as your Text To Speech interface, you need to provide the necessary configurations for the Coqui TTS API. 
-
-Create a file named `coqui_config.json` in the root directory with the following format:
-
-```json
-{
-    "api_url": "https://app.coqui.ai/api/v2/samples",
-    "bearer_token": "<your_token>",
-    "voice_id": "<your_voice_id>"
-}
-```
 
 ### AI Session Tuning
 
@@ -119,7 +106,7 @@ Create a file named `coqui_config.json` in the root directory with the following
 
 #### Setup:
 
-1. Install Google Cloud SDK if you haven't already, and authenticate using `gcloud auth application-default login`. 
+1. Install Google Cloud SDK if you haven't already, and authenticate using `gcloud auth application-default login`.
 2. Make sure that you have a Google Cloud Storage bucket where the logs will be stored. Take note of the bucket name and your project name.
 3. Update the `.env` file in your project root directory to include the following:
    - `GCP_BUCKET_NAME=<your_bucket_name>`
@@ -278,7 +265,7 @@ The `.envrc` file contains all required environment variables, including:
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to Google Cloud credentials
 - `GCP_BUCKET_NAME`: Google Cloud Storage bucket name
 - `GCP_PROJECT_NAME`: Google Cloud project name
-- `SUNO_API_KEY`: API key for MusicGen/AudioGen
+- `FOXAI_SUNO_API_KEY`: API key for MusicGen/AudioGen
 
 #### Optional Variables
 - `GANGLIA_TEMP_DIR`: Override the default temporary directory location
@@ -326,7 +313,7 @@ GANGLIA uses YouTube API for uploading test videos. For CI environments, you'll 
    ```bash
    # Set the credentials file path
    export YOUTUBE_CREDENTIALS_FILE=/path/to/your/credentials.json
-   
+
    # Run any test that uses YouTube to trigger the OAuth flow
    python -m pytest tests/third_party/test_youtube_live.py -v -s
    ```

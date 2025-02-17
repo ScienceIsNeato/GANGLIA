@@ -8,7 +8,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/application_default_
                                               # This is the default location after running 'gcloud auth application-default login'
 
 # Audio Generation Services
-export SUNO_API_KEY="your-key-here"           # MusicGen/AudioGen API key for music generation
+export FOXAI_SUNO_API_KEY="your-key-here"           # MusicGen/AudioGen API key for music generation
 export SUNO_API_URL="your-url-here"           # MusicGen/AudioGen API URL
 
 # YouTube Configuration
@@ -23,7 +23,7 @@ export UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE="true"  # Whether to upload integrati
 # Test Configuration
 export PLAYBACK_MEDIA_IN_TESTS="true"         # Controls whether audio/video is played during tests
                                              # Set to "true" to enable media playback
-                                             # Set to "false" for CI or headless environments 
+                                             # Set to "false" for CI or headless environments
 
 # Optional: Override the default temporary directory
 # If not set, will use system temp directory (e.g., /tmp on Unix, %TEMP% on Windows)
