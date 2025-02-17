@@ -22,7 +22,6 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         }
         self.audio_directory = get_tempdir() + "/music"
         os.makedirs(self.audio_directory, exist_ok=True)
-        Logger.print_info("FoxAISunoBackend initialized")
 
     def start_generation(
             self,

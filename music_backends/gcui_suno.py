@@ -29,9 +29,6 @@ class GcuiSunoBackend(MusicBackend, SunoInterface):
             except Exception as e:
                 Logger.print_error(f"Failed to initialize Suno API connection: {str(e)}")
                 # Don't raise here - let start_generation handle errors
-
-        Logger.print_info("GcuiSunoBackend initialized")
-
     def start_generation(
             self,
             prompt: str,

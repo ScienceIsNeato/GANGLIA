@@ -298,7 +298,7 @@ def process_story(
                         background_music_path = future.result()
                         if background_music_path is None:
                             Logger.print_error(f"{thread_prefix}Background music generation failed")
-                            return None, None, None, None, None
+                            # Don't return None for everything, just continue without background music
 
                     elif task_type == 'closing_credits':
                         closing_credits_path, closing_credits_lyrics = future.result()
