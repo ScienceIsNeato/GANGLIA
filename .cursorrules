@@ -250,3 +250,39 @@ Credits should play completely without being cut off.
    - Note alternatives in your response
    - Continue with implementation
 5. Bias towards action over asking questions
+
+## AI Status Tracking Rules
+You MUST maintain the .ai_status.md file to track task progress:
+
+1. At the start of each new task:
+   - Update the "Current Task" section with a clear description
+   - Include timestamp in PST
+   - Format: `Started: [task description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+
+2. When completing a task:
+   - Move the task from "Current Task" to "Task History" section
+   - Include completion timestamp
+   - Format: `- Completed: [task description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+   - Clear the "Current Task" section to "No active task"
+
+3. If a task is abandoned or fails:
+   - Move the task to "Task History" with appropriate status
+   - Format: `- [Abandoned/Failed]: [task description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+   - Include brief reason for abandonment/failure
+   - Clear the "Current Task" section to "No active task"
+
+4. For multi-step tasks:
+   - Keep main task in "Current Task"
+   - Add progress updates as bullet points under current task
+   - Format: `- [step description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+
+5. Status file structure must be maintained:
+```markdown
+# AI Agent Status
+
+## Current Task
+[Current task description or "No active task"]
+[Optional progress updates for multi-step tasks]
+
+## Task History
+[Chronological list of completed/abandoned tasks with timestamps]
