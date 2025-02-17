@@ -14,7 +14,7 @@ import numpy as np
 
 def get_vibrant_palette() -> List[Tuple[int, int, int]]:
     """Get a list of vibrant colors for captions.
-    
+
     Returns:
         List[Tuple[int, int, int]]: List of RGB color tuples
     """
@@ -30,20 +30,20 @@ def get_vibrant_palette() -> List[Tuple[int, int, int]]:
 def get_color_complement(color: Tuple[int, int, int]) -> Tuple[int, int, int]:
     """
     Calculate the complement of a color using HSV color space for better results.
-    
+
     Args:
         color: RGB color tuple
-        
+
     Returns:
         RGB color tuple of the complement
     """
     # Convert RGB to HSV
     r, g, b = [x/255.0 for x in color]
     h, s, v = rgb_to_hsv(r, g, b)
-    
+
     # Calculate complement by shifting hue by 180 degrees
     h = (h + 0.5) % 1.0
-    
+
     # Convert back to RGB
     r, g, b = hsv_to_rgb(h, s, v)
     return (int(r * 255), int(g * 255), int(b * 255))
@@ -51,12 +51,12 @@ def get_color_complement(color: Tuple[int, int, int]) -> Tuple[int, int, int]:
 def mix_colors(color1: Tuple[int, int, int], color2: Tuple[int, int, int], ratio: float = 0.8) -> Tuple[int, int, int]:
     """
     Mix two colors with a given ratio.
-    
+
     Args:
         color1: First RGB color tuple (primary color)
         color2: Second RGB color tuple (secondary color)
         ratio: Weight of the first color (0.0 to 1.0)
-        
+
     Returns:
         RGB color tuple of the mixed color
     """
@@ -69,20 +69,20 @@ def get_contrasting_color(frame: np.ndarray, roi: Tuple[int, int, int, int]) -> 
     """
     Determine contrasting text color and stroke color based on ROI background.
     For dark backgrounds, returns light colors and vice versa.
-    
+
     Args:
         frame: Video frame as numpy array
         roi: Tuple of (x, y, width, height) defining the ROI
-        
+
     Returns:
         Tuple of (text_color, stroke_color) as RGB tuples
     """
     x, y, width, height = roi
     roi_region = frame[y:y+height, x:x+width]
-    
+
     # Calculate average color in ROI
     avg_color = tuple(map(int, np.mean(roi_region, axis=(0, 1))))
-    
+
     # For red-dominant regions, use a modified brightness calculation
     if avg_color[0] > avg_color[1] and avg_color[0] > avg_color[2]:
         # For red regions, if red component is high enough, treat as light
@@ -95,7 +95,7 @@ def get_contrasting_color(frame: np.ndarray, roi: Tuple[int, int, int, int]) -> 
     else:
         # Calculate perceived brightness using standard coefficients
         brightness = (0.299 * avg_color[0] + 0.587 * avg_color[1] + 0.114 * avg_color[2])
-        
+
         # For dark backgrounds, use light colors
         if brightness < 128:
             # For dark green, use light magenta
@@ -116,5 +116,5 @@ def get_contrasting_color(frame: np.ndarray, roi: Tuple[int, int, int, int]) -> 
             else:
                 text_color = (0, 0, 0)        # Black
                 stroke_color = (255, 255, 255) # White
-    
+
     return text_color, stroke_color

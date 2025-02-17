@@ -7,7 +7,7 @@ import pytest
 
 # Local application imports
 from ttv.ttv import text_to_video
-from tests.integration.test_helpers import validate_gcs_upload
+from tests.test_helpers import validate_gcs_upload
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def test_minimal_ttv_config(tmp_path):
             }}
         }}
         """)
-        
+
     # Run the pipeline
     result = text_to_video(str(config_path))
 
@@ -67,7 +67,7 @@ def test_minimal_ttv_config(tmp_path):
 
     # Verify the file was uploaded to GCS
     validate_gcs_upload(bucket_name, project_name)
-    
+
 
     # Clean up the uploaded file
     # uploaded_file.delete()

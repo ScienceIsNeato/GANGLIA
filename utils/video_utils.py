@@ -47,7 +47,7 @@ def create_test_video(duration=5, size=(1920, 1080), color=None):
 
 def create_moving_rectangle_video(output_path: str, duration_seconds: int = 5):
     """Create a test video with a moving white rectangle on black background.
-    
+
     Args:
         output_path: Path where the video should be saved
         duration_seconds: Duration of the video in seconds
@@ -56,21 +56,21 @@ def create_moving_rectangle_video(output_path: str, duration_seconds: int = 5):
     fps = 30
     frame_width = 640
     frame_height = 480
-    
+
     # Create video writer
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
-    
+
     try:
         # Create frames
         for i in range(fps * duration_seconds):
             # Create a black frame
             frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
-            
+
             # Draw a moving white rectangle
             x = int((i / (fps * duration_seconds)) * (frame_width - 100))
             cv2.rectangle(frame, (x, 190), (x + 100, 290), (255, 255, 255), -1)
-            
+
             # Add frame number text
             cv2.putText(
                 frame,
@@ -81,7 +81,7 @@ def create_moving_rectangle_video(output_path: str, duration_seconds: int = 5):
                 (255, 255, 255),
                 2
             )
-            
+
             out.write(frame)
     finally:
-        out.release() 
+        out.release()

@@ -35,4 +35,4 @@ SLIDESHOW_VIDEO_ARGS = [
     "-c:v", VIDEO_CODEC,
     "-tune", VIDEO_TUNE,
     "-pix_fmt", VIDEO_PIXEL_FORMAT
-] 
+]

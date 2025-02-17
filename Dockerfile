@@ -32,4 +32,4 @@ ENV GANGLIA_EMOJI_FONT_PATH=/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf
 ENV PLAYBACK_MEDIA_IN_TESTS=false
 
 # Default command (interactive shell)
-CMD ["/bin/bash"] 
+CMD ["/bin/bash"]

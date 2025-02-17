@@ -39,13 +39,13 @@ def validate_music_config(config: MusicConfig) -> None:
 
 def validate_caption_style(caption_style: Optional[str]) -> str:
     """Validate and normalize the caption style.
-    
+
     Args:
         caption_style: The caption style from config, or None
-        
+
     Returns:
         Normalized caption style ("static" or "dynamic")
-        
+
     Raises:
         ValueError: If caption style is invalid
     """

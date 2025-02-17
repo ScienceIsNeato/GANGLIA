@@ -76,4 +76,3 @@ def display_logs(hours):
         print(f"{timestamp.strftime('%m/%d/%Y %I:%M:%S %p')}  GANGLIA: {response_output}")
 
         previous_timestamp = timestamp
-

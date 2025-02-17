@@ -6,7 +6,7 @@
 ### Bug Fixes
 - currently we're passing in the entire response object from the API to the content filter. We should only pass in the lyrics minus the metadata
 - [DONE] get DALLE to stop putting gibberish text in the output
-- [DONE] fix issue where the content filter 
+- [DONE] fix issue where the content filter
 
 ### Feature Updates
 - need to consider play testers who don't want to spend a dime to play. Need to have an input flag called --demo-mode that uses the best version of everything that doesn't require creds
@@ -37,7 +37,7 @@
 - [DONE] live rendering of dictation
 - [DONE] audio prompt on startup unless skip flag provided
 - [DONE] persistent sessions
-- [DONE] deal with pylint issues. There's lots. 
+- [DONE] deal with pylint issues. There's lots.
 - [DONE] right now the order is 1) send to AI 2) get response 3) play input and reponse? if so - fix that
 - [DONE] instead of hard coded exit message, , first pass the message to ai interface, then play response, then exit.
 - [DONE] add an input option of a string
@@ -47,5 +47,5 @@
 - [DONE] update this shit `❯ python ganglia.py -d 3 --pre_prompt "Assume the role of a 2nd grade math teacher. If you understand, please prepend future answers with [MATH]"` sso see a prompt like that? see how there;'s lots of boilerplate around `"Assume the role\" and \"If you understand\"? can you update it so that you only input the role and the description without all the rest of the boilerplate?
 
 ### Archrived
-- implement some sort of notion of Entities (these would be all of the abstracted steps like Verbalizer and Logger and whatnot) and a configuration file. The man page would spit out 
+- implement some sort of notion of Entities (these would be all of the abstracted steps like Verbalizer and Logger and whatnot) and a configuration file. The man page would spit out
 - audio input for persona

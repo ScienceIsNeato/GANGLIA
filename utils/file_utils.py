@@ -25,13 +25,13 @@ def get_tempdir():
 
 def get_timestamped_ttv_dir() -> str:
     """Get a timestamped directory path for TTV files.
-    
+
     Creates a unique directory for each TTV run using the current timestamp.
     Format: /tmp/GANGLIA/ttv/YYYY-MM-DD-HH-MM-SS/
-    
+
     The directory is created only on the first call and the same path
     is returned for all subsequent calls within the same run.
-    
+
     Returns:
         str: Path to the timestamped directory
     """
@@ -45,4 +45,4 @@ def get_timestamped_ttv_dir() -> str:
 
 def get_config_path():
     """Get the path to the config directory relative to the project root."""
-    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'ganglia_config.json') 
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'ganglia_config.json')

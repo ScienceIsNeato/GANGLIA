@@ -22,16 +22,16 @@ def extract_json_from_response(response: str) -> str:
 
 def generate_config(output_path: str) -> str:
     """Generate a random TTV config using AI and save it to the specified path.
-    
+
     Args:
         output_path: Path where the config file should be saved
-        
+
     Returns:
         str: Path to the generated config file
     """
     # Initialize query dispatcher
     query_dispatcher = ChatGPTQueryDispatcher()
-    
+
     # Generate all content in a single query
     content_prompt = """
     Generate a complete configuration for a text-to-video story generation. Include:
@@ -39,9 +39,9 @@ def generate_config(output_path: str) -> str:
     2. A cohesive 12-segment story in that style (each segment one sentence)
     3. A background music description matching the style (one sentence)
     4. A closing credits music description providing closure (one sentence)
-    
+
     IMPORTANT: The title MUST start with "The " followed by title-cased words.
-    
+
     Return ONLY a JSON object with this exact structure (no markdown, no extra text):
     {
         "style": "<generated>",
@@ -72,20 +72,20 @@ def generate_config(output_path: str) -> str:
         }
     }
     """
-    
+
     response = query_dispatcher.send_query(content_prompt)
     content = json.loads(extract_json_from_response(response))
-    
+
     # Create directory if it doesn't exist
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     # Write config to file with pretty formatting
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(content, f, indent=4)
-    
+
     # Print the file contents
     Logger.print_info("\nGenerated TTV Config:")
     os.system(f"cat {output_path}")
     Logger.print_info("")
-    
-    return output_path 
+
+    return output_path

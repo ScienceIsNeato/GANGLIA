@@ -29,21 +29,21 @@ from utils import get_tempdir, exponential_backoff
 
 class TextToSpeech(ABC):
     """Abstract base class for text-to-speech functionality.
-    
+
     This class defines the interface for text-to-speech implementations
     and provides common utility methods for audio handling and playback.
     """
 
     @abstractmethod
-    def convert_text_to_speech(self, text: str, voice_id: str = None, 
+    def convert_text_to_speech(self, text: str, voice_id: str = None,
                              thread_id: str = None):
         """Convert text to speech using the specified voice.
-        
+
         Args:
             text: The text to convert to speech
             voice_id: The ID of the voice to use (default: "en-US-Casual-K")
             thread_id: Optional thread ID for logging purposes
-            
+
         Returns:
             tuple: (success: bool, file_path: str) where file_path is the path
                   to the generated audio file if successful, None otherwise
@@ -52,10 +52,10 @@ class TextToSpeech(ABC):
 
     def is_local_filepath(self, file_path: str) -> bool:
         """Check if a file path is a local file path.
-        
+
         Args:
             file_path: The file path to check
-            
+
         Returns:
             bool: True if the path is a local file path, False otherwise
         """
@@ -68,11 +68,11 @@ class TextToSpeech(ABC):
     @classmethod
     def split_text(cls, text: str, max_length: int = 250):
         """Split text into chunks of maximum length while preserving sentences.
-        
+
         Args:
             text: The text to split
             max_length: Maximum length of each chunk (default: 250)
-            
+
         Returns:
             list: List of text chunks
         """
@@ -90,7 +90,7 @@ class TextToSpeech(ABC):
 
     def play_speech_response(self, file_path, raw_response):
         """Play speech response and handle user interaction.
-        
+
         Args:
             file_path: Path to the audio file to play
             raw_response: The text response to display
@@ -110,15 +110,15 @@ class TextToSpeech(ABC):
 
             # Start playback in a non-blocking manner
             playback_process = subprocess.Popen(
-                play_command, 
-                stdout=subprocess.DEVNULL, 
-                stderr=subprocess.DEVNULL, 
+                play_command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL
             )
 
             # Start the Enter key listener in a separate thread
             stop_thread = threading.Thread(
-                target=self.monitor_enter_keypress, 
+                target=self.monitor_enter_keypress,
                 args=(playback_process,)
             )
             # Ensure the thread exits when the main program exits
@@ -133,7 +133,7 @@ class TextToSpeech(ABC):
 
     def monitor_enter_keypress(self, playback_process):
         """Monitor for Enter key press to stop playback.
-        
+
         Args:
             playback_process: The subprocess running the audio playback
         """
@@ -150,33 +150,33 @@ class TextToSpeech(ABC):
 
     def concatenate_audio_from_text(self, text_file_path):
         """Concatenate multiple audio files listed in a text file.
-        
+
         Args:
             text_file_path: Path to the text file containing audio file paths
-            
+
         Returns:
             str: Path to the concatenated audio file
         """
         output_file = "combined_audio.mp3"
         concat_command = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", 
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
             "-i", text_file_path, output_file
         ]
         subprocess.run(
-            concat_command, 
-            stdout=subprocess.DEVNULL, 
-            stderr=subprocess.DEVNULL, 
-            stdin=subprocess.DEVNULL, 
+            concat_command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
             check=True
         )
         return output_file
 
     def prepare_playback(self, file_path):
         """Prepare audio playback command and get duration.
-        
+
         Args:
             file_path: Path to the audio file
-            
+
         Returns:
             tuple: (play_command: list, audio_duration: float)
         """
@@ -191,10 +191,10 @@ class TextToSpeech(ABC):
 
     def get_audio_duration(self, file_path):
         """Get the duration of an audio file.
-        
+
         Args:
             file_path: Path to the audio file
-            
+
         Returns:
             float: Duration of the audio in seconds
         """
@@ -203,9 +203,9 @@ class TextToSpeech(ABC):
             "-of", "default=noprint_wrappers=1:nokey=1", file_path
         ]
         duration_output = subprocess.run(
-            duration_command, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
+            duration_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             check=True
         ).stdout.decode('utf-8')
         return float(duration_output.strip())
@@ -216,7 +216,7 @@ class TextToSpeech(ABC):
 
 class GoogleTTS(TextToSpeech):
     """Google Cloud Text-to-Speech implementation.
-    
+
     This class implements text-to-speech functionality using the Google Cloud
     Text-to-Speech API, with support for various voices and audio configurations.
     """
@@ -232,15 +232,15 @@ class GoogleTTS(TextToSpeech):
         with self._client_lock:
             self._client = tts.TextToSpeechClient()
 
-    def _convert_text_to_speech_impl(self, text: str, voice_id="en-US-Casual-K", 
+    def _convert_text_to_speech_impl(self, text: str, voice_id="en-US-Casual-K",
                                    thread_id: str = None):
         """Internal implementation of text-to-speech conversion.
-        
+
         Args:
             text: The text to convert to speech
             voice_id: The ID of the voice to use (default: "en-US-Casual-K")
             thread_id: Optional thread ID for logging purposes
-            
+
         Returns:
             tuple: (success: bool, file_path: str) where file_path is the path
                   to the generated audio file if successful
@@ -284,7 +284,7 @@ class GoogleTTS(TextToSpeech):
         # Save the audio to a file
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         file_path = os.path.join(
-            temp_dir, "tts", 
+            temp_dir, "tts",
             f"chatgpt_response_{snippet}_{timestamp}.mp3"
         )
         with open(file_path, "wb") as out:
@@ -292,21 +292,21 @@ class GoogleTTS(TextToSpeech):
 
         return True, file_path
 
-    def convert_text_to_speech(self, text: str, voice_id="en-US-Casual-K", 
+    def convert_text_to_speech(self, text: str, voice_id="en-US-Casual-K",
                              thread_id: str = None):
         """Convert text to speech using the specified voice with retry logic.
-        
+
         Args:
             text: The text to convert to speech
             voice_id: The ID of the voice to use (default: "en-US-Casual-K")
             thread_id: Optional thread ID for logging purposes
-            
+
         Returns:
             tuple: (success: bool, file_path: str) where file_path is the path
                   to the generated audio file if successful, None otherwise
         """
         thread_prefix = f"{thread_id} " if thread_id else ""
-        
+
         try:
             return exponential_backoff(
                 lambda: self._convert_text_to_speech_impl(text, voice_id, thread_id),

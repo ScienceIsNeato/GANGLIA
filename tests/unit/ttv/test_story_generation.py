@@ -16,7 +16,7 @@ class TestStoryGeneration(unittest.TestCase):
     def test_generate_filtered_story_success(self):
         # Mock successful content filtering
         self.query_dispatcher.filter_content_for_dalle.return_value = (True, "A friendly robot learns about human emotions")
-        
+
         # Mock response from query dispatcher
         mock_response = json.dumps({
             "style": "science fiction",
@@ -62,7 +62,7 @@ class TestStoryGeneration(unittest.TestCase):
 
         with patch('ttv.story_generation.save_image_without_caption') as mock_save:
             result = generate_movie_poster(filtered_story, self.style, self.story_title, self.query_dispatcher, output_dir=self.output_dir)
-            
+
             self.assertIsNotNone(result)
             mock_client.images.generate.assert_called_once_with(
                 model="dall-e-3",
@@ -96,11 +96,11 @@ class TestStoryGeneration(unittest.TestCase):
         mock_get.return_value = mock_response
 
         test_filename = "/tmp/test_image.png"
-        
+
         with patch('builtins.open', unittest.mock.mock_open()) as mock_file:
             save_image_without_caption("http://example.com/image.png", test_filename)
             mock_get.assert_called_once_with("http://example.com/image.png", timeout=30)
             mock_file.assert_called_once_with(test_filename, 'wb')
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

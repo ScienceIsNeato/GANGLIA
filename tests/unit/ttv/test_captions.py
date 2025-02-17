@@ -28,10 +28,11 @@ from ttv.captions import (
     calculate_word_positions,
     split_into_words
 )
-from ttv.color_utils import get_vibrant_palette, get_contrasting_color, mix_colors
+from ttv.color_utils import get_vibrant_palette
 from utils.file_utils import get_tempdir
 from utils.ffmpeg_utils import run_ffmpeg_command
 from utils.video_utils import create_test_video
+from tests.test_helpers import get_text_colors_from_video, play_media
 
 def get_default_font():
     """Get the default font path for testing."""
@@ -45,12 +46,6 @@ def get_default_font():
         if os.path.exists(path):
             return path
     return None
-
-def play_test_video(video_path):
-    """Play the test video using ffplay."""
-    if os.getenv('PLAYBACK_MEDIA_IN_TESTS', 'false').lower() == 'true':
-        play_cmd = ["ffplay", "-autoexit", video_path]
-        run_ffmpeg_command(play_cmd)
 
 @pytest.mark.skip(reason="Skipping static captions test")
 def test_default_static_captions():
@@ -79,7 +74,7 @@ def test_default_static_captions():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
     finally:
         # Clean up
@@ -118,7 +113,7 @@ def test_static_captions():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
     finally:
         # Clean up
@@ -191,7 +186,7 @@ def test_font_size_and_variation():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
     finally:
         # Clean up
@@ -244,7 +239,7 @@ def test_caption_positioning():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
     finally:
         # Clean up
@@ -317,18 +312,18 @@ def test_audio_aligned_captions():
         # Get word-level captions from audio
         captions = create_word_level_captions(audio_path, test_text)
         assert captions is not None, "Failed to create word-level captions"
-        
+
         # Print debug info about captions
         print("\nCaption timings:")
         for i, caption in enumerate(captions):
             print(f"Word {i}: '{caption.text}' ({caption.start_time:.2f}s - {caption.end_time:.2f}s)")
-        
+
         # Verify all words from test_text are present in captions
         test_words = set(word.strip() for word in test_text.lower().split())
         caption_words = set(word.strip() for caption in captions for word in caption.text.lower().split())
         missing_words = test_words - caption_words
         extra_words = caption_words - test_words
-        
+
         print("\nWord verification:")
         print(f"Expected words: {sorted(test_words)}")
         print(f"Found words: {sorted(caption_words)}")
@@ -336,7 +331,7 @@ def test_audio_aligned_captions():
             print(f"Missing words: {sorted(missing_words)}")
         if extra_words:
             print(f"Extra words: {sorted(extra_words)}")
-            
+
         assert not missing_words, f"Words missing from captions: {missing_words}"
         assert not extra_words, f"Extra words in captions: {extra_words}"
 
@@ -383,7 +378,7 @@ def test_audio_aligned_captions():
         assert probe_result is not None and probe_result.stdout, "No audio stream found in output video"
 
         # Play the video (skipped in automated testing)
-        play_test_video(final_output)
+        play_media(final_output)
 
     finally:
         # Cleanup
@@ -428,7 +423,7 @@ def test_text_wrapping():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
     finally:
         # Clean up
@@ -473,7 +468,7 @@ def test_text_rendering_features():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
     finally:
         # Clean up
@@ -517,10 +512,9 @@ def test_vibrant_color_palette():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
         # Get actual colors from the video
-        from tests.unit.ttv.test_helpers import get_text_colors_from_video
         text_color, stroke_color = get_text_colors_from_video(output_path)
         assert text_color is not None, "Failed to extract text color from video"
         assert stroke_color is not None, "Failed to extract stroke color from video"
@@ -532,13 +526,13 @@ def test_vibrant_color_palette():
         # Get expected colors
         palette = get_vibrant_palette()
         print(f"Palette colors: {palette}")
-        
+
         # The text color should be close to one of the vibrant colors
         color_diffs = [sum(abs(c1 - c2) for c1, c2 in zip(text_color, palette_color)) for palette_color in palette]
         min_diff = min(color_diffs)
         closest_color = palette[color_diffs.index(min_diff)]
         print(f"Closest palette color: {closest_color} (diff: {min_diff})")
-        
+
         assert min_diff <= 30, f"Text color {text_color} too far from any palette color"
 
         # The stroke color should be a darker version of the text color (about 1/3 intensity)
@@ -590,7 +584,7 @@ def test_no_word_overlap():
         assert os.path.getsize(output_path) > 0, "Output file is empty"
 
         # Play the video (skipped in automated testing)
-        play_test_video(output_path)
+        play_media(output_path)
 
         # Get video dimensions
         cap = cv2.VideoCapture(output_path)
@@ -609,7 +603,7 @@ def test_no_word_overlap():
         margin = 40
         roi_width = video_width - (2 * margin)
         roi_height = int(video_height * 0.3)
-        
+
         windows = create_caption_windows(
             words=all_words,
             min_font_size=32,
@@ -621,7 +615,7 @@ def test_no_word_overlap():
         # For each window, verify words have reasonable spacing
         for window in windows:
             positions = calculate_word_positions(window, video_height, margin)
-            
+
             # Check each word has reasonable spacing
             for word, pos in zip(window.words, positions):
                 x, y = pos
@@ -649,25 +643,25 @@ def test_deterministic_color_selection():
         (200, 50, 50),   # Red background
         (50, 200, 50),   # Green background
     ]
-    
+
     # Test text to use
     test_text = "Testing color selection"
-    
+
     # Store colors used for each background
     colors_used = {}
-    
+
     for bg_color in test_colors:
         # Create test video with this background
         input_video_path = create_test_video(duration=2, color=bg_color)
         assert input_video_path is not None, "Failed to create test video"
-        
+
         # Create output path
         output_path = os.path.join(get_tempdir(), f"output_color_test_{bg_color[0]}_{bg_color[1]}_{bg_color[2]}.mp4")
-        
+
         try:
             # Create caption
             caption = CaptionEntry(test_text, 0.0, 1.0)
-            
+
             # Add dynamic captions
             result_path = create_dynamic_captions(
                 input_video=input_video_path,
@@ -676,33 +670,32 @@ def test_deterministic_color_selection():
                 min_font_size=32,
                 max_font_ratio=1.5
             )
-            
+
             # Verify results
             assert result_path is not None, "Failed to create video with color testing"
             assert os.path.exists(output_path), f"Output file not created: {output_path}"
             assert os.path.getsize(output_path) > 0, "Output file is empty"
-            
+
             # Get colors from the video
-            from tests.unit.ttv.test_helpers import get_text_colors_from_video
             text_color, _ = get_text_colors_from_video(output_path)
             assert text_color is not None, "Failed to extract text color from video"
-            
+
             # Store the color used for this background
             colors_used[bg_color] = text_color
-            
+
         finally:
             # Clean up
             if os.path.exists(input_video_path):
                 os.unlink(input_video_path)
             if os.path.exists(output_path):
                 os.unlink(output_path)
-    
+
     # Verify that the same background color always gets the same text color
     for bg_color in test_colors:
         # Create a second video with the same background
         input_video_path = create_test_video(duration=2, color=bg_color)
         output_path = os.path.join(get_tempdir(), f"output_color_test_verify_{bg_color[0]}_{bg_color[1]}_{bg_color[2]}.mp4")
-        
+
         try:
             result_path = create_dynamic_captions(
                 input_video=input_video_path,
@@ -711,15 +704,15 @@ def test_deterministic_color_selection():
                 min_font_size=32,
                 max_font_ratio=1.5
             )
-            
+
             # Get colors and verify they match the first run
             text_color, _ = get_text_colors_from_video(output_path)
             assert text_color is not None, "Failed to extract text color from video"
-            
+
             # Colors should match exactly since selection is deterministic
             first_run_color = colors_used[bg_color]
             assert text_color == first_run_color, f"Color selection not deterministic for background {bg_color}"
-            
+
         finally:
             # Clean up
             if os.path.exists(input_video_path):

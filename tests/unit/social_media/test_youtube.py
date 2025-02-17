@@ -43,13 +43,13 @@ def test_upload_video_success(youtube_client, mock_youtube_build):
     # Mock the video insert request
     mock_request = MagicMock()
     mock_request.next_chunk.return_value = (None, {'id': MOCK_VIDEO_ID})
-    
+
     mock_youtube_build.videos().insert.return_value = mock_request
-    
+
     # Create a temporary test video file
     with open(MOCK_VIDEO_PATH, 'wb') as f:
         f.write(b'dummy video content')
-    
+
     try:
         result = youtube_client.upload_video(
             MOCK_VIDEO_PATH,
@@ -57,16 +57,16 @@ def test_upload_video_success(youtube_client, mock_youtube_build):
             description=MOCK_VIDEO_DESCRIPTION,
             privacy_status="public"  # Now defaulting to public
         )
-        
+
         assert result.success is True
         assert result.video_id == MOCK_VIDEO_ID
         assert result.error is None
-        
+
         # Verify API call with public privacy status
         mock_youtube_build.videos().insert.assert_called_once()
         call_args = mock_youtube_build.videos().insert.call_args
         assert call_args[1]['body']['status']['privacyStatus'] == 'public'
-        
+
     finally:
         # Clean up test file
         if os.path.exists(MOCK_VIDEO_PATH):
@@ -78,7 +78,7 @@ def test_upload_video_file_not_found(youtube_client):
         "nonexistent.mp4",
         MOCK_VIDEO_TITLE
     )
-    
+
     assert result.success is False
     assert "Video file not found" in result.error
     assert result.video_id is None
@@ -88,23 +88,23 @@ def test_upload_video_api_error(youtube_client, mock_youtube_build):
     # Mock API error
     mock_request = MagicMock()
     mock_request.next_chunk.side_effect = Exception("API Error")
-    
+
     mock_youtube_build.videos().insert.return_value = mock_request
-    
+
     # Create a temporary test video file
     with open(MOCK_VIDEO_PATH, 'wb') as f:
         f.write(b'dummy video content')
-    
+
     try:
         result = youtube_client.upload_video(
             MOCK_VIDEO_PATH,
             MOCK_VIDEO_TITLE
         )
-        
+
         assert result.success is False
         assert "API Error" in result.error
         assert result.video_id is None
-        
+
     finally:
         # Clean up test file
         if os.path.exists(MOCK_VIDEO_PATH):
@@ -119,17 +119,17 @@ def test_get_video_status_success(youtube_client, mock_youtube_build):
             'snippet': {'title': MOCK_VIDEO_TITLE}
         }]
     }
-    
+
     mock_request = MagicMock()
     mock_request.execute.return_value = mock_response
     mock_youtube_build.videos().list.return_value = mock_request
-    
+
     status = youtube_client.get_video_status(MOCK_VIDEO_ID)
-    
+
     assert status['id'] == MOCK_VIDEO_ID
     assert status['status']['privacyStatus'] == 'public'  # Verify it's public
     assert status['snippet']['title'] == MOCK_VIDEO_TITLE
-    
+
     # Verify API call
     mock_youtube_build.videos().list.assert_called_with(
         part="status,snippet",
@@ -139,11 +139,11 @@ def test_get_video_status_success(youtube_client, mock_youtube_build):
 def test_get_video_status_not_found(youtube_client, mock_youtube_build):
     """Test video status retrieval for non-existent video."""
     mock_response = {'items': []}
-    
+
     mock_request = MagicMock()
     mock_request.execute.return_value = mock_response
     mock_youtube_build.videos().list.return_value = mock_request
-    
+
     status = youtube_client.get_video_status(MOCK_VIDEO_ID)
-    
-    assert status == {} 
+
+    assert status == {}

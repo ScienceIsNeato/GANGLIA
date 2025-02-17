@@ -15,7 +15,7 @@ def check_environment_variables():
         'OPENAI_API_KEY',
         'GCP_BUCKET_NAME',
         'GCP_PROJECT_NAME',
-        'SUNO_API_KEY',
+        'FOXAI_SUNO_API_KEY',
         'GOOGLE_APPLICATION_CREDENTIALS'
     ]
 

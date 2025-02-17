@@ -20,11 +20,11 @@ class Transcriber:
         state = 'START'
         while state != 'END':
             finalized_transcript = ''
-            
-            
+
+
             requests = (speech.StreamingRecognizeRequest(audio_content=chunk) for chunk in stream)
             responses = self.client.streaming_recognize(self.get_config(), requests)
-            
+
             for response in responses:
                 if not response.results:
                     continue
@@ -34,11 +34,11 @@ class Transcriber:
                     continue
 
                 is_final = result.is_final
-                
+
                 if state == 'START':
                     print(f'\033[K{result.alternatives[0].transcript.strip()}\r', end='', flush=True)  # You can consider keeping this as is, or tweaking based on your needs
                     state = 'LISTENING'
-                
+
                 if is_final:
                     finalized_transcript += result.alternatives[0].transcript.strip() + ' '
                     print(f'\033[K{result.alternatives[0].transcript.strip()}', flush=True)
@@ -48,7 +48,7 @@ class Transcriber:
                 else:
                     if state == 'LISTENING':
                         print(f'\033[K{result.alternatives[0].transcript.strip()}', end='\r', flush=True)  # You can consider keeping this as is, or tweaking based on your needs
-            
+
             break
 
     def get_config(self):
@@ -81,9 +81,8 @@ if __name__ == "__main__":
             transcriber.run()
         except Unknown as e:
             print(f"Warning: An error occurred ({e}). Retrying...")
-            
+
             if transcriber is not None:
                 del transcriber  # Delete the object
-            
-            sleep(2)
 
+            sleep(2)

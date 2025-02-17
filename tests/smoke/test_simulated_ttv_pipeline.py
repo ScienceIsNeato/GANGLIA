@@ -22,7 +22,7 @@ import subprocess
 import sys
 import os
 import pytest
-from tests.integration.test_helpers import (
+from tests.test_helpers import (
     validate_audio_video_durations,
     validate_final_video_path,
     validate_total_duration,
@@ -46,7 +46,7 @@ UPLOAD_SMOKE_TESTS_TO_YOUTUBE = os.getenv('UPLOAD_SMOKE_TESTS_TO_YOUTUBE', 'fals
 
 def test_simulated_pipeline_execution():
     """Test the full TTV pipeline with simulated responses for music and image generation.
-    
+
     This test verifies:
     1. Image generation/loading from preloaded directory
     2. Audio generation and synchronization
@@ -99,9 +99,7 @@ def test_simulated_pipeline_execution():
     validate_background_music(output)
 
     # Add closing credits duration to total video duration
-    closing_credits_duration = validate_closing_credits_duration(
-        output, SIMULATED_PIPELINE_CONFIG
-    )
+    closing_credits_duration = validate_closing_credits_duration(output)
     total_video_duration += closing_credits_duration
 
 
@@ -129,7 +127,7 @@ def test_simulated_pipeline_execution():
             try:
                 client = YouTubeClient()
                 video_url = client.create_video_post(
-                    title=f"GANGLIA Integration Test: TTV Pipeline (Smoke)",
+                    title="GANGLIA Integration Test: TTV Pipeline (Smoke)",
                     video_path=final_video_path,
                     additional_info={
                         "python_version": sys.version,

@@ -5,9 +5,9 @@ from logger import Logger
 
 class SunoRequestHandler:
     def __init__(self):
-        self.api_key = os.getenv('SUNO_API_KEY')
+        self.api_key = os.getenv('FOXAI_SUNO_API_KEY')
         if not self.api_key:
-            raise EnvironmentError("Environment variable 'SUNO_API_KEY' is not set.")
+            raise EnvironmentError("Environment variable 'FOXAI_SUNO_API_KEY' is not set.")
 
         self.base_url = "https://api.sunoaiapi.com/api/v1"
         self.headers = {
@@ -49,7 +49,7 @@ class SunoRequestHandler:
 
         data["title"] = "Generated Song" #TODO: generate
         data["tags"] = "general" #TODO: generate
-        
+
 
         endpoint = f"{self.base_url}/gateway/generate/music"
         data = {k: v for k, v in data.items() if v is not None}

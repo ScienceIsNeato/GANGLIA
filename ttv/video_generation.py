@@ -21,13 +21,13 @@ subprocess_lock = threading.Lock()
 
 def create_video_segment(image_path, audio_path, output_path, thread_id=None):
     """Create a video segment from an image and audio file.
-    
+
     Args:
         image_path: Path to the image file
         audio_path: Path to the audio file
         output_path: Path to save the output video
         thread_id: Optional thread ID for logging
-        
+
     Returns:
         str: Path to the output video if successful, None otherwise
     """
@@ -75,13 +75,13 @@ def create_video_segment(image_path, audio_path, output_path, thread_id=None):
 
 def create_still_video_with_fade(image_path, audio_path, output_path, thread_id=None):
     """Create a still video with fade effects.
-    
+
     Args:
         image_path: Path to the image file
         audio_path: Path to the audio file
         output_path: Path to save the output video
         thread_id: Optional thread ID for logging
-        
+
     Returns:
         str: Path to the output video if successful, None otherwise
     """
@@ -133,13 +133,13 @@ def append_video_segments(
     force_reencode: bool = False
 ) -> Optional[str]:
     """Append multiple video segments together.
-    
+
     Args:
         video_segments: List of video segment paths
         thread_id: Optional thread ID for logging
         output_dir: Optional directory for output files
         force_reencode: Whether to force re-encoding of streams (needed for closing credits)
-        
+
     Returns:
         str: Path to the output video if successful, None otherwise
     """
@@ -163,7 +163,7 @@ def append_video_segments(
                 "-safe", "0",
                 "-i", concat_list_path
             ]
-            
+
             if force_reencode:
                 # Re-encode both video and audio streams
                 cmd.extend([
@@ -174,9 +174,9 @@ def append_video_segments(
             else:
                 # Just copy streams without re-encoding
                 cmd.extend(["-c", "copy"])
-                
+
             cmd.append(output_path)
-            
+
             with subprocess_lock:  # Protect subprocess.run from gRPC fork issues
                 result = subprocess.run(
                     cmd,

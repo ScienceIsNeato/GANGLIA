@@ -89,7 +89,7 @@ class CaptionEntry:
 
 def split_into_words(caption: CaptionEntry, words_per_second: float = 2.0, font_name: str = get_default_font()) -> List[Word]:
     """Split caption text into words with timing.
-    
+
     If caption.timed_words is provided, uses those timings.
     Otherwise, calculates timing based on words_per_second.
     """
@@ -126,7 +126,7 @@ def split_into_words(caption: CaptionEntry, words_per_second: float = 2.0, font_
 def assign_word_sizes(words: List[Word], min_font_size: int, max_font_ratio: float) -> None:
     """
     Assign font sizes to words using a uniform distribution.
-    
+
     Args:
         words: List of Word objects to assign sizes to
         min_font_size: Minimum font size in pixels
@@ -134,20 +134,20 @@ def assign_word_sizes(words: List[Word], min_font_size: int, max_font_ratio: flo
     """
     max_font_size = int(min_font_size * max_font_ratio)
     size_range = max_font_size - min_font_size
-    
+
     # Calculate number of distinct sizes we want (about 1 size per 2-3 words)
     num_sizes = max(5, len(words) // 2)
     step = size_range / (num_sizes - 1)
-    
+
     # Create a list of available sizes
     available_sizes = [int(min_font_size + (i * step)) for i in range(num_sizes)]
     if available_sizes[-1] > max_font_size:
         available_sizes[-1] = max_font_size
-    
+
     # First, ensure each size is used at least once (if we have enough words)
     shuffled_words = list(words)
     random.shuffle(shuffled_words)
-    
+
     for i, word in enumerate(shuffled_words):
         if i < len(available_sizes):
             # Assign one of each size first
@@ -169,7 +169,7 @@ def calculate_word_position(
     """Calculate position for a word in the caption window."""
     # Calculate buffer pixels based on font size
     buffer_pixels = max(int(word.font_size * 0.4), 8)  # Reduced from 0.5 to 0.4
-    
+
     # Calculate word position
     if previous_word is None:
         # First word in window
@@ -178,7 +178,7 @@ def calculate_word_position(
         new_cursor_x = int(word.width + buffer_pixels)
         new_cursor_y = cursor_y
         return new_cursor_x, new_cursor_y, word_x, word_y, False
-    
+
     # Check if word fits on current line
     # Use 90% of ROI width to force wrapping sooner
     effective_width = int(roi_width * 0.9)
@@ -214,18 +214,18 @@ def create_caption_windows(
     """Group words into caption windows with appropriate line breaks."""
     # First, assign random sizes to all words
     assign_word_sizes(words, min_font_size, max_font_ratio)
-    
+
     windows = []
     current_window_words = []
     cursor_x = 0
     cursor_y = 0
     line_number = 0
-    
+
     i = 0
     while i < len(words):
         word = words[i]
         previous_word = current_window_words[-1] if current_window_words else None
-        
+
         new_cursor_x, new_cursor_y, word_x, word_y, needs_new_window = calculate_word_position(
             word=word,
             cursor_x=int(cursor_x),
@@ -235,7 +235,7 @@ def create_caption_windows(
             roi_height=int(roi_height),
             previous_word=previous_word
         )
-        
+
         if needs_new_window:
             # Create window with current words and start a new one
             if current_window_words:
@@ -246,14 +246,14 @@ def create_caption_windows(
                     font_size=min_font_size  # This is now just a baseline for spacing
                 )
                 windows.append(window)
-            
+
             # Reset for new window
             current_window_words = []
             cursor_x = 0
             cursor_y = 0
             line_number = 0
             continue
-        
+
         # Update word position and line number
         word.x_position = word_x
         # Calculate line number based on y position, accounting for line height and vertical buffer
@@ -266,7 +266,7 @@ def create_caption_windows(
         if cursor_y > line_number * line_spacing:
             line_number += 1
         i += 1
-    
+
     # Add any remaining words as the last window
     if current_window_words:
         window = CaptionWindow(
@@ -276,7 +276,7 @@ def create_caption_windows(
             font_size=min_font_size  # This is now just a baseline for spacing
         )
         windows.append(window)
-    
+
     return windows
 
 def calculate_word_positions(
@@ -317,7 +317,7 @@ def calculate_text_size(text, font_size, font_path=None):
     # Create a PIL Image to measure text size
     img = Image.new('RGB', (1, 1))
     draw = ImageDraw.Draw(img)
-    
+
     # Load font
     if font_path and os.path.exists(font_path):
         try:
@@ -326,14 +326,14 @@ def calculate_text_size(text, font_size, font_path=None):
             font = ImageFont.truetype(get_default_font(), font_size)
     else:
         font = ImageFont.truetype(get_default_font(), font_size)
-    
+
     # Get text size
     bbox = draw.textbbox((0, 0), text, font=font)
     width = bbox[2] - bbox[0]
     height = bbox[3] - bbox[1]
     text_width = width
     text_height = height
-    
+
     # Add buffer pixels around text
     buffer_pixels = max(int(font_size * 0.75), 16)  # Significantly increased buffer
     return width + buffer_pixels * 2, height + buffer_pixels * 2, text_width, text_height
@@ -400,11 +400,11 @@ def _calculate_clip_dimensions(
     horizontal_padding = (border_thickness + shadow_offset[0]) * 2
     clip_width = int(word.width + horizontal_padding)
     clip_height = int(word.font_size * 1.5)  # Keep original height ratio
-    
+
     # Center the text in the clip by using equal margins
     margin_left = horizontal_padding // 2
     margin_bottom = int(word.font_size * 0.2)  # Keep original bottom margin
-    
+
     return (clip_width, clip_height), (margin_left, 0, 0, margin_bottom)
 
 def _create_word_clips(
@@ -424,10 +424,10 @@ def _create_word_clips(
 ) -> Tuple[List[TextClip], Tuple[int, int]]:
     """Create all clips (text and shadows) for a single word."""
     clip_dimensions, margins = _calculate_clip_dimensions(word, border_thickness, shadow_offset)
-    
+
     # Calculate baseline offset for vertical alignment
     baseline_offset = max_font_size - word.font_size
-    
+
     # Calculate word position
     new_cursor_x, new_cursor_y, x_position, y_position, _ = calculate_word_position(
         word=word,
@@ -438,12 +438,12 @@ def _create_word_clips(
         roi_height=int(roi_height),
         previous_word=previous_word
     )
-    
+
     # Calculate base position adjustments
     margin_left = margins[0]
     base_x = int(roi_x + x_position - margin_left)
     base_y = int(roi_y + y_position + baseline_offset)
-    
+
     # Create outer shadow
     outer_shadow = _create_shadow_clip(
         word=word,
@@ -455,7 +455,7 @@ def _create_word_clips(
         start_time=word.start_time,
         opacity=0.4
     )
-    
+
     # Create inner shadow
     inner_shadow = _create_shadow_clip(
         word=word,
@@ -467,7 +467,7 @@ def _create_word_clips(
         start_time=word.start_time,
         opacity=0.7
     )
-    
+
     # Create main text clip
     text_clip = _create_text_clip(
         word=word,
@@ -480,7 +480,7 @@ def _create_word_clips(
         duration=window.end_time - word.start_time,
         start_time=word.start_time
     )
-    
+
     return [outer_shadow, inner_shadow, text_clip], (new_cursor_x, new_cursor_y)
 
 def _process_caption_window(
@@ -499,27 +499,27 @@ def _process_caption_window(
     # Get background color from ROI for this window's position
     window_roi = first_frame[roi_y:roi_y+roi_height, roi_x:roi_x+roi_width]
     avg_bg_color = tuple(map(int, np.mean(window_roi, axis=(0, 1))))
-    
+
     # Calculate complement of background color
     complement = tuple(255 - c for c in avg_bg_color)
-    
+
     # Find palette color closest to background complement
     palette = get_vibrant_palette()
     color_diffs = [sum(abs(c1 - c2) for c1, c2 in zip(complement, palette_color)) for palette_color in palette]
     color_idx = color_diffs.index(min(color_diffs))
     text_color = palette[color_idx]
-    
+
     # Make stroke color exactly 1/3 intensity of text color
     stroke_color = tuple(c // 3 for c in text_color)
-    
+
     Logger.print_info(f"Using color {text_color} for window (background: {avg_bg_color}, complement: {complement})")
-    
+
     # Process all words in the window
     text_clips = []
     cursor_x, cursor_y = 0, 0
     previous_word = None
     max_font_size = int(min_font_size * max_font_ratio)
-    
+
     for word in window.words:
         clips, (cursor_x, cursor_y) = _create_word_clips(
             word=word,
@@ -538,7 +538,7 @@ def _process_caption_window(
         )
         text_clips.extend(clips)
         previous_word = word
-    
+
     return text_clips
 
 def create_dynamic_captions(
@@ -568,7 +568,7 @@ def create_dynamic_captions(
 
         # Extract ROI dimensions
         roi_x, roi_y, roi_width, roi_height = roi
-        
+
         # Process all captions into words
         all_words = []
         for caption in captions:
@@ -576,7 +576,7 @@ def create_dynamic_captions(
             if caption.start_time >= video_duration:
                 continue
             caption.end_time = min(caption.end_time, video_duration)
-            
+
             words = split_into_words(caption, words_per_second, font_name)
             if words:
                 # Ensure word timings don't exceed video duration
@@ -722,7 +722,7 @@ def create_static_captions(
 ) -> Optional[str]:
     """
     Add simple static captions to a video.
-    
+
     Args:
         input_video: Path to input video file
         captions: List of CaptionEntry objects

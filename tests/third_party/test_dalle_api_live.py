@@ -92,4 +92,4 @@ def test_dalle_basic_generation():
     except Exception as e:
         Logger.print_error(f"Error during DALL-E test: {str(e)}")
         Logger.print_error(f"Traceback: {traceback.format_exc()}")
-        raise 
+        raise
