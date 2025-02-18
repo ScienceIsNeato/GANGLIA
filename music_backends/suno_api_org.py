@@ -9,7 +9,6 @@ from music_backends.base import MusicBackend
 from music_backends.suno_interface import SunoInterface
 from utils import get_tempdir
 from utils.retry_utils import exponential_backoff
-import pytest
 
 class SunoApiOrgBackend(MusicBackend, SunoInterface):
     """SunoApi.org implementation for music generation."""
@@ -142,14 +141,14 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
 ║                                                                    ║
 ║  Your Suno API account has run out of credits.                    ║
 ║  Please top up your credits to continue generating music.          ║
-║  This test will be skipped.                                       ║
+║  Will retry after delay.                                          ║
 ║                                                                    ║
 ║  Error: {msg}                                                      ║
 ╚════════════════════════════════════════════════════════════════════╝
 """.format(msg=response_data.get('msg'))
                 Logger.print_warning(warning_msg)
-                pytest.skip("Insufficient Suno API credits")
-                return None
+                # Raise an exception to trigger retry
+                raise RuntimeError("Insufficient credits - will retry after delay")
             elif response_data.get('code') != 200:  # Check other API response codes
                 Logger.print_error(f"API error: {response_data.get('msg')}")
                 return None
@@ -303,7 +302,10 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
         while True:
             status, progress = self.check_progress(job_id)
             if progress >= 100:
-                return self.get_result(job_id)
+                result = self.get_result(job_id)
+                if not result:
+                    Logger.print_error("Failed to add background music")
+                return result
             time.sleep(5)
 
     def generate_with_lyrics(
@@ -363,13 +365,16 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
                         bytes_written += len(chunk)
                         f.write(chunk)
 
+            Logger.print_info("Successfully added background music")
             return audio_path
 
         except requests.exceptions.Timeout:
             Logger.print_error(f"Download timed out after 30 seconds")
+            Logger.print_error("Failed to add background music")
             return None
         except Exception as e:
             Logger.print_error(f"Failed to download audio: {str(e)}")
+            Logger.print_error("Failed to add background music")
             return None
 
     def _save_start_time(self, job_id: str):
