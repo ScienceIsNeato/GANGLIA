@@ -82,7 +82,8 @@ class SunoRequestHandler:
                     attempt += 1
                 else:
                     return {"error": "exception", "message": str(e)}
-            print("Retrying... (Attempt {attempt + 1} of {retries})")
+            if attempt > 1:
+                print("Retrying... (Attempt {attempt + 1} of {retries})")
 
         Logger.print_error(f"Failed to generate audio after {retries} attempts due to rate limiting.")
         return {"error": "rate_limit_exceeded", "message": "Failed to generate audio after multiple attempts due to rate limiting."}

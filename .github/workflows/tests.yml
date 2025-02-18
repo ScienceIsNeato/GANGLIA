@@ -20,7 +20,8 @@ jobs:
                         secrets.GCP_PROJECT_NAME != '' &&
                         secrets.FOXAI_SUNO_API_KEY != '' &&
                         secrets.SUNO_API_URL != '' &&
-                        secrets.GANGLIA_TEMP_DIR != '' }}
+                        secrets.GANGLIA_TEMP_DIR != '' &&
+                        secrets.SUNO_API_ORG_KEY != '' }}
 
     steps:
     - uses: actions/checkout@v3
@@ -80,6 +81,7 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         FOXAI_SUNO_API_KEY: ${{ secrets.FOXAI_SUNO_API_KEY }}
         SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
+        SUNO_API_ORG_KEY: ${{ secrets.SUNO_API_ORG_KEY }}
         GANGLIA_TEMP_DIR: ${{ secrets.GANGLIA_TEMP_DIR }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/gcp-credentials.json
         YOUTUBE_TOKEN_FILE: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/youtube_token.json
@@ -128,7 +130,8 @@ jobs:
                         secrets.GCP_PROJECT_NAME != '' &&
                         secrets.FOXAI_SUNO_API_KEY != '' &&
                         secrets.SUNO_API_URL != '' &&
-                        secrets.GANGLIA_TEMP_DIR != '' }}
+                        secrets.GANGLIA_TEMP_DIR != '' &&
+                        secrets.SUNO_API_ORG_KEY != '' }}
 
     steps:
     - uses: actions/checkout@v3
@@ -188,6 +191,7 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         FOXAI_SUNO_API_KEY: ${{ secrets.FOXAI_SUNO_API_KEY }}
         SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
+        SUNO_API_ORG_KEY: ${{ secrets.SUNO_API_ORG_KEY }}
         GANGLIA_TEMP_DIR: ${{ secrets.GANGLIA_TEMP_DIR }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/gcp-credentials.json
         YOUTUBE_TOKEN_FILE: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/youtube_token.json
@@ -235,7 +239,8 @@ jobs:
                         secrets.GCP_PROJECT_NAME != '' &&
                         secrets.FOXAI_SUNO_API_KEY != '' &&
                         secrets.SUNO_API_URL != '' &&
-                        secrets.GANGLIA_TEMP_DIR != '' }}
+                        secrets.GANGLIA_TEMP_DIR != '' &&
+                        secrets.SUNO_API_ORG_KEY != '' }}
 
     steps:
     - uses: actions/checkout@v3
@@ -295,6 +300,7 @@ jobs:
         GCP_PROJECT_NAME: ${{ secrets.GCP_PROJECT_NAME }}
         FOXAI_SUNO_API_KEY: ${{ secrets.FOXAI_SUNO_API_KEY }}
         SUNO_API_URL: ${{ secrets.SUNO_API_URL }}
+        SUNO_API_ORG_KEY: ${{ secrets.SUNO_API_ORG_KEY }}
         GANGLIA_TEMP_DIR: ${{ secrets.GANGLIA_TEMP_DIR }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/gcp-credentials.json
         YOUTUBE_CREDENTIALS_FILE: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/youtube_credentials.json

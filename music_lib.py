@@ -9,10 +9,11 @@ import time
 import subprocess
 from logger import Logger
 from music_backends import MetaMusicBackend
+from music_backends.suno_api_org import SunoApiOrgBackend
 from music_backends.gcui_suno import GcuiSunoBackend
 from music_backends.foxai_suno import FoxAISunoBackend
 from ttv.config_loader import TTVConfig
-from typing import Optional, Any, Tuple
+from typing import Optional, Any, Tuple, List
 
 def _exponential_backoff(attempt, base_delay=1, max_delay=5):
     """Calculate delay with exponential backoff and jitter."""
@@ -55,8 +56,8 @@ class MusicGenerator:
             if backend_name == "meta":
                 self.backend = MetaMusicBackend()
                 self.fallback_backend = None
-            else:  # Default to GcuiSuno with old FoxAI as fallback
-                self.backend = GcuiSunoBackend()
+            else:  # Default to SunoApiOrg with FoxAI as fallback
+                self.backend = SunoApiOrgBackend()
                 self.fallback_backend = FoxAISunoBackend()
 
             Logger.print_info(f"MusicGenerator initialized with backend: {self.backend.__class__.__name__},"

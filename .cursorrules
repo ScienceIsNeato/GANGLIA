@@ -6,7 +6,7 @@
 For individual test functions, use python command in agent window:
 ```python
 {
-  "command": "nohup python -m pytest tests/path/to/test_file.py::test_function_name -v -s > /dev/null 2>&1 &",
+  "command": "python -m pytest tests/path/to/test_file.py::test_function_name -v -s",
   "explanation": "Running individual test function",
   "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
@@ -17,7 +17,7 @@ For individual test functions, use python command in agent window:
 For complete test files, use python command in agent window:
 ```python
 {
-  "command": "nohup python -m pytest tests/path/to/test_file.py -v -s > /dev/null 2>&1 &",
+  "command": "python -m pytest tests/path/to/test_file.py -v -s",
   "explanation": "Running test module",
   "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
