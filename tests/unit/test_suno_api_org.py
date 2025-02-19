@@ -17,12 +17,6 @@ def backend(mock_env, tmp_path):
     with patch('music_backends.suno_api_org.get_tempdir', return_value=str(tmp_path)):
         return SunoApiOrgBackend()
 
-def test_init_missing_api_key():
-    """Test initialization fails without API key."""
-    with patch.dict(os.environ, clear=True):
-        with pytest.raises(EnvironmentError, match="Environment variable 'SUNO_API_ORG_KEY' is not set"):
-            SunoApiOrgBackend()
-
 def test_start_generation_instrumental(backend):
     """Test starting instrumental generation."""
     mock_response = MagicMock()

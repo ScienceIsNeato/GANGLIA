@@ -214,8 +214,21 @@ class MusicGenerator:
             time.sleep(5)  # Wait before checking again
 
         # Get result and lyrics
-        return self.backend.get_result(job_id)
+        result = self.backend.get_result(job_id)
+        if not result:
+            return None, None
 
+        # If we have an output path and a result, copy the file
+        if output_path and isinstance(result, tuple) and result[0]:
+            try:
+                import shutil
+                shutil.copy2(result[0], output_path)
+                return output_path, result[1] if len(result) > 1 else None
+            except (IOError, OSError) as e:
+                Logger.print_error(f"Failed to copy file to output path: {e}")
+                return result
+
+        return result
 
     def validate_audio_file(self, file_path: str, thread_id: Optional[str] = None) -> bool:
         """Validate that a file exists and is a valid audio file.
@@ -405,11 +418,12 @@ class MusicGenerator:
             return None, None
 
         Logger.print_info(f"{thread_prefix}Generating closing credits with prompt: {prompt}")
+        output_path = os.path.join(output_dir, "closing_credits.mp3")
         closing_credits_path, lyrics = self.generate_with_lyrics(
             prompt=prompt,
             story_text=story_text,
             query_dispatcher=query_dispatcher,
-            output_path=os.path.join(output_dir, "closing_credits.mp3")
+            output_path=output_path
         )
 
         if closing_credits_path:
