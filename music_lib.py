@@ -10,10 +10,9 @@ import subprocess
 from logger import Logger
 from music_backends import MetaMusicBackend
 from music_backends.suno_api_org import SunoApiOrgBackend
-from music_backends.gcui_suno import GcuiSunoBackend
 from music_backends.foxai_suno import FoxAISunoBackend
 from ttv.config_loader import TTVConfig
-from typing import Optional, Any, Tuple, List
+from typing import Optional, Any, Tuple, List, Union
 
 def _exponential_backoff(attempt, base_delay=1, max_delay=5):
     """Calculate delay with exponential backoff and jitter."""
@@ -78,23 +77,38 @@ class MusicGenerator:
         Logger.print_info(f"Generating instrumental music with prompt: {prompt}")
 
         # Try primary backend first with retries
-        result = self._try_generate_with_retries(self.backend, prompt, duration=duration,
-                                               title=title, tags=tags, output_path=output_path)
-        if result:
-            return result, None
+        result = self._try_generate_with_retries(
+            self.backend,
+            prompt,
+            duration=duration,
+            title=title,
+            tags=tags,
+            output_path=output_path
+        )
+        if result and result[0]:  # Check both tuple and first element
+            return result
 
         # If primary failed and we have a fallback, try that
         if self.fallback_backend:
             Logger.print_info("Primary backend failed after retries, attempting fallback to Meta backend...")
-            result = self._try_generate_with_backend(self.fallback_backend, prompt, duration=duration,
-                                                   title=title, tags=tags)
-            return result, None if result else (None, None)
+            result = self._try_generate_with_backend(
+                self.fallback_backend,
+                prompt,
+                duration=duration,
+                title=title,
+                tags=tags,
+                output_path=output_path
+            )
+            if result:
+                if isinstance(result, tuple):
+                    return result
+                return result, None
 
         return None, None
 
     def _try_generate_with_retries(self, backend, prompt: str, duration: Optional[int] = None,
                                   title: Optional[str] = None, tags: Optional[List[str]] = None,
-                                  output_path: Optional[str] = None) -> str:
+                                  output_path: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
         """Attempt to generate music with retries and exponential backoff."""
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -103,14 +117,28 @@ class MusicGenerator:
                     Logger.print_info(f"Retry attempt {attempt + 1}/{self.MAX_RETRIES} after {delay:.1f}s delay...")
                     time.sleep(delay)
 
-                result, lyrics = self._try_generate_with_backend(backend, prompt, duration=duration,
-                                                               title=title, tags=tags)
+                result = self._try_generate_with_backend(
+                    backend,
+                    prompt,
+                    duration=duration,
+                    title=title,
+                    tags=tags,
+                    output_path=output_path
+                )
+
                 if result:
                     if attempt > 0:
                         Logger.print_info(f"Successfully generated after {attempt + 1} attempts")
-                    return result, lyrics
+                    if isinstance(result, tuple):
+                        return result
+                    return result, None
 
-                Logger.print_warning(f"Attempt {attempt + 1}/{self.MAX_RETRIES} failed, will retry...")
+                if attempt < self.MAX_RETRIES - 1:
+                    Logger.print_warning(f"Attempt {attempt + 1}/{self.MAX_RETRIES} failed, will retry...")
+                    continue
+                else:
+                    Logger.print_error("All retry attempts exhausted")
+                    return None, None
 
             except (RuntimeError, IOError, ValueError, TimeoutError) as e:
                 Logger.print_error(f"Error on attempt {attempt + 1}: {str(e)}")
@@ -123,7 +151,8 @@ class MusicGenerator:
     def _try_generate_with_backend(self, backend, prompt: str, with_lyrics: bool = False,
                                  title: Optional[str] = None, tags: Optional[List[str]] = None,
                                  duration: Optional[int] = None, story_text: Optional[str] = None,
-                                 query_dispatcher: Optional[Any] = None) -> Tuple[Optional[str], Optional[str]]:
+                                 query_dispatcher: Optional[Any] = None,
+                                 output_path: Optional[str] = None) -> Union[str, Tuple[str, str], None]:
         """Attempt to generate music with the specified backend.
 
         Args:
@@ -135,6 +164,11 @@ class MusicGenerator:
             duration: Optional duration in seconds
             story_text: Optional story text for lyric generation
             query_dispatcher: Optional query dispatcher for lyric generation
+            output_path: Optional path to save the generated audio
+
+        Returns:
+            Union[str, Tuple[str, str], None]: Either a string path to the audio file,
+            a tuple containing (audio_path, lyrics), or None if generation fails
         """
         try:
             # Start generation
@@ -165,17 +199,31 @@ class MusicGenerator:
             result = backend.get_result(job_id)
             if not result:
                 Logger.print_error(f"Failed to get result from {backend.__class__.__name__}")
-                return None, None
+                return None
 
-            # Handle both tuple and single value results
-            if isinstance(result, tuple):
-                return result
-            else:
-                return result, None
+            # If we have an output path and a result, copy the file
+            if output_path and isinstance(result, str):
+                try:
+                    import shutil
+                    shutil.copy2(result, output_path)
+                    return output_path
+                except (IOError, OSError) as e:
+                    Logger.print_error(f"Failed to copy file to output path: {e}")
+                    return result
+            elif output_path and isinstance(result, tuple) and result[0]:
+                try:
+                    import shutil
+                    shutil.copy2(result[0], output_path)
+                    return output_path, result[1] if len(result) > 1 else None
+                except (IOError, OSError) as e:
+                    Logger.print_error(f"Failed to copy file to output path: {e}")
+                    return result
+
+            return result
 
         except (RuntimeError, IOError, ValueError, TimeoutError) as e:
             Logger.print_error(f"Error with {backend.__class__.__name__}: {str(e)}")
-            return None, None
+            return None
 
     def generate_with_lyrics(self, prompt: str, story_text: str, title: Optional[str] = None,
                            tags: Optional[List[str]] = None, output_path: Optional[str] = None,
@@ -228,10 +276,11 @@ class MusicGenerator:
             try:
                 import shutil
                 shutil.copy2(result[0], output_path)
-                return output_path, result[1] if len(result) > 1 else None
+                # If we successfully copied the file, return the output path and lyrics
+                return output_path, result[1] if isinstance(result, tuple) and len(result) > 1 else None
             except (IOError, OSError) as e:
                 Logger.print_error(f"Failed to copy file to output path: {e}")
-                return result[0] if isinstance(result, tuple) else result
+                return result if isinstance(result, tuple) else (result, None)
 
         return result
 
@@ -312,13 +361,14 @@ class MusicGenerator:
 
         Logger.print_info(f"{thread_prefix}Generating background music with prompt: {prompt}")
         output_path = os.path.join(output_dir, "background_music.mp3")
-        background_music_path, _ = self.generate_instrumental(
+        result = self.generate_instrumental(
             prompt=prompt,
             duration=30,  # TODO: Calculate actual duration
             output_path=output_path
         )
 
-        if background_music_path:
+        if result and result[0]:  # Check both tuple and first element
+            background_music_path = result[0]
             Logger.print_info(f"{thread_prefix}Successfully generated background music at: {background_music_path}")
             return background_music_path
 

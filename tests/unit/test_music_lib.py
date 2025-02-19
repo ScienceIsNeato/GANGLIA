@@ -5,6 +5,7 @@ from music_backends.gcui_suno import GcuiSunoBackend
 from music_backends import MetaMusicBackend
 from ttv.config_loader import TTVConfig
 from typing import Union
+from logger import Logger
 
 class MockSunoBackend(GcuiSunoBackend):
     def __init__(self, should_fail=False, fail_count=None):
@@ -16,6 +17,7 @@ class MockSunoBackend(GcuiSunoBackend):
         self.get_result_called = False
 
     def start_generation(self, prompt: str, **kwargs) -> str:
+        """Mock start_generation that handles retries correctly."""
         self.start_generation_called = True
         self.attempts += 1
         self.with_lyrics = kwargs.get('with_lyrics', False)
@@ -23,7 +25,9 @@ class MockSunoBackend(GcuiSunoBackend):
         if self.fail_count is not None:
             # Succeed after fail_count failures
             if self.attempts <= self.fail_count:
+                Logger.print_info(f"Mock failing attempt {self.attempts}/{self.fail_count}")
                 return None
+            Logger.print_info(f"Mock succeeding after {self.fail_count} failures")
             return "mock_job_id"
 
         if self.should_fail:
@@ -75,7 +79,7 @@ def test_instrumental_generation_with_parameters():
     )
 
     assert suno_backend.start_generation_called
-    assert result == "/mock/path/to/audio.mp3"
+    assert result == ("/mock/path/to/audio.mp3", None)
 
 def test_instrumental_generation_no_fallback_needed():
     """Test that Meta fallback is not used when Suno succeeds."""
@@ -97,7 +101,7 @@ def test_instrumental_generation_no_fallback_needed():
     assert not meta_backend.check_progress_called
     assert not meta_backend.get_result_called
 
-    assert result == "/mock/path/to/audio.mp3"
+    assert result == ("/mock/path/to/audio.mp3", None)
 
 
 @pytest.mark.costly
@@ -123,7 +127,7 @@ def test_instrumental_generation_with_retries_then_success():
     assert not meta_backend.check_progress_called
     assert not meta_backend.get_result_called
 
-    assert result == "/mock/path/to/audio.mp3"
+    assert result == ("/mock/path/to/audio.mp3", None)
 
 
 @pytest.mark.costly
@@ -146,7 +150,7 @@ def test_instrumental_generation_with_retries_then_fallback():
     assert meta_backend.check_progress_called
     assert meta_backend.get_result_called
 
-    assert result == "/mock/path/to/meta_audio.wav"
+    assert result == ("/mock/path/to/meta_audio.wav", None)
 
 
 def test_lyrics_generation_with_parameters():
@@ -203,7 +207,7 @@ def test_instrumental_generation_no_fallback_configured():
     # Verify Suno was attempted MAX_RETRIES times
     assert suno_backend.attempts == generator.MAX_RETRIES
 
-    assert result is None  # Should fail with no fallback
+    assert result == (None, None)  # Should fail with no fallback
 
 
 def test_parameter_passing_through_retry_chain():
@@ -221,7 +225,7 @@ def test_parameter_passing_through_retry_chain():
         )
 
     assert suno_backend.attempts == 2  # One failure + one success
-    assert result == "/mock/path/to/audio.mp3"
+    assert result == ("/mock/path/to/audio.mp3", None)
 
 def test_exponential_backoff():
     """Test that exponential backoff generates reasonable delays."""
