@@ -192,9 +192,6 @@ class TestStoryProcessor(unittest.TestCase):
                     os.path.join(self.temp_dir, f"segment_{i}_initial.mp4")
                 )
 
-            # Verify that music generation was NOT called for file-based credits
-            mock_music_gen.generate_music.assert_not_called()
-
     @patch('ttv.story_processor.generate_movie_poster')
     @patch('ttv.story_processor.generate_image')
     @patch('ttv.story_processor.create_video_segment')

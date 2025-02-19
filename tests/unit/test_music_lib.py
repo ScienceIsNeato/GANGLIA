@@ -4,6 +4,7 @@ from music_lib import MusicGenerator, _exponential_backoff
 from music_backends.gcui_suno import GcuiSunoBackend
 from music_backends import MetaMusicBackend
 from ttv.config_loader import TTVConfig
+from typing import Union
 
 class MockSunoBackend(GcuiSunoBackend):
     def __init__(self, should_fail=False, fail_count=None):
@@ -17,6 +18,7 @@ class MockSunoBackend(GcuiSunoBackend):
     def start_generation(self, prompt: str, **kwargs) -> str:
         self.start_generation_called = True
         self.attempts += 1
+        self.with_lyrics = kwargs.get('with_lyrics', False)
 
         if self.fail_count is not None:
             # Succeed after fail_count failures
@@ -34,11 +36,11 @@ class MockSunoBackend(GcuiSunoBackend):
             return "Failed", 0
         return "Complete", 100
 
-    def get_result(self, job_id: str) -> str:
+    def get_result(self, job_id: str) -> Union[str, tuple[str, str]]:
         self.get_result_called = True
         if self.should_fail:
-            return None
-        return "/mock/path/to/audio.mp3"
+            return None if not self.with_lyrics else (None, None)
+        return ("/mock/path/to/audio.mp3", None) if self.with_lyrics else "/mock/path/to/audio.mp3"
 
 class MockMetaBackend(MetaMusicBackend):
     def __init__(self):
@@ -59,13 +61,28 @@ class MockMetaBackend(MetaMusicBackend):
         return "/mock/path/to/meta_audio.wav"
 
 
+def test_instrumental_generation_with_parameters():
+    """Test instrumental generation with all optional parameters."""
+    suno_backend = MockSunoBackend(should_fail=False)
+    generator = MusicGenerator(backend=suno_backend)
+
+    result = generator.generate_instrumental(
+        prompt="test prompt",
+        duration=30,
+        title="Test Song",
+        tags=["test", "music"],
+        output_path="/test/output.mp3"
+    )
+
+    assert suno_backend.start_generation_called
+    assert result == "/mock/path/to/audio.mp3"
+
 def test_instrumental_generation_no_fallback_needed():
     """Test that Meta fallback is not used when Suno succeeds."""
     suno_backend = MockSunoBackend(should_fail=False)
     meta_backend = MockMetaBackend()
 
-    generator = MusicGenerator()
-    generator.backend = suno_backend
+    generator = MusicGenerator(backend=suno_backend)
     generator.fallback_backend = meta_backend
 
     result = generator.generate_instrumental("test prompt")
@@ -90,8 +107,7 @@ def test_instrumental_generation_with_retries_then_success():
     suno_backend = MockSunoBackend(fail_count=3)
     meta_backend = MockMetaBackend()
 
-    generator = MusicGenerator()
-    generator.backend = suno_backend
+    generator = MusicGenerator(backend=suno_backend)
     generator.fallback_backend = meta_backend
 
     with patch('time.sleep'):  # Mock sleep to speed up test
@@ -116,8 +132,7 @@ def test_instrumental_generation_with_retries_then_fallback():
     suno_backend = MockSunoBackend(should_fail=True)
     meta_backend = MockMetaBackend()
 
-    generator = MusicGenerator()
-    generator.backend = suno_backend
+    generator = MusicGenerator(backend=suno_backend)
     generator.fallback_backend = meta_backend
 
     with patch('time.sleep'):  # Mock sleep to speed up test
@@ -134,13 +149,32 @@ def test_instrumental_generation_with_retries_then_fallback():
     assert result == "/mock/path/to/meta_audio.wav"
 
 
+def test_lyrics_generation_with_parameters():
+    """Test lyrics generation with all optional parameters."""
+    suno_backend = MockSunoBackend(should_fail=False)
+    generator = MusicGenerator(backend=suno_backend)
+
+    query_dispatcher = Mock()
+    result = generator.generate_with_lyrics(
+        prompt="test prompt",
+        story_text="test story",
+        title="Test Song",
+        tags=["test", "music"],
+        output_path="/test/output.mp3",
+        query_dispatcher=query_dispatcher
+    )
+
+    assert suno_backend.start_generation_called
+    # The get_result method returns a tuple for lyrics generation
+    assert result[0] == "/mock/path/to/audio.mp3"
+    assert result[1] is None
+
 def test_lyrics_generation_no_fallback():
     """Test that Meta fallback is not used for lyrics generation, even if Suno fails."""
     suno_backend = MockSunoBackend(should_fail=True)
     meta_backend = MockMetaBackend()
 
-    generator = MusicGenerator()
-    generator.backend = suno_backend
+    generator = MusicGenerator(backend=suno_backend)
     generator.fallback_backend = meta_backend
 
     result = generator.generate_with_lyrics("test prompt", "test story")
@@ -161,9 +195,7 @@ def test_instrumental_generation_no_fallback_configured():
     """Test instrumental generation with no fallback configured."""
     suno_backend = MockSunoBackend(should_fail=True)
 
-    generator = MusicGenerator()
-    generator.backend = suno_backend
-    generator.fallback_backend = None
+    generator = MusicGenerator(backend=suno_backend)
 
     with patch('time.sleep'):  # Mock sleep to speed up test
         result = generator.generate_instrumental("test prompt")
@@ -173,6 +205,23 @@ def test_instrumental_generation_no_fallback_configured():
 
     assert result is None  # Should fail with no fallback
 
+
+def test_parameter_passing_through_retry_chain():
+    """Test that parameters are correctly passed through the retry chain."""
+    suno_backend = MockSunoBackend(fail_count=1)  # Fail once then succeed
+    generator = MusicGenerator(backend=suno_backend)
+
+    with patch('time.sleep'):  # Mock sleep to speed up test
+        result = generator.generate_instrumental(
+            prompt="test prompt",
+            duration=30,
+            title="Test Song",
+            tags=["test", "music"],
+            output_path="/test/output.mp3"
+        )
+
+    assert suno_backend.attempts == 2  # One failure + one success
+    assert result == "/mock/path/to/audio.mp3"
 
 def test_exponential_backoff():
     """Test that exponential backoff generates reasonable delays."""

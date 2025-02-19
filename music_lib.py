@@ -63,23 +63,37 @@ class MusicGenerator:
             Logger.print_info(f"MusicGenerator initialized with backend: {self.backend.__class__.__name__},"
                               f" and fallback: {self.fallback_backend.__class__.__name__}")
 
-    def generate_instrumental(self, prompt: str, **kwargs) -> str:
-        """Generate instrumental music from a text prompt."""
+    def generate_instrumental(self, prompt: str, duration: Optional[int] = None,
+                            title: Optional[str] = None, tags: Optional[List[str]] = None,
+                            output_path: Optional[str] = None) -> str:
+        """Generate instrumental music from a text prompt.
+
+        Args:
+            prompt: The text prompt for music generation
+            duration: Optional duration in seconds
+            title: Optional title for the generated music
+            tags: Optional list of tags
+            output_path: Optional path to save the generated audio
+        """
         Logger.print_info(f"Generating instrumental music with prompt: {prompt}")
 
         # Try primary backend first with retries
-        result = self._try_generate_with_retries(self.backend, prompt, **kwargs)
+        result = self._try_generate_with_retries(self.backend, prompt, duration=duration,
+                                               title=title, tags=tags, output_path=output_path)
         if result:
             return result
 
         # If primary failed and we have a fallback, try that
         if self.fallback_backend:
             Logger.print_info("Primary backend failed after retries, attempting fallback to Meta backend...")
-            return self._try_generate_with_backend(self.fallback_backend, prompt, **kwargs)
+            return self._try_generate_with_backend(self.fallback_backend, prompt, duration=duration,
+                                                 title=title, tags=tags)
 
         return None
 
-    def _try_generate_with_retries(self, backend, prompt: str, **kwargs) -> str:
+    def _try_generate_with_retries(self, backend, prompt: str, duration: Optional[int] = None,
+                                  title: Optional[str] = None, tags: Optional[List[str]] = None,
+                                  output_path: Optional[str] = None) -> str:
         """Attempt to generate music with retries and exponential backoff."""
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -88,7 +102,8 @@ class MusicGenerator:
                     Logger.print_info(f"Retry attempt {attempt + 1}/{self.MAX_RETRIES} after {delay:.1f}s delay...")
                     time.sleep(delay)
 
-                result = self._try_generate_with_backend(backend, prompt, **kwargs)
+                result = self._try_generate_with_backend(backend, prompt, duration=duration,
+                                                       title=title, tags=tags)
                 if result:
                     if attempt > 0:
                         Logger.print_info(f"Successfully generated after {attempt + 1} attempts")
@@ -104,16 +119,32 @@ class MusicGenerator:
 
         return None
 
-    def _try_generate_with_backend(self, backend, prompt: str, **kwargs) -> str:
-        """Attempt to generate music with the specified backend."""
+    def _try_generate_with_backend(self, backend, prompt: str, with_lyrics: bool = False,
+                                 title: Optional[str] = None, tags: Optional[List[str]] = None,
+                                 duration: Optional[int] = None, story_text: Optional[str] = None,
+                                 query_dispatcher: Optional[Any] = None) -> str:
+        """Attempt to generate music with the specified backend.
+
+        Args:
+            backend: The music generation backend to use
+            prompt: The text prompt for music generation
+            with_lyrics: Whether to generate with lyrics
+            title: Optional title for the generated music
+            tags: Optional list of tags
+            duration: Optional duration in seconds
+            story_text: Optional story text for lyric generation
+            query_dispatcher: Optional query dispatcher for lyric generation
+        """
         try:
             # Start generation
             job_id = backend.start_generation(
                 prompt=prompt,
-                with_lyrics=kwargs.get('with_lyrics', False),  # Get with_lyrics from kwargs
-                title=kwargs.get('title'),
-                tags=kwargs.get('tags'),
-                **kwargs
+                with_lyrics=with_lyrics,
+                title=title,
+                tags=tags,
+                duration=duration,
+                story_text=story_text,
+                query_dispatcher=query_dispatcher
             )
             if not job_id:
                 Logger.print_error(f"Failed to start generation with {backend.__class__.__name__}")
@@ -141,8 +172,18 @@ class MusicGenerator:
             Logger.print_error(f"Error with {backend.__class__.__name__}: {str(e)}")
             return None
 
-    def generate_with_lyrics(self, prompt: str, story_text: str, **kwargs) -> tuple[str, str]:
+    def generate_with_lyrics(self, prompt: str, story_text: str, title: Optional[str] = None,
+                           tags: Optional[List[str]] = None, output_path: Optional[str] = None,
+                           query_dispatcher: Optional[Any] = None) -> tuple[str, str]:
         """Generate music with lyrics from a text prompt and story.
+
+        Args:
+            prompt: The text prompt for music generation
+            story_text: The story text for lyric generation
+            title: Optional title for the generated music
+            tags: Optional list of tags
+            output_path: Optional path to save the generated audio
+            query_dispatcher: Optional query dispatcher for lyric generation
 
         Returns:
             tuple[str, str]: Tuple containing (audio_file_path, lyrics) or (None, None) if generation fails
@@ -150,14 +191,13 @@ class MusicGenerator:
         Logger.print_info(f"Generating music with lyrics. Prompt: {prompt}, Story length: {len(story_text)}")
 
         # Start generation
-        kwargs['story_text'] = story_text
-        kwargs['query_dispatcher'] = kwargs.get('query_dispatcher')  # Forward query_dispatcher
         job_id = self.backend.start_generation(
             prompt=prompt,
             with_lyrics=True,
-            title=kwargs.get('title'),
-            tags=kwargs.get('tags'),
-            **kwargs
+            title=title,
+            tags=tags,
+            story_text=story_text,
+            query_dispatcher=query_dispatcher
         )
         if not job_id:
             Logger.print_error("Failed to start generation")
@@ -176,31 +216,6 @@ class MusicGenerator:
         # Get result and lyrics
         return self.backend.get_result(job_id)
 
-    def generate_music(self, prompt: str, with_lyrics: bool = False, story_text: str = None,
-                      query_dispatcher=None, **_kwargs) -> str:
-        """Generate music using the configured backend.
-
-        This is a legacy method that maps to either generate_instrumental or generate_with_lyrics.
-
-        Args:
-            prompt: The text prompt for music generation
-            with_lyrics: Whether to generate music with lyrics
-            story_text: Optional story text for lyric-based generation
-            query_dispatcher: Optional query dispatcher for lyric generation
-            **_kwargs: Additional arguments (ignored for backward compatibility)
-
-        Returns:
-            str: Path to the generated audio file, or None if generation failed
-        """
-        Logger.print_debug(f"Generating audio with prompt: {prompt}")
-
-        if with_lyrics:
-            if not story_text:
-                Logger.print_error("Error: Story text is required when generating audio with lyrics.")
-                return None
-            return self.generate_with_lyrics(prompt, story_text, query_dispatcher=query_dispatcher)
-
-        return self.generate_instrumental(prompt)
 
     def validate_audio_file(self, file_path: str, thread_id: Optional[str] = None) -> bool:
         """Validate that a file exists and is a valid audio file.

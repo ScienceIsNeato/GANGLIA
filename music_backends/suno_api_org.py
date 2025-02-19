@@ -17,8 +17,6 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
         """Initialize the backend with configuration."""
         self.api_base_url = 'https://apibox.erweima.ai/api/v1'
         self.api_key = os.getenv('SUNO_API_ORG_KEY')
-        if not self.api_key:
-            raise EnvironmentError("Environment variable 'SUNO_API_ORG_KEY' is not set.")
 
         self.headers = {
             'Authorization': f'Bearer {self.api_key}',
@@ -27,7 +25,7 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
         self.audio_directory = get_tempdir() + "/music"
         os.makedirs(self.audio_directory, exist_ok=True)
 
-        Logger.print_info(f"Initialized Suno API backend")
+        Logger.print_info("Initialized Suno API backend")
 
     def _make_api_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
         """Make an API request with retries."""
@@ -53,6 +51,8 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
             duration: int = None
         ) -> str:
         """Start the generation process via API."""
+        if not self.api_key:
+            raise EnvironmentError("Environment variable 'SUNO_API_ORG_KEY' is not set.")
         try:
             # Use appropriate duration based on type
             if with_lyrics:
