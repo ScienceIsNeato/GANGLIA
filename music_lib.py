@@ -367,10 +367,19 @@ class MusicGenerator:
             output_path=output_path
         )
 
-        if result and result[0]:  # Check both tuple and first element
-            background_music_path = result[0]
+        if result:
+            # Handle both string and tuple return types
+            background_music_path = result[0] if isinstance(result, tuple) else result
             Logger.print_info(f"{thread_prefix}Successfully generated background music at: {background_music_path}")
-            return background_music_path
+
+            # If we have an output path, try to copy the file
+            try:
+                import shutil
+                shutil.copy2(background_music_path, output_path)
+                return output_path
+            except (IOError, OSError) as e:
+                Logger.print_error(f"{thread_prefix}Failed to copy file to output path: {e}")
+                return background_music_path
 
         Logger.print_error(f"{thread_prefix}Failed to generate background music")
         return None
@@ -475,18 +484,27 @@ class MusicGenerator:
 
         Logger.print_info(f"{thread_prefix}Generating closing credits with prompt: {prompt}")
         output_path = os.path.join(output_dir, "closing_credits.mp3")
-        closing_credits_path, lyrics = self.generate_with_lyrics(
+        result = self.generate_with_lyrics(
             prompt=prompt,
             story_text=story_text,
             query_dispatcher=query_dispatcher,
             output_path=output_path
         )
 
-        if closing_credits_path:
-            Logger.print_info(f"{thread_prefix}Successfully generated closing credits at: {closing_credits_path}")
-            if lyrics:
-                Logger.print_info(f"{thread_prefix}Generated lyrics: {lyrics}")
-            return closing_credits_path, lyrics
+        if result:
+            # Handle both string and tuple return types
+            if isinstance(result, tuple):
+                closing_credits_path = result[0]
+                lyrics = result[1] if len(result) > 1 else None
+            else:
+                closing_credits_path = result
+                lyrics = None
+
+            if closing_credits_path:
+                Logger.print_info(f"{thread_prefix}Successfully generated closing credits at: {closing_credits_path}")
+                if lyrics:
+                    Logger.print_info(f"{thread_prefix}Generated lyrics: {lyrics}")
+                return closing_credits_path, lyrics
 
         Logger.print_error(f"{thread_prefix}Failed to generate closing credits")
         return None, None

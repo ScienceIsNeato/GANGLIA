@@ -1,13 +1,14 @@
 import pytest
 from unittest.mock import Mock, patch
 from music_lib import MusicGenerator, _exponential_backoff
-from music_backends.gcui_suno import GcuiSunoBackend
 from music_backends import MetaMusicBackend
+from music_backends.suno_api_org import SunoApiOrgBackend
+from music_backends.foxai_suno import FoxAISunoBackend
 from ttv.config_loader import TTVConfig
 from typing import Union
 from logger import Logger
 
-class MockSunoBackend(GcuiSunoBackend):
+class MockSunoBackend(SunoApiOrgBackend):
     def __init__(self, should_fail=False, fail_count=None):
         self.should_fail = should_fail
         self.fail_count = fail_count  # Number of times to fail before succeeding
@@ -64,6 +65,87 @@ class MockMetaBackend(MetaMusicBackend):
         self.get_result_called = True
         return "/mock/path/to/meta_audio.wav"
 
+class DurationTestBackend(SunoApiOrgBackend):
+    def __init__(self):
+        self.last_duration = None
+        self.start_generation_called = False
+        self.check_progress_called = False
+        self.get_result_called = False
+
+    def start_generation(self, prompt: str, **kwargs) -> str:
+        self.start_generation_called = True
+        self.last_duration = kwargs.get('duration')
+        return "mock_job_id"
+
+    def check_progress(self, job_id: str) -> tuple[str, float]:
+        self.check_progress_called = True
+        return "Complete", 100
+
+    def get_result(self, job_id: str) -> Union[str, tuple[str, str]]:
+        self.get_result_called = True
+        return "/mock/path/to/audio.mp3"
+
+class ErrorTestBackend(SunoApiOrgBackend):
+    def __init__(self, error_type=RuntimeError):
+        self.error_type = error_type
+        self.start_generation_called = False
+        self.check_progress_called = False
+        self.get_result_called = False
+
+    def start_generation(self, prompt: str, **kwargs) -> str:
+        self.start_generation_called = True
+        raise self.error_type("Test error")
+
+    def check_progress(self, job_id: str) -> tuple[str, float]:
+        self.check_progress_called = True
+        raise self.error_type("Test error")
+
+    def get_result(self, job_id: str) -> Union[str, tuple[str, str]]:
+        self.get_result_called = True
+        raise self.error_type("Test error")
+
+class ThreadTestBackend(SunoApiOrgBackend):
+    def __init__(self):
+        self.start_generation_called = False
+        self.check_progress_called = False
+        self.get_result_called = False
+
+    def start_generation(self, prompt: str, **kwargs) -> str:
+        self.start_generation_called = True
+        return "mock_job_id"
+
+    def check_progress(self, job_id: str) -> tuple[str, float]:
+        self.check_progress_called = True
+        return "Complete", 100
+
+    def get_result(self, job_id: str) -> Union[str, tuple[str, str]]:
+        self.get_result_called = True
+        return "/mock/path/to/audio.mp3"
+
+class RetryTestBackend(SunoApiOrgBackend):
+    def __init__(self, error_sequence):
+        self.error_sequence = error_sequence
+        self.attempts = 0
+        self.start_generation_called = False
+        self.check_progress_called = False
+        self.get_result_called = False
+
+    def start_generation(self, prompt: str, **kwargs) -> str:
+        self.start_generation_called = True
+        if self.attempts < len(self.error_sequence):
+            error = self.error_sequence[self.attempts]
+            self.attempts += 1
+            raise error
+        self.attempts += 1
+        return "mock_job_id"
+
+    def check_progress(self, job_id: str) -> tuple[str, float]:
+        self.check_progress_called = True
+        return "Complete", 100
+
+    def get_result(self, job_id: str) -> Union[str, tuple[str, str]]:
+        self.get_result_called = True
+        return "/mock/path/to/audio.mp3"
 
 def test_instrumental_generation_with_parameters():
     """Test instrumental generation with all optional parameters."""
@@ -89,7 +171,8 @@ def test_instrumental_generation_no_fallback_needed():
     generator = MusicGenerator(backend=suno_backend)
     generator.fallback_backend = meta_backend
 
-    result = generator.generate_instrumental("test prompt")
+    with patch('time.sleep'):  # Mock sleep to speed up test
+        result = generator.generate_instrumental("test prompt")
 
     # Verify Suno was called
     assert suno_backend.start_generation_called
@@ -102,56 +185,6 @@ def test_instrumental_generation_no_fallback_needed():
     assert not meta_backend.get_result_called
 
     assert result == ("/mock/path/to/audio.mp3", None)
-
-
-@pytest.mark.costly
-def test_instrumental_generation_with_retries_then_success():
-    """Test instrumental generation with retries that eventually succeeds."""
-    # Fail 3 times then succeed
-    suno_backend = MockSunoBackend(fail_count=3)
-    meta_backend = MockMetaBackend()
-
-    generator = MusicGenerator(backend=suno_backend)
-    generator.fallback_backend = meta_backend
-
-    with patch('time.sleep'):  # Mock sleep to speed up test
-        result = generator.generate_instrumental("test prompt")
-
-    # Verify Suno was called multiple times
-    assert suno_backend.attempts == 4  # 3 failures + 1 success
-    assert suno_backend.check_progress_called
-    assert suno_backend.get_result_called
-
-    # Verify Meta was not called (since Suno eventually succeeded)
-    assert not meta_backend.start_generation_called
-    assert not meta_backend.check_progress_called
-    assert not meta_backend.get_result_called
-
-    assert result == ("/mock/path/to/audio.mp3", None)
-
-
-@pytest.mark.costly
-def test_instrumental_generation_with_retries_then_fallback():
-    """Test instrumental generation with retries that falls back to secondary backend."""
-    suno_backend = MockSunoBackend(should_fail=True)
-    meta_backend = MockMetaBackend()
-
-    generator = MusicGenerator(backend=suno_backend)
-    generator.fallback_backend = meta_backend
-
-    with patch('time.sleep'):  # Mock sleep to speed up test
-        result = generator.generate_instrumental("test prompt")
-
-    # Verify Suno was attempted MAX_RETRIES times
-    assert suno_backend.attempts == generator.MAX_RETRIES
-
-    # Verify Meta was called as fallback
-    assert meta_backend.start_generation_called
-    assert meta_backend.check_progress_called
-    assert meta_backend.get_result_called
-
-    assert result == ("/mock/path/to/meta_audio.wav", None)
-
 
 def test_lyrics_generation_with_parameters():
     """Test lyrics generation with all optional parameters."""
@@ -192,23 +225,6 @@ def test_lyrics_generation_no_fallback():
     assert not meta_backend.get_result_called
 
     assert result == (None, None)  # Should return (None, None) when failing without fallback
-
-
-@pytest.mark.costly
-def test_instrumental_generation_no_fallback_configured():
-    """Test instrumental generation with no fallback configured."""
-    suno_backend = MockSunoBackend(should_fail=True)
-
-    generator = MusicGenerator(backend=suno_backend)
-
-    with patch('time.sleep'):  # Mock sleep to speed up test
-        result = generator.generate_instrumental("test prompt")
-
-    # Verify Suno was attempted MAX_RETRIES times
-    assert suno_backend.attempts == generator.MAX_RETRIES
-
-    assert result == (None, None)  # Should fail with no fallback
-
 
 def test_parameter_passing_through_retry_chain():
     """Test that parameters are correctly passed through the retry chain."""
@@ -252,3 +268,236 @@ def test_exponential_backoff():
         # Allow for 10% jitter in either direction
         assert abs(delay - expected_base_delays[i]) <= expected_base_delays[i] * 0.1, \
             f"Delay {i} should be close to {expected_base_delays[i]} (got {delay})"
+
+def test_instrumental_generation_string_result():
+    """Test that string results from generate_instrumental are handled correctly."""
+    class StringResultGenerator(MusicGenerator):
+        def __init__(self):
+            """Override to avoid initializing real backends."""
+            self.backend = None
+            self.fallback_backend = None
+
+        def generate_instrumental(self, *args, **kwargs) -> str:
+            """Override to return a string directly."""
+            return "/mock/path/to/audio.mp3"
+
+    generator = StringResultGenerator()
+
+    # This should fail with "too many values to unpack" because we're trying to unpack
+    # a string as if it were a tuple
+    result = generator.get_background_music_from_prompt(
+        prompt="test prompt",
+        output_dir="/test/output",
+        thread_id="test"
+    )
+
+    assert result == "/mock/path/to/audio.mp3"
+
+def test_closing_credits_string_result():
+    """Test that string results from generate_with_lyrics are handled correctly."""
+    class StringResultGenerator(MusicGenerator):
+        def __init__(self):
+            """Override to avoid initializing real backends."""
+            self.backend = None
+            self.fallback_backend = None
+
+        def generate_with_lyrics(self, *args, **kwargs) -> str:
+            """Override to return a string directly."""
+            return "/mock/path/to/credits.mp3"
+
+    generator = StringResultGenerator()
+
+    # Test the closing credits path handling
+    result_path, result_lyrics = generator.get_closing_credits_from_prompt(
+        prompt="test prompt",
+        story_text="test story",
+        output_dir="/test/output",
+        thread_id="test"
+    )
+
+    assert result_path == "/mock/path/to/credits.mp3"
+    assert result_lyrics is None
+
+def test_output_path_handling():
+    """Test that output paths are correctly handled when copying files."""
+    class OutputPathGenerator(MusicGenerator):
+        def __init__(self):
+            self.backend = None
+            self.fallback_backend = None
+
+        def generate_instrumental(self, *args, **kwargs) -> tuple[str, None]:
+            """Return a tuple with a path and None."""
+            return "/mock/source/path.mp3", None
+
+    generator = OutputPathGenerator()
+
+    with patch('shutil.copy2') as mock_copy:
+        # Mock copy2 to simulate successful copy
+        mock_copy.return_value = None
+
+        result = generator.get_background_music_from_prompt(
+            prompt="test prompt",
+            output_dir="/test/output",
+            thread_id="test"
+        )
+
+        # Verify the copy was attempted with correct paths
+        mock_copy.assert_called_once_with(
+            "/mock/source/path.mp3",
+            "/test/output/background_music.mp3"
+        )
+        # Result should be the output path since copy succeeded
+        assert result == "/test/output/background_music.mp3"
+
+def test_output_path_copy_failure():
+    """Test graceful handling of file copy failures."""
+    class OutputPathGenerator(MusicGenerator):
+        def __init__(self):
+            self.backend = None
+            self.fallback_backend = None
+
+        def generate_instrumental(self, *args, **kwargs) -> tuple[str, None]:
+            """Return a tuple with a path and None."""
+            return "/mock/source/path.mp3", None
+
+    generator = OutputPathGenerator()
+
+    with patch('shutil.copy2') as mock_copy:
+        # Mock copy2 to simulate failure
+        mock_copy.side_effect = IOError("Mock copy failure")
+
+        result = generator.get_background_music_from_prompt(
+            prompt="test prompt",
+            output_dir="/test/output",
+            thread_id="test"
+        )
+
+        # Verify the copy was attempted
+        mock_copy.assert_called_once()
+        # Result should fall back to the source path since copy failed
+        assert result == "/mock/source/path.mp3"
+
+def test_backend_initialization_from_config():
+    """Test that backends are correctly initialized from config."""
+    # Test Meta backend initialization
+    config_meta = TTVConfig(
+        style="test",
+        story=[],
+        title="test",
+        music_backend="meta"
+    )
+    generator_meta = MusicGenerator(config=config_meta)
+    assert isinstance(generator_meta.backend, MetaMusicBackend)
+    assert generator_meta.fallback_backend is None
+
+    # Test Suno backend initialization (default)
+    config_suno = TTVConfig(
+        style="test",
+        story=[],
+        title="test",
+        music_backend="suno"
+    )
+    generator_suno = MusicGenerator(config=config_suno)
+    assert isinstance(generator_suno.backend, SunoApiOrgBackend)
+    assert isinstance(generator_suno.fallback_backend, FoxAISunoBackend)
+
+    # Test default when no backend specified
+    config_default = TTVConfig(
+        style="test",
+        story=[],
+        title="test"
+    )
+    generator_default = MusicGenerator(config=config_default)
+    assert isinstance(generator_default.backend, SunoApiOrgBackend)
+    assert isinstance(generator_default.fallback_backend, FoxAISunoBackend)
+
+def test_duration_handling():
+    """Test that duration is correctly passed through to backends."""
+    backend = DurationTestBackend()
+    generator = MusicGenerator(backend=backend)
+
+    # Test default duration
+    generator.get_background_music_from_prompt(
+        prompt="test prompt",
+        output_dir="/test/output"
+    )
+    assert backend.last_duration == 30  # Default duration
+
+    # Test custom duration
+    generator.generate_instrumental(
+        prompt="test prompt",
+        duration=45
+    )
+    assert backend.last_duration == 45  # Custom duration
+
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError, IOError, TimeoutError])
+def test_error_propagation(error_type):
+    """Test that errors from backends are properly propagated."""
+    generator = MusicGenerator(backend=ErrorTestBackend(error_type))
+    with patch('time.sleep'):  # Mock sleep to speed up test
+        result = generator.generate_instrumental("test prompt")
+    assert result == (None, None)
+
+def test_retry_behavior():
+    """Test retry behavior with a simple error sequence."""
+    # Test a single retry that succeeds
+    generator = MusicGenerator(backend=RetryTestBackend([RuntimeError("Test error")]))
+    with patch('time.sleep'):  # Mock sleep to speed up test
+        result = generator.generate_instrumental("test prompt")
+        assert result == ("/mock/path/to/audio.mp3", None)
+        assert generator.backend.attempts == 2  # One failure + one success
+
+def test_retry_exhaustion():
+    """Test that retries are exhausted after MAX_RETRIES attempts."""
+    # Reduce MAX_RETRIES temporarily for the test
+    original_max_retries = MusicGenerator.MAX_RETRIES
+    MusicGenerator.MAX_RETRIES = 2
+    try:
+        generator = MusicGenerator(backend=RetryTestBackend([RuntimeError("Test error")] * 3))
+        with patch('time.sleep'):  # Mock sleep to speed up test
+            result = generator.generate_instrumental("test prompt")
+            assert result == (None, None)
+            assert generator.backend.attempts == 2  # Should stop after MAX_RETRIES
+    finally:
+        MusicGenerator.MAX_RETRIES = original_max_retries
+
+def test_retry_with_fallback():
+    """Test that fallback is used after retries are exhausted."""
+    # Reduce MAX_RETRIES temporarily for the test
+    original_max_retries = MusicGenerator.MAX_RETRIES
+    MusicGenerator.MAX_RETRIES = 2
+    try:
+        suno_backend = MockSunoBackend(should_fail=True)
+        meta_backend = MockMetaBackend()
+        generator = MusicGenerator(backend=suno_backend)
+        generator.fallback_backend = meta_backend
+
+        with patch('time.sleep'):  # Mock sleep to speed up test
+            result = generator.generate_instrumental("test prompt")
+            assert suno_backend.attempts == 2  # Should stop after MAX_RETRIES
+            assert meta_backend.start_generation_called  # Should fall back to meta
+            assert result == ("/mock/path/to/meta_audio.wav", None)
+    finally:
+        MusicGenerator.MAX_RETRIES = original_max_retries
+
+def test_thread_id_propagation():
+    """Test that thread IDs are correctly propagated through logging."""
+    backend = ThreadTestBackend()
+    generator = MusicGenerator(backend=backend)
+
+    with patch('logger.Logger.print_info') as mock_log:
+        generator.get_background_music_from_prompt(
+            prompt="test prompt",
+            output_dir="/test/output",
+            thread_id="test_thread"
+        )
+
+        # Verify thread ID is included in log messages that should have it
+        thread_id_messages = [
+            call.args[0] for call in mock_log.call_args_list
+            if "Successfully generated" in call.args[0] or
+               "Failed to copy" in call.args[0]
+        ]
+        assert thread_id_messages, "No thread ID messages found"
+        for message in thread_id_messages:
+            assert "test_thread" in message, f"Thread ID not found in message: {message}"
