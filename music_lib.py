@@ -65,7 +65,7 @@ class MusicGenerator:
 
     def generate_instrumental(self, prompt: str, duration: Optional[int] = None,
                             title: Optional[str] = None, tags: Optional[List[str]] = None,
-                            output_path: Optional[str] = None) -> str:
+                            output_path: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
         """Generate instrumental music from a text prompt.
 
         Args:
@@ -81,15 +81,16 @@ class MusicGenerator:
         result = self._try_generate_with_retries(self.backend, prompt, duration=duration,
                                                title=title, tags=tags, output_path=output_path)
         if result:
-            return result
+            return result, None
 
         # If primary failed and we have a fallback, try that
         if self.fallback_backend:
             Logger.print_info("Primary backend failed after retries, attempting fallback to Meta backend...")
-            return self._try_generate_with_backend(self.fallback_backend, prompt, duration=duration,
-                                                 title=title, tags=tags)
+            result = self._try_generate_with_backend(self.fallback_backend, prompt, duration=duration,
+                                                   title=title, tags=tags)
+            return result, None if result else (None, None)
 
-        return None
+        return None, None
 
     def _try_generate_with_retries(self, backend, prompt: str, duration: Optional[int] = None,
                                   title: Optional[str] = None, tags: Optional[List[str]] = None,
@@ -102,12 +103,12 @@ class MusicGenerator:
                     Logger.print_info(f"Retry attempt {attempt + 1}/{self.MAX_RETRIES} after {delay:.1f}s delay...")
                     time.sleep(delay)
 
-                result = self._try_generate_with_backend(backend, prompt, duration=duration,
-                                                       title=title, tags=tags)
+                result, lyrics = self._try_generate_with_backend(backend, prompt, duration=duration,
+                                                               title=title, tags=tags)
                 if result:
                     if attempt > 0:
                         Logger.print_info(f"Successfully generated after {attempt + 1} attempts")
-                    return result
+                    return result, lyrics
 
                 Logger.print_warning(f"Attempt {attempt + 1}/{self.MAX_RETRIES} failed, will retry...")
 
@@ -115,14 +116,14 @@ class MusicGenerator:
                 Logger.print_error(f"Error on attempt {attempt + 1}: {str(e)}")
                 if attempt == self.MAX_RETRIES - 1:
                     Logger.print_error("All retry attempts exhausted")
-                    return None
+                    return None, None
 
-        return None
+        return None, None
 
     def _try_generate_with_backend(self, backend, prompt: str, with_lyrics: bool = False,
                                  title: Optional[str] = None, tags: Optional[List[str]] = None,
                                  duration: Optional[int] = None, story_text: Optional[str] = None,
-                                 query_dispatcher: Optional[Any] = None) -> str:
+                                 query_dispatcher: Optional[Any] = None) -> Tuple[Optional[str], Optional[str]]:
         """Attempt to generate music with the specified backend.
 
         Args:
@@ -164,13 +165,17 @@ class MusicGenerator:
             result = backend.get_result(job_id)
             if not result:
                 Logger.print_error(f"Failed to get result from {backend.__class__.__name__}")
-                return None
+                return None, None
 
-            return result
+            # Handle both tuple and single value results
+            if isinstance(result, tuple):
+                return result
+            else:
+                return result, None
 
         except (RuntimeError, IOError, ValueError, TimeoutError) as e:
             Logger.print_error(f"Error with {backend.__class__.__name__}: {str(e)}")
-            return None
+            return None, None
 
     def generate_with_lyrics(self, prompt: str, story_text: str, title: Optional[str] = None,
                            tags: Optional[List[str]] = None, output_path: Optional[str] = None,
@@ -226,7 +231,7 @@ class MusicGenerator:
                 return output_path, result[1] if len(result) > 1 else None
             except (IOError, OSError) as e:
                 Logger.print_error(f"Failed to copy file to output path: {e}")
-                return result
+                return result[0] if isinstance(result, tuple) else result
 
         return result
 
@@ -306,10 +311,11 @@ class MusicGenerator:
             return None
 
         Logger.print_info(f"{thread_prefix}Generating background music with prompt: {prompt}")
-        background_music_path = self.generate_instrumental(
+        output_path = os.path.join(output_dir, "background_music.mp3")
+        background_music_path, _ = self.generate_instrumental(
             prompt=prompt,
             duration=30,  # TODO: Calculate actual duration
-            output_path=os.path.join(output_dir, "background_music.mp3")
+            output_path=output_path
         )
 
         if background_music_path:
