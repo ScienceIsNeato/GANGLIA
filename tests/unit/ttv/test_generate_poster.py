@@ -15,7 +15,7 @@ def test_generate_movie_poster():
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise EnvironmentError("Environment variable 'OPENAI_API_KEY' is not set.")
-    
+
     story_title = "The Great Adventure"
     context = (
         "Once upon a time, at Crater Lake, the Martins and Taylors gathered, their adventures to begin and their very lives at stake. "
@@ -43,4 +43,3 @@ def test_generate_movie_poster():
 
     assert movie_poster_path is not None, "Failed to generate movie poster"
     assert os.path.exists(movie_poster_path), "Movie poster file does not exist"
-

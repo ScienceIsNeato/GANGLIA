@@ -30,11 +30,11 @@ from .ffmpeg_constants import SLIDESHOW_VIDEO_ARGS, AUDIO_ENCODING_ARGS, VIDEO_E
 
 def read_file_contents(file_path: str, encoding: str = "utf-8") -> Optional[str]:
     """Read contents of a file with proper encoding.
-    
+
     Args:
         file_path: Path to file to read
         encoding: File encoding (default: utf-8)
-        
+
     Returns:
         Optional[str]: File contents if successful, None otherwise
     """
@@ -48,37 +48,37 @@ def read_file_contents(file_path: str, encoding: str = "utf-8") -> Optional[str]
 
 def _upload_to_test_outputs(local_file_path: str) -> bool:
     """Upload a file to the test outputs directory in GCS.
-    
+
     Args:
         local_file_path: Path to the local file to upload
-        
+
     Returns:
         bool: True if upload was successful, False otherwise
     """
     bucket_name = "ganglia-public-test-results"  # Use our new public bucket
     project_name = os.getenv('GCP_PROJECT_NAME')
     service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    
+
     if not (project_name and service_account_path):
         return False
 
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     gcs_path = f"test_outputs/{timestamp}_final_video.mp4"
-    
+
     success = upload_to_gcs(
         local_file_path=local_file_path,
         bucket_name=bucket_name,
         project_name=project_name,
         destination_blob_name=gcs_path
     )
-    
+
     if success:
         public_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
         Logger.print_info(f"Successfully uploaded final video to GCS: gs://{bucket_name}/{gcs_path}")
         Logger.print_info(f"Stream the Video via Public URL: {public_url}")
     else:
         Logger.print_error("Failed to upload final video to GCS")
-    
+
     return success
 
 def concatenate_video_segments(
@@ -87,12 +87,12 @@ def concatenate_video_segments(
     force_reencode: bool = False
 ) -> Optional[str]:
     """Concatenate multiple video segments into a single video.
-    
+
     Args:
         video_segments: List of video file paths to concatenate
         output_dir: Directory for output files
         force_reencode: Whether to force re-encoding of all streams
-        
+
     Returns:
         Optional[str]: Path to output video if successful, None otherwise
     """
@@ -158,13 +158,13 @@ def add_background_music(
     music_volume: float = 0.3
 ) -> Optional[str]:
     """Add background music to a video.
-    
+
     Args:
         video_path: Path to input video
         music_path: Path to music file
         output_dir: Directory for output files
         music_volume: Volume level for music (default: 0.3)
-        
+
     Returns:
         Optional[str]: Path to output video if successful, None otherwise
     """
@@ -220,7 +220,7 @@ def assemble_final_video(
     closing_credits_lyrics: Optional[str] = None
 ) -> Optional[str]:
     """Assemble the final video with background music and closing credits.
-    
+
     Args:
         video_segments: List of video segment paths to combine
         output_dir: Directory for output files
@@ -229,7 +229,7 @@ def assemble_final_video(
         movie_poster_path: Optional path to movie poster image
         config: Optional configuration object
         closing_credits_lyrics: Optional lyrics for closing credits
-        
+
     Returns:
         Optional[str]: Path to final video if successful, None otherwise
     """
@@ -334,14 +334,14 @@ def generate_closing_credits(
     lyrics: Optional[str] = None
 ) -> Optional[str]:
     """Generate closing credits video with dynamic captions for song lyrics.
-    
+
     Args:
         movie_poster_path: Path to the movie poster image
         song_with_lyrics_path: Path to the song with lyrics file
         output_dir: Directory for output files
         config: Optional configuration object
         lyrics: Optional lyrics text
-        
+
     Returns:
         str: Path to the closing credits video if successful, None otherwise
     """
@@ -376,8 +376,8 @@ def generate_closing_credits(
             "-i", song_with_lyrics_path
         ]
 
-        # Add encoding arguments from constants
-        cmd = base_cmd + SLIDESHOW_VIDEO_ARGS + AUDIO_ENCODING_ARGS + ["-shortest", initial_credits_video_path]
+        # Add encoding arguments from constants and explicit duration
+        cmd = base_cmd + SLIDESHOW_VIDEO_ARGS + AUDIO_ENCODING_ARGS + ["-t", str(duration), initial_credits_video_path]
 
         try:
             run_ffmpeg_command(cmd)
@@ -437,10 +437,10 @@ def play_video(video_path):
 
 def get_video_duration(video_path: str) -> Optional[float]:
     """Get duration of a video file in seconds.
-    
+
     Args:
         video_path: Path to video file
-        
+
     Returns:
         Optional[float]: Duration in seconds if successful, None otherwise
     """

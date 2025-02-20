@@ -38,7 +38,7 @@ term = blessed.Terminal()
 
 class Logger:
     """Thread-safe logging system with colored output.
-    
+
     This class provides static methods for logging at different levels,
     with thread-safe operations and optional thread ID prefixing.
     Color coding is used to distinguish between different log levels
@@ -55,13 +55,13 @@ class Logger:
         - Info: Salmon
         - Debug: Snow Gray
     """
-    
+
     _lock = threading.Lock()
-    
+
     @staticmethod
     def print_user_input(*args, **kwargs):
         """Print user input messages in deep sky blue.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -73,7 +73,7 @@ class Logger:
     @staticmethod
     def print_demon_output(*args, **kwargs):
         """Print demon output messages in firebrick red.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -85,7 +85,7 @@ class Logger:
     @staticmethod
     def print_halloween_narrator(*args, **kwargs):
         """Print halloween narrator messages in pumpkin orange.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -97,9 +97,9 @@ class Logger:
     @staticmethod
     def print_error(*args, **kwargs):
         """Print error messages in yellow.
-        
+
         Used for logging errors and critical issues that need immediate attention.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -111,9 +111,9 @@ class Logger:
     @staticmethod
     def print_warning(*args, **kwargs):
         """Print warning messages in yellow.
-        
+
         Used for logging potential issues or concerning conditions that don't prevent execution.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -125,9 +125,9 @@ class Logger:
     @staticmethod
     def print_info(*args, **kwargs):
         """Print informational messages in salmon.
-        
+
         Used for logging general information and progress updates.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -139,9 +139,9 @@ class Logger:
     @staticmethod
     def print_debug(*args, **kwargs):
         """Print debug messages in snow gray.
-        
+
         Used for logging detailed debug information and technical details.
-        
+
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
@@ -153,7 +153,7 @@ class Logger:
     @staticmethod
     def print_legend():
         """Print a color-coded legend banner showing available message types.
-        
+
         Displays a formatted banner showing all available colors and their
         corresponding message types for reference.
         """

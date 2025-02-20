@@ -8,6 +8,13 @@ if command -v direnv >/dev/null 2>&1; then
     eval "$(direnv export bash)"
 fi
 
+# Only set the GANGLIA_TEMP_DIR if it's not already set
+if [ -z "$GANGLIA_TEMP_DIR" ]; then
+    # Get the GANGLIA temp directory in a platform-agnostic way
+    GANGLIA_TEMP_DIR=$(python3 -c "import sys; sys.path.append('$SCRIPT_DIR'); from utils.file_utils import get_tempdir; print(get_tempdir())")
+    export GANGLIA_TEMP_DIR
+fi
+
 # Check for required credentials and warn about missing features
 echo "Checking available features based on credentials..."
 
@@ -32,8 +39,8 @@ if [ -z "$GCP_BUCKET_NAME" ] || [ -z "$GCP_PROJECT_NAME" ]; then
 fi
 
 # Music generation features
-if [ -z "$SUNO_API_KEY" ]; then
-    echo "Warning: SUNO_API_KEY not set - Music generation features will not be available"
+if [ -z "$FOXAI_SUNO_API_KEY" ] || [ -z "$SUNO_API_URL" ] || [ -z "$SUNO_API_ORG_KEY" ]; then
+    echo "Warning: FOXAI_SUNO_API_KEY, SUNO_API_URL, or SUNO_API_ORG_KEY not set - Music generation features will not be available"
 fi
 
 echo "Feature check complete"
@@ -53,23 +60,20 @@ TEST_TYPE=$2
 # Generate timestamp for this test run
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 
-# Create logs directory if it doesn't exist
-mkdir -p "${SCRIPT_DIR}/logs"
-LOG_FILE="${SCRIPT_DIR}/logs/test_run_${MODE}_${TEST_TYPE}_${TIMESTAMP}.log"
-
-# Create status directory if it doesn't exist
-mkdir -p "/tmp/GANGLIA"
+# Create logs directory in the GANGLIA temp directory
+mkdir -p "${GANGLIA_TEMP_DIR}/logs"
+LOG_FILE="${GANGLIA_TEMP_DIR}/logs/test_run_${MODE}_${TEST_TYPE}_${TIMESTAMP}.log"
 
 # Set status file based on test type
 case "$TEST_TYPE" in
     "unit")
-        STATUS_FILE="/tmp/GANGLIA/test_status_${TIMESTAMP}.txt"
+        STATUS_FILE="${GANGLIA_TEMP_DIR}/test_status_${TIMESTAMP}.txt"
         ;;
     "smoke")
-        STATUS_FILE="/tmp/GANGLIA/smoke_status_${TIMESTAMP}.txt"
+        STATUS_FILE="${GANGLIA_TEMP_DIR}/smoke_status_${TIMESTAMP}.txt"
         ;;
     "integration")
-        STATUS_FILE="/tmp/GANGLIA/integration_status_${TIMESTAMP}.txt"
+        STATUS_FILE="${GANGLIA_TEMP_DIR}/integration_status_${TIMESTAMP}.txt"
         ;;
 esac
 
@@ -92,21 +96,22 @@ else
 fi
 
 # Setup Google credentials
-if [ -f "/tmp/gcp-credentials.json" ]; then
-    echo "[DEBUG] GAC file already exists at /tmp/gcp-credentials.json"
+CREDS_DIR="${GANGLIA_TEMP_DIR}/credentials"
+mkdir -p "$CREDS_DIR"
+GCP_CREDS_FILE="${CREDS_DIR}/gcp-credentials.json"
+
+if [ -f "$GCP_CREDS_FILE" ]; then
+    echo "[DEBUG] GAC file already exists at $GCP_CREDS_FILE"
 else
-    # Ensure parent directory exists
-    mkdir -p "/tmp"
-    
     # Remove any existing file or directory
-    rm -rf "/tmp/gcp-credentials.json"
-    touch "/tmp/gcp-credentials.json"
-    
+    rm -rf "$GCP_CREDS_FILE"
+    touch "$GCP_CREDS_FILE"
+
     if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
         # Local development with file path
         echo "[DEBUG] GAC is a file at $GOOGLE_APPLICATION_CREDENTIALS"
-        if [ "$GOOGLE_APPLICATION_CREDENTIALS" != "/tmp/gcp-credentials.json" ]; then
-            if ! cp "$GOOGLE_APPLICATION_CREDENTIALS" "/tmp/gcp-credentials.json"; then
+        if [ "$GOOGLE_APPLICATION_CREDENTIALS" != "$GCP_CREDS_FILE" ]; then
+            if ! cp "$GOOGLE_APPLICATION_CREDENTIALS" "$GCP_CREDS_FILE"; then
                 echo "Error: Failed to copy credentials file"
                 exit 1
             fi
@@ -114,78 +119,125 @@ else
     else
         # Treat as JSON content
         echo "[DEBUG] GAC provided as content"
-        if ! printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > "/tmp/gcp-credentials.json"; then
+        if ! printf "%s" "$GOOGLE_APPLICATION_CREDENTIALS" > "$GCP_CREDS_FILE"; then
             echo "Error: Failed to write credentials content"
             exit 1
         fi
     fi
-    
+
     # Verify the file contains valid JSON
-    if ! jq empty "/tmp/gcp-credentials.json" 2>/dev/null; then
+    if ! jq empty "$GCP_CREDS_FILE" 2>/dev/null; then
         echo "Error: Invalid JSON in credentials file"
         exit 1
     fi
 fi
 
 # Verify the credentials file exists and is a regular file
-if [ ! -f "/tmp/gcp-credentials.json" ]; then
-    echo "Error: /tmp/gcp-credentials.json is not a regular file"
+if [ ! -f "$GCP_CREDS_FILE" ]; then
+    echo "Error: $GCP_CREDS_FILE is not a regular file"
     exit 1
 fi
 
 # Set restrictive permissions
-chmod 600 "/tmp/gcp-credentials.json"
+chmod 600 "$GCP_CREDS_FILE"
 
 # Setup YouTube credentials
-if [ -f "/tmp/youtube_credentials.json" ]; then
-    echo "[DEBUG] YouTube credentials file already exists at /tmp/youtube_credentials.json"
-    
+YOUTUBE_CREDS_FILE="${CREDS_DIR}/youtube_credentials.json"
+if [ -f "$YOUTUBE_CREDS_FILE" ]; then
+    echo "[DEBUG] YouTube credentials file already exists at $YOUTUBE_CREDS_FILE"
+
+    # Clean up any trailing characters
+    tr -d '\r\n%' < "$YOUTUBE_CREDS_FILE" > "${YOUTUBE_CREDS_FILE}.tmp" && mv "${YOUTUBE_CREDS_FILE}.tmp" "$YOUTUBE_CREDS_FILE"
+
     # Verify the file contains valid JSON
-    if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube credentials file"
+    if ! jq empty "$YOUTUBE_CREDS_FILE" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube credentials file at $YOUTUBE_CREDS_FILE"
         exit 1
     fi
 else
-    # Ensure parent directory exists
-    mkdir -p "/tmp"
-    
     # Remove any existing file or directory
-    rm -rf "/tmp/youtube_credentials.json"
-    touch "/tmp/youtube_credentials.json"
-    
-    # Write credentials content
-    echo "[DEBUG] Writing YouTube credentials content"
-    if ! printf "%s" "$YOUTUBE_CREDENTIALS_FILE" > "/tmp/youtube_credentials.json"; then
-        echo "Error: Failed to write YouTube credentials content"
-        exit 1
+    rm -rf "$YOUTUBE_CREDS_FILE"
+    touch "$YOUTUBE_CREDS_FILE"
+
+    # Clean up the credentials file path
+    CLEAN_YOUTUBE_CREDS_PATH=$(printf "%s" "$YOUTUBE_CREDENTIALS_FILE" | tr -d '\r\n%')
+
+    # Copy or write credentials content
+    if [ -f "$CLEAN_YOUTUBE_CREDS_PATH" ]; then
+        # Local development with file path
+        echo "[DEBUG] YouTube credentials is a file at $CLEAN_YOUTUBE_CREDS_PATH"
+        if [ "$CLEAN_YOUTUBE_CREDS_PATH" != "$YOUTUBE_CREDS_FILE" ]; then
+            # Read and clean up the content before writing
+            tr -d '\r\n%' < "$CLEAN_YOUTUBE_CREDS_PATH" > "$YOUTUBE_CREDS_FILE"
+            if [ $? -ne 0 ]; then
+                echo "Error: Failed to copy and clean YouTube credentials from $CLEAN_YOUTUBE_CREDS_PATH"
+                exit 1
+            fi
+        fi
+    else
+        # Treat as JSON content
+        echo "[DEBUG] YouTube credentials provided as content"
+        # Clean up any trailing characters before writing
+        printf "%s" "$YOUTUBE_CREDENTIALS_FILE" | tr -d '\r\n%' > "$YOUTUBE_CREDS_FILE"
     fi
-    
+
     # Verify the file contains valid JSON
-    if ! jq empty "/tmp/youtube_credentials.json" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube credentials file"
+    if ! jq empty "$YOUTUBE_CREDS_FILE" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube credentials file at $YOUTUBE_CREDS_FILE"
+        echo "Content of file:"
+        cat "$YOUTUBE_CREDS_FILE"
         exit 1
     fi
 fi
 
 # Set restrictive permissions
-chmod 600 "/tmp/youtube_credentials.json"
+chmod 600 "$YOUTUBE_CREDS_FILE"
 
 # Setup YouTube token
-if [ -f "/tmp/youtube_token.json" ]; then
-    echo "[DEBUG] YouTube token file already exists at /tmp/youtube_token.json"
-    
+YOUTUBE_TOKEN_DEST="${CREDS_DIR}/youtube_token.json"
+if [ -f "$YOUTUBE_TOKEN_DEST" ]; then
+    echo "[DEBUG] YouTube token file already exists at $YOUTUBE_TOKEN_DEST"
+
+    # Clean up any trailing characters
+    tr -d '\r\n%' < "$YOUTUBE_TOKEN_DEST" > "${YOUTUBE_TOKEN_DEST}.tmp" && mv "${YOUTUBE_TOKEN_DEST}.tmp" "$YOUTUBE_TOKEN_DEST"
+
     # Verify the file contains valid JSON
-    if ! jq empty "/tmp/youtube_token.json" 2>/dev/null; then
-        echo "Error: Invalid JSON in YouTube token file"
+    if ! jq empty "$YOUTUBE_TOKEN_DEST" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube token file at $YOUTUBE_TOKEN_DEST"
+        echo "Content of file:"
+        cat "$YOUTUBE_TOKEN_DEST"
         exit 1
     fi
 else
-    echo "Error: YouTube token file not found at /tmp/youtube_token.json"
-    exit 1
+    # Clean up the token file path
+    CLEAN_YOUTUBE_TOKEN_PATH=$(printf "%s" "$YOUTUBE_TOKEN_FILE" | tr -d '\r\n%')
+
+    if [ -f "$CLEAN_YOUTUBE_TOKEN_PATH" ]; then
+        # Local development with file path
+        echo "[DEBUG] YouTube token is a file at $CLEAN_YOUTUBE_TOKEN_PATH"
+        # Read and clean up the content before writing
+        tr -d '\r\n%' < "$CLEAN_YOUTUBE_TOKEN_PATH" > "$YOUTUBE_TOKEN_DEST"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to copy and clean YouTube token from $CLEAN_YOUTUBE_TOKEN_PATH"
+            exit 1
+        fi
+    else
+        echo "Error: YouTube token file not found at $CLEAN_YOUTUBE_TOKEN_PATH"
+        exit 1
+    fi
+
+    # Verify the file contains valid JSON
+    if ! jq empty "$YOUTUBE_TOKEN_DEST" 2>/dev/null; then
+        echo "Error: Invalid JSON in YouTube token file at $YOUTUBE_TOKEN_DEST"
+        echo "Content of file:"
+        cat "$YOUTUBE_TOKEN_DEST"
+        exit 1
+    fi
 fi
 
-# Set restrictive permissions
-chmod 600 "/tmp/youtube_token.json"
+# Update YOUTUBE_TOKEN_FILE to point to the copied file
+YOUTUBE_TOKEN_FILE="$YOUTUBE_TOKEN_DEST"
+export YOUTUBE_TOKEN_FILE
 
 case $MODE in
     "local")
@@ -198,13 +250,13 @@ case $MODE in
             echo "Executing: python -m pytest tests/unit/ -v -s -m 'costly'" | tee -a "$LOG_FILE"
             eval "python -m pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
             UNIT_EXIT_CODE=${PIPESTATUS[0]}
-            
+
             if [ $UNIT_EXIT_CODE -ne 0 ]; then
                 echo "Costly unit tests failed with exit code $UNIT_EXIT_CODE" | tee -a "$LOG_FILE"
                 echo $UNIT_EXIT_CODE > "$STATUS_FILE"
                 exit $UNIT_EXIT_CODE
             fi
-            
+
             # Then run smoke tests
             echo "Executing smoke tests..." | tee -a "$LOG_FILE"
             echo "Executing: python -m pytest ${TEST_DIR} -v -s" | tee -a "$LOG_FILE"
@@ -220,7 +272,7 @@ case $MODE in
     "docker")
         # Build the Docker image
         docker build -t ganglia:latest . 2>&1 | tee -a "$LOG_FILE" || exit 1
-        
+
         # Show the command that will be run
         if [[ "$TEST_TYPE" == "unit" ]]; then
             echo "Command to be run inside Docker: pytest ${TEST_DIR} -v -s -m 'not costly'" | tee -a "$LOG_FILE"
@@ -228,60 +280,65 @@ case $MODE in
             echo "Running costly unit tests before smoke tests in Docker..." | tee -a "$LOG_FILE"
             # Run costly unit tests first
             docker run --rm \
-                -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
-                -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
-                -v /tmp/youtube_token.json:/tmp/youtube_token.json \
+                -v "${GCP_CREDS_FILE}:/tmp/gcp-credentials.json" \
+                -v "${YOUTUBE_CREDS_FILE}:/tmp/youtube_credentials.json" \
+                -v "${YOUTUBE_TOKEN_FILE}:/tmp/youtube_token.json" \
                 -v "${SCRIPT_DIR}/tests/integration/test_data:/app/tests/integration/test_data" \
                 -v "${SCRIPT_DIR}/tests/unit/ttv/test_data:/app/tests/unit/ttv/test_data" \
-                -v "/tmp/GANGLIA:/tmp/GANGLIA" \
+                -v "${GANGLIA_TEMP_DIR}:/tmp/GANGLIA" \
+                -v "${GANGLIA_TEMP_DIR}/logs:/app/logs" \
                 -e OPENAI_API_KEY \
                 -e GCP_BUCKET_NAME \
                 -e GCP_PROJECT_NAME \
-                -e SUNO_API_KEY \
+                -e FOXAI_SUNO_API_KEY \
+                -e SUNO_API_URL \
+                -e SUNO_API_ORG_KEY \
                 -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
                 -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
                 -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
                 -e UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE \
                 -e UPLOAD_SMOKE_TESTS_TO_YOUTUBE \
+                -e "GANGLIA_TEMP_DIR=${GANGLIA_TEMP_DIR}" \
                 ganglia:latest \
                 /bin/sh -c "pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
             UNIT_EXIT_CODE=${PIPESTATUS[0]}
-            
+
             if [ $UNIT_EXIT_CODE -ne 0 ]; then
                 echo "Costly unit tests failed in Docker with exit code $UNIT_EXIT_CODE" | tee -a "$LOG_FILE"
                 echo $UNIT_EXIT_CODE > "$STATUS_FILE"
-                rm -f /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
                 exit $UNIT_EXIT_CODE
             fi
-            
+
             echo "Running smoke tests in Docker..." | tee -a "$LOG_FILE"
         else
             echo "Command to be run inside Docker: pytest ${TEST_DIR} -v -s" | tee -a "$LOG_FILE"
         fi
-        
+
         # Run Docker with credentials mount and pass through environment variables
         docker run --rm \
-            -v /tmp/gcp-credentials.json:/tmp/gcp-credentials.json \
-            -v /tmp/youtube_credentials.json:/tmp/youtube_credentials.json \
-            -v /tmp/youtube_token.json:/tmp/youtube_token.json \
+            -v "${GCP_CREDS_FILE}:/tmp/gcp-credentials.json" \
+            -v "${YOUTUBE_CREDS_FILE}:/tmp/youtube_credentials.json" \
+            -v "${YOUTUBE_TOKEN_FILE}:/tmp/youtube_token.json" \
             -v "${SCRIPT_DIR}/tests/integration/test_data:/app/tests/integration/test_data" \
             -v "${SCRIPT_DIR}/tests/unit/ttv/test_data:/app/tests/unit/ttv/test_data" \
-            -v "/tmp/GANGLIA:/tmp/GANGLIA" \
+            -v "${GANGLIA_TEMP_DIR}:/tmp/GANGLIA" \
+            -v "${GANGLIA_TEMP_DIR}/logs:/app/logs" \
             -e OPENAI_API_KEY \
             -e GCP_BUCKET_NAME \
             -e GCP_PROJECT_NAME \
-            -e SUNO_API_KEY \
+            -e FOXAI_SUNO_API_KEY \
+            -e SUNO_API_URL \
+            -e SUNO_API_ORG_KEY \
             -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json \
             -e YOUTUBE_CREDENTIALS_FILE=/tmp/youtube_credentials.json \
             -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
             -e UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE \
             -e UPLOAD_SMOKE_TESTS_TO_YOUTUBE \
+            -e "GANGLIA_TEMP_DIR=${GANGLIA_TEMP_DIR}" \
             ganglia:latest \
             /bin/sh -c "pytest ${TEST_DIR} -v -s $([ "$TEST_TYPE" = "unit" ] && echo "-m 'not costly'")" 2>&1 | tee -a "$LOG_FILE"
         TEST_EXIT_CODE=${PIPESTATUS[0]}
         echo $TEST_EXIT_CODE > "$STATUS_FILE"
-        rm -f /tmp/gcp-credentials.json /tmp/youtube_credentials.json /tmp/youtube_token.json
         exit $TEST_EXIT_CODE
         ;;
-esac 
-
+esac

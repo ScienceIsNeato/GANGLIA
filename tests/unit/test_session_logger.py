@@ -89,7 +89,7 @@ def test_session_logger(conversation_data):
         assert logged_data['sessionID'] == logger.session_id
         assert logged_data['timestamp'] == logger.timestamp
         assert len(logged_data['conversation']) == len(data['conversation'])
-        
+
         # Verify each interaction was logged correctly
         for i, (original, logged) in enumerate(zip(data['conversation'], logged_data['conversation'])):
             assert logged['user_input'] == original['user_input']

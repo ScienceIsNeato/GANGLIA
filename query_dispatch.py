@@ -18,14 +18,14 @@ from utils import get_tempdir
 
 class ChatGPTQueryDispatcher:
     """A dispatcher for managing conversations with OpenAI's ChatGPT.
-    
+
     This class handles the interaction with OpenAI's API, manages conversation history,
     and provides utilities for content filtering and token management.
     """
 
     def __init__(self, pre_prompt=None, config_file_path=None):
         """Initialize the ChatGPT query dispatcher.
-        
+
         Args:
             pre_prompt (str, optional): Initial system prompt to set context
             config_file_path (str, optional): Path to configuration file
@@ -39,7 +39,7 @@ class ChatGPTQueryDispatcher:
 
     def add_system_context(self, context_lines):
         """Add system context messages to the conversation.
-        
+
         Args:
             context_lines (list[str]): Lines of context to add as system messages
         """
@@ -48,10 +48,10 @@ class ChatGPTQueryDispatcher:
 
     def send_query(self, current_input):
         """Send a query to the ChatGPT API and get the response.
-        
+
         Args:
             current_input (str): The user's input to send to ChatGPT
-            
+
         Returns:
             str: The AI's response
         """
@@ -106,14 +106,14 @@ class ChatGPTQueryDispatcher:
 
     def filter_content_for_dalle(self, content, max_attempts=3):
         """Filter content to ensure it passes DALL-E's content filters.
-        
+
         Args:
             content (str): The content to filter.
             max_attempts (int): Maximum number of filtering attempts.
-            
+
         Returns:
-            tuple: (success, filtered_content) where success is a boolean indicating if 
-                  filtering was successful, and filtered_content is the filtered text 
+            tuple: (success, filtered_content) where success is a boolean indicating if
+                  filtering was successful, and filtered_content is the filtered text
                   if successful, or None if not.
         """
         prompt = self._get_dalle_filter_prompt(content)
@@ -131,15 +131,15 @@ class ChatGPTQueryDispatcher:
                 Logger.print_error(error_msg)
                 if attempt == max_attempts - 1:  # Last attempt
                     return False, None
-        
+
         return False, None
 
     def _get_dalle_filter_prompt(self, content):
         """Get the prompt for filtering content for DALL-E.
-        
+
         Args:
             content (str): The content to filter.
-            
+
         Returns:
             str: The prompt for filtering content.
         """

@@ -73,13 +73,15 @@ Once GANGLIA is running, it will listen for voice prompts. When you're ready to 
 
 GANGLIA can be used without API keys for certain features. However, if you want to utilize features that require API keys, you'll need to set up your API keys for the respective services.
 
-To set up the API keys, copy the `.env.template` file in the root directory of the project and rename it to `.env`. Then, update the values for the features you want to use.
+To set up the API keys, copy the `.envrc.template` file in the root directory of the project and rename it to `.envrc`. Then, update the values for the features you want to use.
 
 Here's a table of features, their implementation names, and the corresponding environment variable names for the `.env` file:
 
 | Feature            | Implementation Name | Environment Variable      |
 |--------------------|---------------------|---------------------------|
 | AI Backend         | OpenAI GPT-4        | OPENAI_API_KEY            |
+| Music Generation   | Suno MusicGen       | FOXAI_SUNO_API_KEY, SUNO_API_URL |
+| YouTube Upload     | YouTube API         | YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET |
 
 ## TTS (Text To Speech)
 
@@ -91,19 +93,6 @@ Here's a table of features, their implementation names, and the corresponding en
     - coqui is an incredible voice synthesis service that offers endless options for speechification
     - when using Coqui as TTS, set up the coqui_config.json in the project root (see section below)
 
-#### Setting up Coqui TTS Configuration
-
-If you want to use Coqui as your Text To Speech interface, you need to provide the necessary configurations for the Coqui TTS API. 
-
-Create a file named `coqui_config.json` in the root directory with the following format:
-
-```json
-{
-    "api_url": "https://app.coqui.ai/api/v2/samples",
-    "bearer_token": "<your_token>",
-    "voice_id": "<your_voice_id>"
-}
-```
 
 ### AI Session Tuning
 
@@ -117,7 +106,7 @@ Create a file named `coqui_config.json` in the root directory with the following
 
 #### Setup:
 
-1. Install Google Cloud SDK if you haven't already, and authenticate using `gcloud auth application-default login`. 
+1. Install Google Cloud SDK if you haven't already, and authenticate using `gcloud auth application-default login`.
 2. Make sure that you have a Google Cloud Storage bucket where the logs will be stored. Take note of the bucket name and your project name.
 3. Update the `.env` file in your project root directory to include the following:
    - `GCP_BUCKET_NAME=<your_bucket_name>`
@@ -276,7 +265,7 @@ The `.envrc` file contains all required environment variables, including:
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to Google Cloud credentials
 - `GCP_BUCKET_NAME`: Google Cloud Storage bucket name
 - `GCP_PROJECT_NAME`: Google Cloud project name
-- `SUNO_API_KEY`: API key for MusicGen/AudioGen
+- `FOXAI_SUNO_API_KEY`: API key for MusicGen/AudioGen
 
 #### Optional Variables
 - `GANGLIA_TEMP_DIR`: Override the default temporary directory location
@@ -324,7 +313,7 @@ GANGLIA uses YouTube API for uploading test videos. For CI environments, you'll 
    ```bash
    # Set the credentials file path
    export YOUTUBE_CREDENTIALS_FILE=/path/to/your/credentials.json
-   
+
    # Run any test that uses YouTube to trigger the OAuth flow
    python -m pytest tests/third_party/test_youtube_live.py -v -s
    ```
@@ -389,3 +378,28 @@ Common pytest options:
 - `-s`: Show print statements (don't capture stdout)
 - `-k "test_name"`: Run tests matching the given name
 - `--pdb`: Drop into debugger on test failures
+
+## Setting up YouTube Integration (Optional)
+
+GANGLIA can automatically upload test results to YouTube. To enable this feature:
+
+1. Set up a Google Cloud Project and enable the YouTube Data API v3
+2. Create OAuth 2.0 credentials in the Google Cloud Console:
+   - Go to APIs & Services > Credentials
+   - Create OAuth 2.0 Client ID
+   - Download the client configuration
+
+3. Configure the YouTube environment variables in your `.envrc`:
+   ```bash
+   export YOUTUBE_CLIENT_ID="your-client-id"
+   export YOUTUBE_CLIENT_SECRET="your-client-secret"
+   export YOUTUBE_CREDENTIALS_FILE="$HOME/.config/ganglia/youtube_credentials.json"
+   ```
+
+4. Configure test upload settings:
+   ```bash
+   export UPLOAD_SMOKE_TESTS_TO_YOUTUBE="false"      # Set to "true" to upload smoke test results
+   export UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE="true"  # Set to "true" to upload integration test results
+   ```
+
+The first time you run tests with YouTube upload enabled, you'll be prompted to authenticate through your browser. The credentials will be saved to the path specified in `YOUTUBE_CREDENTIALS_FILE` for future use.

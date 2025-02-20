@@ -106,7 +106,7 @@ def user_turn(prompt, dictation, USER_TURN_INDICATOR, args):
                 Logger.print_info("User killed program - exiting gracefully")
                 should_end_conversation(None)
                 exit(0)
-        
+
         # Print a fun little prompt at the beginning of the user's turn
         Logger.print_info(dictation.generate_random_phrase())
         prompt = dictation.getDictatedInput(args.device_index, interruptable=False) if dictation else input()

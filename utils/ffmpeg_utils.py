@@ -27,14 +27,14 @@ def get_system_info():
 def get_ffmpeg_thread_count(is_ci: Optional[bool] = None) -> int:
     """
     Get the optimal number of threads for FFmpeg operations.
-    
+
     In CI environments, this returns a lower thread count to avoid resource contention.
     CI detection is automatic - GitHub Actions and most CI platforms automatically set CI=true,
     so no manual configuration is needed.
-    
+
     Args:
         is_ci: Optional boolean to force CI behavior. If None, determines from environment.
-        
+
     Returns:
         int: Number of threads to use for FFmpeg operations
     """
@@ -118,16 +118,16 @@ class FFmpegThreadManager:
 
     def get_threads_for_operation(self) -> int:
         """Get the optimal number of threads for a new FFmpeg operation.
-        
+
         Takes into account current system load and concurrent operations.
-        
+
         Returns:
             int: Number of threads to allocate for this operation
         """
         with self.lock:
             # Get base thread count which already includes memory limits
             base_thread_count = get_ffmpeg_thread_count()
-            
+
             if not self.active_operations:
                 # First operation gets base thread count (already memory limited)
                 return base_thread_count
@@ -180,10 +180,10 @@ ffmpeg_thread_manager = FFmpegThreadManager()
 
 def run_ffmpeg_command(ffmpeg_cmd):
     """Run an FFmpeg command with managed thread allocation.
-    
+
     Args:
         ffmpeg_cmd: List of command arguments for FFmpeg
-    
+
     Returns:
         subprocess.CompletedProcess or None if the command fails
     """
@@ -211,4 +211,4 @@ def run_ffmpeg_command(ffmpeg_cmd):
     except subprocess.CalledProcessError as error:
         Logger.print_error(f"ffmpeg failed with error: {error.stderr.decode('utf-8')}")
         Logger.print_error(f"ffmpeg command was: {' '.join(ffmpeg_cmd)}")
-        return None 
+        return None

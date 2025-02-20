@@ -1,5 +1,5 @@
 from .base import MusicBackend
 from .meta import MetaMusicBackend
-from .suno import SunoMusicBackend
+from .gcui_suno import GcuiSunoBackend
 
-__all__ = ['MusicBackend', 'MetaMusicBackend', 'SunoMusicBackend'] 
+__all__ = ['MusicBackend', 'MetaMusicBackend', 'GcuiSunoBackend'] 

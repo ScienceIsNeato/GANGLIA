@@ -37,4 +37,4 @@ else
     echo "----------------------------------------"
     # Show the last few lines which typically contain the test summary
     tail -n 50 "$log_file" | grep -A 5 -B 5 "=.*test session starts.*=" || tail -n 20 "$log_file"
-fi 
+fi

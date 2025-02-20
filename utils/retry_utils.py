@@ -12,16 +12,16 @@ def exponential_backoff(
     thread_id: Optional[str] = None
 ) -> Any:
     """Execute a function with exponential backoff retry logic and improved logging.
-    
+
     Args:
         func: The function to execute
         max_retries: Maximum number of retry attempts
         initial_delay: Initial delay in seconds
         thread_id: Optional thread ID for logging
-        
+
     Returns:
         Any: The result of the function if successful
-        
+
     Raises:
         Exception: The last exception encountered if all retries fail
     """
@@ -54,4 +54,4 @@ def exponential_backoff(
             time.sleep(delay)
             attempt += 1
 
-    raise last_exception 
+    raise last_exception

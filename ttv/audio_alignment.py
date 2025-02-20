@@ -43,22 +43,22 @@ _model_loading_event = threading.Event()
 
 def get_whisper_model(model_size: str = "small") -> whisper.Whisper:
     """Get or load Whisper model, ensuring thread safety and clean state.
-    
+
     Args:
         model_size: Size of model to load if not already loaded
-        
+
     Returns:
         whisper.Whisper: The loaded model instance
     """
     global _whisper_model, _whisper_model_size, _model_loading, _model_loading_event
-    
+
     # Fast path - if model exists and is right size, return it
     if _whisper_model is not None and _whisper_model_size == model_size:
         # Clear model state before returning
         if hasattr(_whisper_model, 'decoder') and hasattr(_whisper_model.decoder, '_kv_cache'):
             _whisper_model.decoder._kv_cache = {}
         return _whisper_model
-        
+
     # If another thread is loading the model, wait for it
     if _model_loading:
         Logger.print_info("Waiting for Whisper model to be loaded by another thread...")
@@ -69,7 +69,7 @@ def get_whisper_model(model_size: str = "small") -> whisper.Whisper:
             if hasattr(_whisper_model, 'decoder') and hasattr(_whisper_model.decoder, '_kv_cache'):
                 _whisper_model.decoder._kv_cache = {}
             return _whisper_model
-    
+
     # Slow path - need to load model
     with whisper_lock:
         # Double-check pattern
@@ -78,11 +78,11 @@ def get_whisper_model(model_size: str = "small") -> whisper.Whisper:
             if hasattr(_whisper_model, 'decoder') and hasattr(_whisper_model.decoder, '_kv_cache'):
                 _whisper_model.decoder._kv_cache = {}
             return _whisper_model
-            
+
         # Mark that we're loading the model and clear any previous event
         _model_loading = True
         _model_loading_event.clear()
-        
+
         try:
             # Load new model
             _whisper_model = whisper.load_model(
@@ -92,11 +92,11 @@ def get_whisper_model(model_size: str = "small") -> whisper.Whisper:
                 in_memory=True  # Keep model in memory
             )
             _whisper_model_size = model_size
-            
+
             # Initialize empty cache
             if hasattr(_whisper_model, 'decoder'):
                 _whisper_model.decoder._kv_cache = {}
-                
+
             return _whisper_model
         finally:
             # Always mark loading as complete and notify waiters
@@ -115,13 +115,13 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
     Analyze audio file to generate word-level timings.
     Uses Whisper ASR to perform forced alignment between the audio and text.
     Falls back to even distribution if Whisper alignment fails after max_retries.
-    
+
     Args:
         audio_path: Path to the audio file (should be wav format)
         text: The expected text content of the audio
         model_size: Size of the Whisper model to use ("tiny", "base", "small")
         max_retries: Maximum number of retry attempts for whisper alignment
-        
+
     Returns:
         List of WordTiming objects containing word-level alignments
     """
@@ -129,11 +129,11 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
         try:
             # Get model instance
             model = get_whisper_model(model_size)
-            
+
             # Clear any existing cache
             if hasattr(model, 'decoder') and hasattr(model.decoder, '_kv_cache'):
                 model.decoder._kv_cache = {}
-            
+
             # Get word-level timestamps from audio
             with whisper_lock:  # Add lock around model usage
                 result = model.transcribe(
@@ -148,7 +148,7 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
                     compression_ratio_threshold=2.0,  # Help detect hallucinations
                     best_of=5  # Try multiple candidates and take the best one
                 )
-            
+
             if not result or "segments" not in result:
                 Logger.print_error(f"No segments found in result on attempt {attempt + 1}")
                 if attempt < max_retries - 1:
@@ -156,7 +156,7 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
                     time.sleep(0.5)  # Add a small delay between retries
                     continue
                 return create_evenly_distributed_timings(audio_path, text)
-            
+
             # Extract word timings from result
             word_timings = []
             for segment in result["segments"]:
@@ -169,7 +169,7 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
                                 start=word["start"],
                                 end=word["end"]
                             ))
-            
+
             if not word_timings:
                 Logger.print_error(f"No word timings found on attempt {attempt + 1}")
                 if attempt < max_retries - 1:
@@ -177,7 +177,7 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
                     time.sleep(0.5)  # Add a small delay between retries
                     continue
                 return create_evenly_distributed_timings(audio_path, text)
-            
+
             # If we get here, the attempt was successful
             if attempt > 0:
                 Logger.print_info(f"✓ Whisper alignment succeeded on attempt {attempt + 1}")
@@ -191,7 +191,7 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
                 time.sleep(0.5)  # Add a small delay between retries
                 continue
             return create_evenly_distributed_timings(audio_path, text)
-    
+
     # If we get here, all retries failed
     Logger.print_error(f"All {max_retries} whisper alignment attempts failed, falling back to even distribution")
     return create_evenly_distributed_timings(audio_path, text)
@@ -199,11 +199,11 @@ def align_words_with_audio(audio_path: str, text: str, model_size: str = "small"
 def create_evenly_distributed_timings(audio_path: str, text: str) -> List[WordTiming]:
     """
     Create evenly distributed word timings when Whisper alignment fails.
-    
+
     Args:
         audio_path: Path to the audio file
         text: The text to create timings for
-        
+
     Returns:
         List of WordTiming objects with evenly distributed timings
     """
@@ -216,15 +216,15 @@ def create_evenly_distributed_timings(audio_path: str, text: str) -> List[WordTi
             stderr=subprocess.PIPE,
             check=True)
         total_duration = float(result.stdout)
-        
+
         # Split text into words
         words = text.split()
         if not words:
             return []
-        
+
         # Calculate time per word
         time_per_word = total_duration / len(words)
-        
+
         # Create evenly distributed timings
         word_timings = []
         for i, word in enumerate(words):
@@ -235,10 +235,10 @@ def create_evenly_distributed_timings(audio_path: str, text: str) -> List[WordTi
                 start=start_time,
                 end=end_time
             ))
-        
+
         Logger.print_info(f"Created fallback evenly distributed timings for {len(words)} words over {total_duration:.2f}s")
         return word_timings
-        
+
     except Exception as e:
         Logger.print_error(f"Error creating evenly distributed timings: {str(e)}")
         return []
@@ -250,18 +250,18 @@ def create_word_level_captions(
     thread_id: str = None
 ) -> List[CaptionEntry]:
     """Create word-level captions by aligning text with audio using Whisper.
-    
+
     Args:
         audio_file: Path to the audio file
         text: Text to align with audio
         model_name: Whisper model name to use (default: "small")
         thread_id: Optional thread ID for logging
-        
+
     Returns:
         List[CaptionEntry]: List of caption entries with word-level timings
     """
     thread_prefix = f"{thread_id} " if thread_id else ""
-    
+
     try:
         Logger.print_info(
             f"{thread_prefix}Creating word-level captions for: {audio_file}"
@@ -270,11 +270,11 @@ def create_word_level_captions(
         # Load model and process with retries using exponential backoff
         def load_and_process_model():
             model = get_whisper_model(model_name)
-            
+
             # Clear any existing cache
             if hasattr(model, 'decoder') and hasattr(model.decoder, '_kv_cache'):
                 model.decoder._kv_cache = {}
-            
+
             # Process audio with lock
             with whisper_lock:
                 result = model.transcribe(
@@ -305,18 +305,18 @@ def create_word_level_captions(
             for word in segment.get("words", []):
                 # Debug log the word structure
                 Logger.print_debug(f"{thread_prefix}Word data: {word}")
-                
+
                 # Get word text with fallback to empty string
                 word_text = word.get("text", word.get("word", ""))
                 if not word_text:
                     Logger.print_warning(f"{thread_prefix}Empty word text in segment")
                     continue
-                
+
                 # Clean up word text by removing only extra whitespace
                 word_text = word_text.strip()
                 if not word_text:
                     continue
-                    
+
                 words.append({
                     "text": word_text,
                     "start": word.get("start", 0),
@@ -366,12 +366,12 @@ def create_evenly_distributed_captions(
     thread_id: Optional[str] = None
 ) -> List[CaptionEntry]:
     """Create evenly distributed captions when Whisper alignment fails.
-    
+
     Args:
         audio_file: Path to the audio file
         text: Text to create captions for
         thread_id: Optional thread ID for logging
-        
+
     Returns:
         List[CaptionEntry]: List of caption entries with evenly distributed timings
     """
@@ -385,15 +385,15 @@ def create_evenly_distributed_captions(
             stderr=subprocess.PIPE,
             check=True)
         total_duration = float(result.stdout)
-        
+
         # Split text into words
         words = text.split()
         if not words:
             return []
-        
+
         # Calculate time per word
         time_per_word = total_duration / len(words)
-        
+
         # Create evenly distributed captions
         captions = []
         for i, word in enumerate(words):
@@ -404,21 +404,21 @@ def create_evenly_distributed_captions(
                 start_time=start_time,
                 end_time=end_time
             ))
-        
+
         Logger.print_info(f"{thread_prefix}Created evenly distributed captions for {len(words)} words over {total_duration:.2f}s")
         return captions
-        
+
     except Exception as e:
         Logger.print_error(f"{thread_prefix}Error creating evenly distributed captions: {str(e)}")
         return []
 
 def get_audio_duration(audio_file: str, thread_id: str = None) -> float:
     """Get the duration of an audio file in seconds.
-    
+
     Args:
         audio_file: Path to the audio file
         thread_id: Optional thread ID for logging
-        
+
     Returns:
         float: Duration in seconds
     """

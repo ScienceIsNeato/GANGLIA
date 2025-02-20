@@ -11,13 +11,13 @@ def text_to_video(config_path, skip_generation=False, tts=None, query_dispatcher
     try:
         # Create timestamped directory for this run
         ttv_dir = get_timestamped_ttv_dir()
-        
+
         # Load configuration
         config = load_input(config_path)
         if not config:
             Logger.print_error("Failed to load configuration")
             return None
-        
+
         # Log loaded config
         Logger.print_info(f"Loaded config: {config}")
 

@@ -6,7 +6,7 @@
 For individual test functions, use python command in agent window:
 ```python
 {
-  "command": "nohup python -m pytest tests/path/to/test_file.py::test_function_name -v -s > /dev/null 2>&1 &",
+  "command": "python -m pytest tests/path/to/test_file.py::test_function_name -v -s",
   "explanation": "Running individual test function",
   "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
@@ -17,7 +17,7 @@ For individual test functions, use python command in agent window:
 For complete test files, use python command in agent window:
 ```python
 {
-  "command": "nohup python -m pytest tests/path/to/test_file.py -v -s > /dev/null 2>&1 &",
+  "command": "python -m pytest tests/path/to/test_file.py -v -s",
   "explanation": "Running test module",
   "is_background": false,  # Keep agent in foreground
   "require_user_approval": false
@@ -168,7 +168,74 @@ All test runs above Root System level generate timestamped log files:
 - Location: `logs/test_run_MODE_TYPE_TIMESTAMP.log`
 - Contains full test output and debug information
 - Preserved for debugging and analysis
-- MUST be monitored in real-time during test execution 
+- MUST be monitored in real-time during test execution
+
+## Issue Reporting Protocol
+When reporting an issue, follow these steps:
+
+### Information Gathering
+Required information to be collected in a single interaction:
+1. Issue Type:
+   - bug: A problem with existing functionality
+   - enhancement: A new feature or improvement
+   - documentation: Documentation-related issues
+   - test: Test-related issues
+   - ci: CI/CD pipeline issues
+
+2. Title: A clear, concise title that summarizes the issue
+
+3. Description Template:
+```markdown
+### Current Behavior
+[What is happening now]
+
+### Expected Behavior
+[What should happen instead]
+
+### Steps to Reproduce (if applicable)
+1. [First Step]
+2. [Second Step]
+3. [...]
+
+### Additional Context
+- Environment: [e.g., local/CI, OS, relevant versions]
+- Related Components: [e.g., TTV, Tests, Music Generation]
+- Impact Level: [low/medium/high]
+```
+
+### Issue Creation Process
+1. Present the formatted issue using the template above
+2. After approval, create the issue using gh cli:
+```bash
+gh issue create \
+  --title "TITLE" \
+  --body "BODY" \
+  --label "TYPE"
+```
+3. Display the created issue URL
+
+### Example Usage
+For the credits cutoff issue:
+```bash
+gh issue create \
+  --title "Video credits abruptly cut off at 30 seconds in integration tests" \
+  --body "### Current Behavior
+Credits section in generated videos is being cut off at exactly 30 seconds during integration tests.
+
+### Expected Behavior
+Credits should play completely without being cut off.
+
+### Steps to Reproduce
+1. Run integration tests
+2. Check generated video output
+3. Observe credits section ending abruptly at 30s mark
+
+### Additional Context
+- Environment: CI pipeline
+- Related Components: TTV, Integration Tests
+- Impact Level: medium" \
+  --label "bug"
+```
 
 ## Decision Making and Proactivity Rules
 1. Be proactive - take your best guess and proceed rather than asking for confirmation
@@ -182,4 +249,40 @@ All test runs above Root System level generate timestamped log files:
    - Choose the most likely one
    - Note alternatives in your response
    - Continue with implementation
-5. Bias towards action over asking questions 
+5. Bias towards action over asking questions
+
+## AI Status Tracking Rules
+You MUST maintain the .ai_status.md file to track task progress:
+
+1. At the start of each new task:
+   - Update the "Current Task" section with a clear description
+   - Include timestamp in PST
+   - Format: `Started: [task description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+
+2. When completing a task:
+   - Move the task from "Current Task" to "Task History" section
+   - Include completion timestamp
+   - Format: `- Completed: [task description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+   - Clear the "Current Task" section to "No active task"
+
+3. If a task is abandoned or fails:
+   - Move the task to "Task History" with appropriate status
+   - Format: `- [Abandoned/Failed]: [task description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+   - Include brief reason for abandonment/failure
+   - Clear the "Current Task" section to "No active task"
+
+4. For multi-step tasks:
+   - Keep main task in "Current Task"
+   - Add progress updates as bullet points under current task
+   - Format: `- [step description] (MM/DD/YYYY, HH:MM:SS AM/PM PST)`
+
+5. Status file structure must be maintained:
+```markdown
+# AI Agent Status
+
+## Current Task
+[Current task description or "No active task"]
+[Optional progress updates for multi-step tasks]
+
+## Task History
+[Chronological list of completed/abandoned tasks with timestamps]

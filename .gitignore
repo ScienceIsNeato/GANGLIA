@@ -35,3 +35,5 @@ tests/integration/ttv/test_outputs/
 
 ganglia_minified.py
 
+# AI status
+.ai_status.md

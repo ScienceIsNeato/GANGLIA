@@ -7,7 +7,7 @@ import pytest
 
 # Local application imports
 from ttv.ttv import text_to_video
-from tests.integration.test_helpers import validate_gcs_upload
+from tests.test_helpers import validate_gcs_upload
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 GENERATED_PIPELINE_CONFIG = "tests/integration/test_data/generated_pipeline_config.json"
 SERVICE_ACCOUNT_PATH = "/Users/pacey/Downloads/halloween2023-0a131e14c55e.json"
 
+@pytest.mark.skip(reason="Minimal test covered by generated_pipeline_config.json")
 def test_minimal_ttv_config(tmp_path):
     """Test the TTV pipeline with a minimal configuration file."""
     # Skip if GCS credentials are not configured
@@ -57,7 +58,7 @@ def test_minimal_ttv_config(tmp_path):
             }}
         }}
         """)
-        
+
     # Run the pipeline
     result = text_to_video(str(config_path))
 
@@ -67,7 +68,7 @@ def test_minimal_ttv_config(tmp_path):
 
     # Verify the file was uploaded to GCS
     validate_gcs_upload(bucket_name, project_name)
-    
+
 
     # Clean up the uploaded file
     # uploaded_file.delete()
