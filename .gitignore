@@ -37,3 +37,5 @@ ganglia_minified.py
 
 # AI status
 .ai_status.md
+.cursorrules
+.cursor/
