@@ -1,17 +1,42 @@
 {
     "version": "0.2.0",
     "configurations": [
+
         {
-            "name": "Python: ganglia.py",
+            "name": "Python: GANGLIA Conversation",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/ganglia.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--tts-interface", "google",
+                "--dictation-type", "live_google",
+                "--enable-turn-indicators",
+                "--store-logs"
+            ],
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Ganglia TTV",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/ganglia.py",
             "console": "integratedTerminal",
             "args": [
                 "--text-to-video",
-                "--ttv-config", "tests/integration/test_data/simulated_pipeline_config.json",
+                "--ttv-config", "tests/integration/test_data/simulated_pipeline_config.json"
             ],
-            "justMyCode": true
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "breakpoints": {
+                "exception": {
+                    "raised": "N",
+                    "uncaught": "Y"
+                }
+            }
         }
     ]
 }

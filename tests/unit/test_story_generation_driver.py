@@ -262,8 +262,8 @@ class TestStoryGenerationDriver(unittest.TestCase):
     def test_singleton_instance(self):
         """Test the singleton pattern for the driver."""
         # Get the singleton instance
-        instance1 = get_story_generation_driver()
-        instance2 = get_story_generation_driver()
+        instance1 = get_story_generation_driver(self.mock_query_dispatcher)
+        instance2 = get_story_generation_driver(self.mock_query_dispatcher)
 
         # Verify both instances are the same
         self.assertIs(instance1, instance2)

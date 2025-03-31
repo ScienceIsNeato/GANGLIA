@@ -47,13 +47,18 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
             story_text: str = None,
             wait_audio: bool = False,
             query_dispatcher = None,
-            model: str = 'chirp-v3-5',
+            model: str = 'V3_5',
             duration: int = None
         ) -> str:
         """Start the generation process via API."""
         if not self.api_key:
             raise EnvironmentError("Environment variable 'SUNO_API_ORG_KEY' is not set.")
         try:
+            # Ensure model is set to a valid value
+            if not model or model not in ['V3_5', 'V4']:
+                Logger.print_warning(f"Invalid model '{model}', defaulting to 'V3_5'")
+                model = 'V3_5'
+
             # Use appropriate duration based on type
             if with_lyrics:
                 actual_duration = duration if duration is not None else self.DEFAULT_CREDITS_DURATION
@@ -91,7 +96,8 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
                         "lyrics": story_text[:3000],  # Limit lyrics to 3000 chars
                         "instrumental": False,
                         "customMode": True,
-                        "callBackUrl": "https://example.com/callback"
+                        "callBackUrl": "https://example.com/callback",
+                        "model": model  # Add model parameter
                     }
                 else:
                     # In non-custom mode, send story_text as lyrics
@@ -100,7 +106,8 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
                         "lyrics": story_text[:3000],  # Limit lyrics to 3000 chars
                         "instrumental": False,
                         "customMode": False,
-                        "callBackUrl": "https://example.com/callback"
+                        "callBackUrl": "https://example.com/callback",
+                        "model": model  # Add model parameter
                     }
             else:
                 # Handle instrumental cases
@@ -111,14 +118,16 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
                         "title": title[:80],  # Limit title to 80 chars
                         "instrumental": True,
                         "customMode": True,
-                        "callBackUrl": "https://example.com/callback"
+                        "callBackUrl": "https://example.com/callback",
+                        "model": model  # Add model parameter
                     }
                 else:
                     data = {
                         "prompt": enhanced_prompt[:400],  # Limit prompt to 400 chars
                         "instrumental": True,
                         "customMode": False,
-                        "callBackUrl": "https://example.com/callback"
+                        "callBackUrl": "https://example.com/callback",
+                        "model": model  # Add model parameter
                     }
 
             response = self._make_api_request(
@@ -286,27 +295,50 @@ class SunoApiOrgBackend(MusicBackend, SunoInterface):
             Logger.print_error(f"Failed to get result: {str(e)}")
             return None
 
-    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30) -> str:
-        """Generate instrumental music (blocking)."""
+    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30, model: str = 'V3_5') -> str:
+        """Generate instrumental music from a text prompt.
+
+        Args:
+            prompt: The text prompt for music generation
+            title: Optional title for the generated music
+            tags: Optional list of tags
+            wait_audio: Whether to wait for audio generation
+            duration: Duration in seconds
+            model: Model to use for generation (V3_5 or V4)
+
+        Returns:
+            str: Path to the generated audio file or None if generation fails
+        """
+        # Start generation
         job_id = self.start_generation(
             prompt=prompt,
             with_lyrics=False,
             title=title,
             tags=tags,
             wait_audio=wait_audio,
-            duration=duration
+            duration=duration,
+            model=model
         )
         if not job_id:
+            Logger.print_error("Failed to start generation")
             return None
 
+        # If wait_audio is False, return the job ID
+        if not wait_audio:
+            return job_id
+
+        # Poll for completion
         while True:
             status, progress = self.check_progress(job_id)
+            Logger.print_info(f"Generation progress: {status} ({progress:.1f}%)")
+
             if progress >= 100:
-                result = self.get_result(job_id)
-                if not result:
-                    Logger.print_error("Failed to add background music")
-                return result
-            time.sleep(5)
+                break
+
+            time.sleep(5)  # Wait before checking again
+
+        # Get result
+        return self.get_result(job_id)
 
     def generate_with_lyrics(
             self,

@@ -45,7 +45,7 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
             story_text: Story text for lyric generation
             wait_audio: Whether to wait for audio generation
             query_dispatcher: Query dispatcher for lyric generation
-            model: Model to use for generation (default: chirp-v3-5)
+            model: Model to use for generation (chirp-v3-5 or chirp-v4)
             duration: Duration in seconds (default: 30 for instrumental, DEFAULT_CREDITS_DURATION for lyrics)
 
         Returns:
@@ -151,6 +151,11 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         # Use default 30 seconds for instrumentals if none specified
         actual_duration = duration if duration is not None else 30
 
+        # Ensure model is set to a valid value
+        if not model or model.lower() not in ['chirp-v3-5', 'chirp-v4']:
+            Logger.print_warning(f"Invalid model '{model}', defaulting to 'chirp-v3-5'")
+            model = 'chirp-v3-5'
+
         # Enhance prompt with duration and title context
         enhanced_prompt = f"Create a {actual_duration}-second {prompt}"
         if title:
@@ -211,7 +216,7 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         """Start a job for music generation with lyrics."""
         try:
             # Get lyrics from query dispatcher
-            lyrics_data = query_dispatcher.send_query(story_text)
+            lyrics_data = query_dispatcher.send_query(story_text) if query_dispatcher else story_text
 
             # Handle both string and dict responses
             if isinstance(lyrics_data, str):
@@ -227,6 +232,11 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
 
             # Use default credits duration if none specified
             actual_duration = duration if duration is not None else self.DEFAULT_CREDITS_DURATION
+
+            # Ensure model is set to a valid value
+            if not model or model.lower() not in ['chirp-v3-5', 'chirp-v4']:
+                Logger.print_warning(f"Invalid model '{model}', defaulting to 'chirp-v3-5'")
+                model = 'chirp-v3-5'
 
             # Enhance prompt with duration, style, and title context
             enhanced_prompt = f"Create a {actual_duration}-second {style} song"
@@ -315,24 +325,50 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         except:
             return time.time()
 
-    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30) -> str:
-        """Generate instrumental music (blocking)."""
+    def generate_instrumental(self, prompt: str, title: str = None, tags: str = None, wait_audio: bool = False, duration: int = 30, model: str = 'V3_5') -> str:
+        """Generate instrumental music from a text prompt.
+
+        Args:
+            prompt: The text prompt for music generation
+            title: Optional title for the generated music
+            tags: Optional list of tags
+            wait_audio: Whether to wait for audio generation
+            duration: Duration in seconds
+            model: Model to use for generation (V3_5 or V4)
+
+        Returns:
+            str: Path to the generated audio file or None if generation fails
+        """
+        # Start generation
         job_id = self.start_generation(
             prompt=prompt,
             with_lyrics=False,
             title=title,
             tags=tags,
             wait_audio=wait_audio,
-            duration=duration
+            duration=duration,
+            model=model
         )
         if not job_id:
+            Logger.print_error("Failed to start generation")
             return None
 
+        # If wait_audio is False, return the job ID
+        if not wait_audio:
+            return job_id
+
+        # Poll for completion
         while True:
             status, progress = self.check_progress(job_id)
+            Logger.print_info(f"Generation progress: {status} ({progress:.1f}%)")
+
             if progress >= 100:
-                return self.get_result(job_id)
-            time.sleep(5)
+                break
+
+            time.sleep(5)  # Wait before checking again
+
+        # Get result
+        return self.get_result(job_id)
 
     def generate_with_lyrics(
             self,

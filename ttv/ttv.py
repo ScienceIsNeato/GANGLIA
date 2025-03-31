@@ -4,10 +4,22 @@ from .final_video_generation import assemble_final_video
 from tts import GoogleTTS
 from logger import Logger
 from utils import get_timestamped_ttv_dir
-import os
+import traceback
 
+# TODO: remove skip_generation globally, make query_dispatcher required
 def text_to_video(config_path, skip_generation=False, tts=None, query_dispatcher=None):
-    """Convert text to video using the provided configuration."""
+    """
+    Convert text to video using the provided configuration.
+
+    Args:
+        config_path: Path to the TTV configuration file
+        skip_generation: Whether to skip generation of images and audio
+        tts: Text-to-speech engine to use (will create one if not provided)
+        query_dispatcher: Query dispatcher for AI-assisted generation
+
+    Returns:
+        Path to the final video file, or None if generation failed
+    """
     try:
         # Create timestamped directory for this run
         ttv_dir = get_timestamped_ttv_dir()
@@ -21,8 +33,13 @@ def text_to_video(config_path, skip_generation=False, tts=None, query_dispatcher
         # Log loaded config
         Logger.print_info(f"Loaded config: {config}")
 
+        # Log query dispatcher availability
+        if query_dispatcher:
+            Logger.print_info("Query dispatcher provided: ChatGPTQueryDispatcher")
+
         # Use provided TTS or initialize a new one
         if not tts:
+            Logger.print_info("Initializing GoogleTTS...")
             tts = GoogleTTS()
 
         # Process story and generate video segments
@@ -60,6 +77,5 @@ def text_to_video(config_path, skip_generation=False, tts=None, query_dispatcher
 
     except Exception as e:
         Logger.print_error(f"Error in text_to_video: {str(e)}")
-        import traceback
         Logger.print_error(f"Traceback: {traceback.format_exc()}")
         return None

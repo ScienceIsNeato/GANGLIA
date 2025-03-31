@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "run-ttv",
+            "type": "shell",
+            "command": "python ganglia.py --text-to-video --ttv-config tests/integration/test_data/simulated_pipeline_config.json",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-chatbot",
+            "type": "shell",
+            "command": "python ganglia.py --tts-interface google --dictation-type live_google --enable-turn-indicators --store-logs",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

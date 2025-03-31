@@ -21,7 +21,6 @@ concat_list.txt
 coqui_config.json
 config/ganglia_config.json
 config/chatgpt_session_config.json
-config/hotwords.json
 config/ttv_config.json
 config_backups/*
 
@@ -39,3 +38,5 @@ ganglia_minified.py
 .ai_status.md
 .cursorrules
 .cursor/
+.cursor
+.env

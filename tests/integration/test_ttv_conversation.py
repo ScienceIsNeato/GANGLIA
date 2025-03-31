@@ -120,13 +120,26 @@ class MockTTS:
 
 
 class MockStoryGenerationDriver:
-    """Mock story generation driver for testing."""
-    def __init__(self, config_path=None):
+    """Mock implementation of the StoryGenerationDriver for testing."""
+
+    def __init__(self, query_dispatcher=None, config_path=None):
         """Initialize the mock driver."""
-        self.config_path = config_path
-        self.state = "IDLE"
+        # Import here to avoid circular imports
+        from story_generation_driver import StoryGenerationState
+
+        self.state = StoryGenerationState.IDLE
         self.user_id = None
-        self.story_info = {}
+        self.config_path = config_path
+        self.query_dispatcher = query_dispatcher
+        self.story_info = {}  # Initialize story_info dictionary
+        self.conversation_prompts = {
+            'story_request': "Tell me a story idea for your video",
+            'style_request': "What artistic style would you like for your video?",
+            'processing_confirmation': "I'm creating your video now. This will take a few minutes.",
+            'completion_notification': "Your video is ready to watch!",
+            'failure_notification': "Sorry, there was a problem creating your video.",
+            'decline_acknowledgment': "No problem, let me know if you change your mind."
+        }
 
     def start_story_gathering(self, user_id):
         """Start gathering story information."""
@@ -249,11 +262,16 @@ class EventCapture:
     def __init__(self):
         """Initialize the event capture."""
         self.events = []
+        self.ttv_completed = False
+        self.ttv_output_path = None
 
     def callback(self, event):
         """Callback for pubsub events."""
         self.events.append(event)
-        logger.debug(f"Captured event: {event.event_type} from {event.source} to {event.target}")
+        if event.event_type == EventType.TTV_PROCESS_COMPLETED:
+            self.ttv_completed = True
+            self.ttv_output_path = event.data.get('output_path')
+            logger.debug(f"Captured TTV_PROCESS_COMPLETED event: {event.data}")
 
 
 @pytest.mark.integration
@@ -303,8 +321,11 @@ def test_ttv_conversation_flow():
             # Mock sys.argv for argument parsing
             sys.argv = ['ganglia.py', '--dictation-type', 'static_google', '--tts-interface', 'google']
 
+            # Create a mock query dispatcher
+            mock_query_dispatcher = MagicMock()
+
             # Create a mock story generation driver
-            mock_driver = MockStoryGenerationDriver(config_path=config_path)
+            mock_driver = MockStoryGenerationDriver(query_dispatcher=mock_query_dispatcher, config_path=config_path)
             mock_get_driver.return_value = mock_driver
 
             # Initialize the pubsub system
@@ -363,9 +384,9 @@ def test_ttv_conversation_flow():
                     output_log.append(f"GANGLIA: {response}")
 
                     # If we're waiting for the TTV process to complete, give it some time
-                    if conversation.ttv_process_running:
+                    if conversation.ttv_handler.is_ttv_process_running():
                         logger.debug("Waiting for TTV process to complete...")
-                        logger.debug(f"TTV process running: {conversation.ttv_process_running}")
+                        logger.debug(f"TTV process running: {conversation.ttv_handler.is_ttv_process_running()}")
 
                         # Manually trigger the TTV process for testing
                         if not ttv_process_triggered:
@@ -429,9 +450,43 @@ def test_ttv_conversation_flow():
                         logger.debug(f"Events captured so far: {[e.event_type for e in event_capture.events]}")
 
                         # Debug: Check if the conversation state was updated
-                        logger.debug(f"Conversation TTV process running: {conversation.ttv_process_running}")
-                        if hasattr(conversation, 'ttv_output_path'):
-                            logger.debug(f"Conversation TTV output path: {conversation.ttv_output_path}")
+                        logger.debug(f"Conversation TTV process running: {conversation.ttv_handler.is_ttv_process_running()}")
+                        logger.debug(f"Conversation TTV completion pending: {conversation.ttv_handler.is_ttv_completion_pending()}")
+
+                        # Verify that the TTV completion notification is pending
+                        assert conversation.ttv_handler.is_ttv_completion_pending(), "TTV completion notification should be pending"
+
+                        # Simulate the next user turn to trigger the notification
+                        logger.debug("Simulating next user turn to trigger TTV completion notification")
+                        next_user_input = "What's your favorite pizza topping?"
+                        mock_dictation.conversation_script.append(next_user_input)
+
+                        # User's turn - this should trigger the notification
+                        user_input = conversation.user_turn(args)
+                        output_log.append(f"User: {user_input}")
+
+                        # Verify that the notification was sent
+                        assert not conversation.ttv_handler.is_ttv_completion_pending(), "TTV completion notification should have been sent"
+
+                        # AI's turn - regular response to the user's question
+                        response = conversation.ai_turn(user_input, args)
+                        output_log.append(f"GANGLIA: {response}")
+
+                        # Simulate user asking to play the video
+                        logger.debug("Simulating user asking to play the video")
+                        play_video_input = "Yes, please play the video"
+                        mock_dictation.conversation_script.append(play_video_input)
+
+                        # User's turn
+                        user_input = conversation.user_turn(args)
+                        output_log.append(f"User: {user_input}")
+
+                        # AI's turn - response to play video request
+                        response = conversation.ai_turn(user_input, args)
+                        output_log.append(f"GANGLIA: {response}")
+
+                        if hasattr(conversation.ttv_handler, 'ttv_output_path'):
+                            logger.debug(f"Conversation TTV output path: {conversation.ttv_handler.ttv_output_path}")
 
                 # Save output log for debugging
                 output_str = "\n".join(output_log)
@@ -459,7 +514,7 @@ def test_ttv_conversation_flow():
                         ttv_output_path = event.data.get('output_path')
                         logger.debug(f"Found TTV output path in event: {ttv_output_path}")
                         # Add the output path to the conversation object for testing
-                        conversation.ttv_output_path = ttv_output_path
+                        conversation.ttv_handler.ttv_output_path = ttv_output_path
 
                 # If we didn't capture any events, let's manually set the output path for testing
                 if ttv_output_path is None:
@@ -481,7 +536,7 @@ def test_ttv_conversation_flow():
                                 f.write(b'mock video')
 
                     # Add the output path to the conversation object for testing
-                    conversation.ttv_output_path = ttv_output_path
+                    conversation.ttv_handler.ttv_output_path = ttv_output_path
 
                 # Verify the TTV process was triggered
                 assert ttv_process_triggered, "TTV process was not triggered during the test"

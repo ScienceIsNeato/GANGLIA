@@ -20,6 +20,7 @@ class EventType(Enum):
     STORY_INFO_NEEDED = auto()        # Need to gather specific story info
     STORY_INFO_RECEIVED = auto()      # User provided requested story info
     STORY_CONFIG_COMPLETE = auto()    # All info gathered, config ready
+    TTV_CONFIG_GENERATED = auto()     # TTV configuration file has been generated
 
     # Video generation related events
     TTV_PROCESS_STARTED = auto()      # TTV process has started
