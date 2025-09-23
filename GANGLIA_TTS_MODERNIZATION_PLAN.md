@@ -38,7 +38,7 @@ class OpenAITTS(TextToSpeech):
         self.client = OpenAI()
         self.voice = voice
         self.effects_processor = AudioEffectsProcessor()
-    
+
     def convert_text_to_speech(self, text, voice_id=None, thread_id=None):
         # Maintain existing interface signature
         # Add audio post-processing for demonic effects
@@ -101,7 +101,7 @@ class OpenAITTS(TextToSpeech):
       "content": "You are GANGLIA, the Fallen King of Halloween. You live in a coffin with an animatronic skull..."
     },
     {
-      "role": "user", 
+      "role": "user",
       "content": "Tell me about the quest"
     },
     {
@@ -127,7 +127,7 @@ class LocalGangliaDispatcher(ChatGPTQueryDispatcher):
         self.ollama_client = ollama.Client()
         self.model_name = "ganglia-halloween-7b"
         self.fallback_client = OpenAI()  # For complex tasks
-    
+
     def send_query(self, user_input):
         try:
             return self.ollama_client.generate(
