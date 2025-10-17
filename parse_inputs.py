@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from tts import TextToSpeech, GoogleTTS
+from tts_openai import OpenAITTS
 from dictation.dictation import Dictation
 from dictation.static_google_dictation import StaticGoogleDictation
 from dictation.live_google_dictation import LiveGoogleDictation
@@ -57,9 +58,11 @@ def load_coqui_config():
 def parse_tts_interface(tts_interface: str) -> TextToSpeech:
     if tts_interface.lower() == "google":
         return GoogleTTS()
+    elif tts_interface.lower() == "openai":
+        return OpenAITTS(voice="onyx")  # Deep voice similar to GANGLIA's personality
     else:
         raise ValueError(
-            "Invalid TTS interface provided. Available options: 'google'"
+            "Invalid TTS interface provided. Available options: 'google', 'openai'"
         )
 
 def parse_dictation_type(dictation_type: str) -> Dictation:
@@ -77,7 +80,7 @@ def parse_dictation_type(dictation_type: str) -> Dictation:
 def parse_args(args=None):
     parser = argparse.ArgumentParser(description="GANGLIA - AI Assistant")
     parser.add_argument("--device-index", type=int, default=0, help="Index of the input device to use.")
-    parser.add_argument("--tts-interface", type=str, default="google", help="Text-to-speech interface to use. Available options: 'google'")
+    parser.add_argument("--tts-interface", type=str, default="google", help="Text-to-speech interface to use. Options: 'google' (default), 'openai' (potentially faster)")
     parser.add_argument("--suppress-session-logging", action="store_true", help="Disable session logging (default: False)")
     parser.add_argument("--enable-turn-indicators", action="store_true", help="Enable turn indicators (default: False)")
     parser.add_argument("--dictation-type", type=str, default="static_google", choices=["static_google", "live_google", "vad"], help="Dictation type to use. Options: 'static_google', 'live_google', 'vad' (Voice Activity Detection - cost-efficient)")
