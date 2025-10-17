@@ -6,6 +6,7 @@ from tts import TextToSpeech, GoogleTTS
 from dictation.dictation import Dictation
 from dictation.static_google_dictation import StaticGoogleDictation
 from dictation.live_google_dictation import LiveGoogleDictation
+from dictation.vad_dictation import VoiceActivityDictation
 from logger import Logger
 
 def check_environment_variables():
@@ -66,9 +67,11 @@ def parse_dictation_type(dictation_type: str) -> Dictation:
         return StaticGoogleDictation()
     elif dictation_type.lower() == "live_google":
         return LiveGoogleDictation()
+    elif dictation_type.lower() == "vad":
+        return VoiceActivityDictation()
     else:
         raise ValueError(
-            "Invalid dictation type provided. Available options: 'static_google'"
+            "Invalid dictation type provided. Available options: 'static_google', 'live_google', 'vad'"
         )
 
 def parse_args(args=None):
@@ -77,7 +80,7 @@ def parse_args(args=None):
     parser.add_argument("--tts-interface", type=str, default="google", help="Text-to-speech interface to use. Available options: 'google'")
     parser.add_argument("--suppress-session-logging", action="store_true", help="Disable session logging (default: False)")
     parser.add_argument("--enable-turn-indicators", action="store_true", help="Enable turn indicators (default: False)")
-    parser.add_argument("--dictation-type", type=str, default="static_google", choices=["static_google", "live_google"], help="Dictation type to use. Available options: 'static_google', 'live_google'")
+    parser.add_argument("--dictation-type", type=str, default="static_google", choices=["static_google", "live_google", "vad"], help="Dictation type to use. Options: 'static_google', 'live_google', 'vad' (Voice Activity Detection - cost-efficient)")
     parser.add_argument("--store-logs", action="store_true", help="Enable storing logs in the cloud (default: False)")
     parser.add_argument('--text-to-video', action='store_true', help='Generate video from text input.')
     parser.add_argument('--ttv-config', type=str, help='Path to the JSON input file for video generation.')

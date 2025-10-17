@@ -1,0 +1,20 @@
+{
+  "comment": "Voice Activity Detection (VAD) Configuration TEMPLATE",
+  "description": "Copy this to vad_config.json and customize for your environment",
+
+  "detection": {
+    "energy_threshold": 500,
+    "speech_confirmation_chunks": 3,
+    "chunk_size": 1024
+  },
+
+  "timing": {
+    "silence_threshold": 2.5,
+    "conversation_timeout": 30
+  },
+
+  "audio": {
+    "sample_rate": 16000,
+    "channels": 1
+  }
+}
