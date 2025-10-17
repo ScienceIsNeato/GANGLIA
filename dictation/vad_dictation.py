@@ -84,7 +84,6 @@ class VoiceActivityDictation(Dictation):
             self.transition_buffer = []  # Additional buffer for stream transition
 
             Logger.print_info("Voice Activity Dictation initialized - Cost-efficient mode enabled")
-            Logger.print_info(f"VAD Settings: energy_threshold={self.ENERGY_THRESHOLD}, confirmation_chunks={self.SPEECH_CONFIRMATION_CHUNKS}")
             Logger.print_info("💤 Listening for ANY human speech to activate...")
 
         except Exception as e:
@@ -156,8 +155,6 @@ class VoiceActivityDictation(Dictation):
 
         This is simpler and more natural than wake word detection.
         """
-        Logger.print_info("💤 Idle mode - Listening for speech (cost-free)...")
-        Logger.print_info("Start speaking to activate GANGLIA...")
 
         # Open audio stream
         self.vad_stream = self.audio.open(
@@ -188,8 +185,7 @@ class VoiceActivityDictation(Dictation):
 
                     # Confirm sustained speech (not just a noise spike)
                     if high_energy_chunks >= self.SPEECH_CONFIRMATION_CHUNKS:
-                        Logger.print_info("🎤 Speech detected! Activating conversation mode...")
-                        Logger.print_debug(f"Prepending {len(self.audio_buffer)} buffered audio chunks")
+                        print("🎤", flush=True)
                         self.mode = 'ACTIVE'
                         # DON'T close stream yet - keep it for transition buffer
                         return True
@@ -237,14 +233,12 @@ class VoiceActivityDictation(Dictation):
         """
         # First, yield buffered audio chunks (captured before activation)
         if self.audio_buffer:
-            Logger.print_debug(f"Prepending {len(self.audio_buffer)} buffered chunks to stream")
             for buffered_chunk in self.audio_buffer:
                 yield buffered_chunk
             self.audio_buffer = []
 
         # Second, yield transition buffer (captured during stream setup)
         if self.transition_buffer:
-            Logger.print_debug(f"Adding {len(self.transition_buffer)} transition chunks to stream")
             for transition_chunk in self.transition_buffer:
                 yield transition_chunk
             self.transition_buffer = []
@@ -262,12 +256,9 @@ class VoiceActivityDictation(Dictation):
         Active conversation mode - full Google Cloud streaming.
         Continues using the VAD stream to avoid gaps during transition.
         """
-        Logger.print_info("🎤 Active conversation mode - listening...")
-
         # Continue buffering audio during stream setup to avoid gaps
         # Collect audio chunks while we set up the Google Speech stream
         if self.vad_stream:
-            Logger.print_debug("Collecting transition audio to avoid gaps...")
             for _ in range(5):  # Collect ~5 chunks during setup (~300ms)
                 try:
                     chunk = self.vad_stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
@@ -288,7 +279,7 @@ class VoiceActivityDictation(Dictation):
 
         def return_to_idle():
             """Return to idle listening mode after timeout."""
-            Logger.print_info("Conversation timeout - returning to idle listening mode")
+            print("💤", flush=True)
             self.mode = 'IDLE'
             self.listening = False
 
