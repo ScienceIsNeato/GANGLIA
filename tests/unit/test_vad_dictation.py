@@ -33,7 +33,7 @@ class TestVADConfiguration(unittest.TestCase):
                 # Mock os.path.exists to prevent loading the actual config file
                 with patch('os.path.exists', return_value=False):
                     vad = VoiceActivityDictation()
-                    
+
                     # Check default values (from DEFAULT_CONFIG)
                     self.assertEqual(vad.ENERGY_THRESHOLD, 500)
                     self.assertEqual(vad.SPEECH_CONFIRMATION_CHUNKS, 3)
@@ -184,20 +184,20 @@ class TestAudioBuffering(unittest.TestCase):
         with patch('dictation.vad_dictation.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
-                
+
                 # Mock stream
                 mock_stream = Mock()
                 mock_stream.read.side_effect = [b'live1', b'live2']
-                
+
                 # Set up buffers
                 vad.audio_buffer = [b'pre1', b'pre2']
                 vad.transition_buffer = [b'trans1', b'trans2']
                 vad.listening = True
                 vad.mode = 'ACTIVE'
-                
+
                 # Generate chunks
                 generator = vad.generate_audio_chunks(mock_stream)
-                
+
                 # Consume all chunks
                 all_chunks = []
                 for i in range(6):  # 2 pre + 2 trans + 2 live
@@ -205,11 +205,11 @@ class TestAudioBuffering(unittest.TestCase):
                         all_chunks.append(next(generator))
                     except StopIteration:
                         break
-                
+
                 # Verify correct order
                 self.assertEqual(all_chunks[:2], [b'pre1', b'pre2'])
                 self.assertEqual(all_chunks[2:4], [b'trans1', b'trans2'])
-                
+
                 # Verify buffers were cleared after yielding all their chunks
                 self.assertEqual(len(vad.audio_buffer), 0)
                 self.assertEqual(len(vad.transition_buffer), 0)
