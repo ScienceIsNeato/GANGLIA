@@ -46,10 +46,6 @@ ganglia_minified.py
 # AI status
 .ai_status.md
 .cursorrules
-<<<<<<< Updated upstream
 .cursor/
-.cursor
+.cursorrules
 .env
-=======
-.cursor
->>>>>>> Stashed changes
