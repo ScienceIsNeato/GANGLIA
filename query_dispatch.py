@@ -79,6 +79,66 @@ class ChatGPTQueryDispatcher:
 
         return reply
 
+    def send_query_streaming(self, current_input):
+        """Send a query to ChatGPT API and stream the response sentence by sentence.
+        
+        This enables faster perceived response time by allowing TTS generation to start
+        before the full LLM response is complete.
+
+        Args:
+            current_input (str): The user's input to send to ChatGPT
+
+        Yields:
+            str: Individual sentences from the AI's response as they're completed
+        """
+        self.messages.append({"role": "user", "content": current_input})
+        start_time = time()
+
+        self.rotate_session_history()
+
+        Logger.print_debug("Sending streaming query to AI server...")
+
+        stream = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=self.messages,
+            stream=True
+        )
+
+        full_response = ""
+        current_sentence = ""
+        sentence_endings = ('.', '!', '?', '\n')
+
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                full_response += content
+                current_sentence += content
+
+                # Check if we've completed a sentence
+                if any(current_sentence.rstrip().endswith(end) for end in sentence_endings):
+                    sentence = current_sentence.strip()
+                    if sentence:  # Only yield non-empty sentences
+                        Logger.print_debug(f"Streaming sentence: {sentence[:50]}...")
+                        yield sentence
+                        current_sentence = ""
+
+        # Yield any remaining text as the final sentence
+        if current_sentence.strip():
+            Logger.print_debug(f"Streaming final: {current_sentence[:50]}...")
+            yield current_sentence.strip()
+
+        # Add the complete response to message history
+        self.messages.append({"role": "assistant", "content": full_response})
+
+        Logger.print_info(f"AI response streamed in {time() - start_time:.1f} seconds.")
+
+        # Save the response to disk
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        temp_dir = get_tempdir()
+
+        with open(os.path.join(temp_dir, f"chatgpt_output_{timestamp}_raw.txt"), "w", encoding='utf-8') as file:
+            file.write(full_response)
+
     def rotate_session_history(self):
         """Rotate session history to keep token count under limit."""
         total_tokens = 0

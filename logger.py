@@ -151,6 +151,20 @@ class Logger:
         print(f"{term.white}", end="", flush=True)
 
     @staticmethod
+    def print_perf(*args, **kwargs):
+        """Print performance timing messages in bright cyan.
+
+        Used for logging performance metrics and timing information.
+
+        Args:
+            *args: Variable length argument list to be printed.
+            **kwargs: Arbitrary keyword arguments passed to print function.
+        """
+        print(f"{term.cyan}", end="")
+        print(*args, **kwargs)
+        print(f"{term.white}", end="", flush=True)
+
+    @staticmethod
     def print_legend():
         """Print a color-coded legend banner showing available message types.
 

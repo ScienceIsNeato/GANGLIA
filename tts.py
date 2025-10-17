@@ -18,6 +18,8 @@ import threading
 from abc import ABC, abstractmethod
 from datetime import datetime
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor
+from typing import List, Tuple
 
 # Third-party imports
 from google.cloud import texttospeech_v1 as tts
@@ -318,4 +320,85 @@ class GoogleTTS(TextToSpeech):
             Logger.print_error(
                 f"{thread_prefix}Error converting text to speech: {e}"
             )
+            return False, None
+
+    def convert_text_to_speech_streaming(self, sentences: List[str], voice_id="en-US-Casual-K") -> Tuple[bool, str]:
+        """Convert multiple sentences to speech in parallel and concatenate.
+        
+        This method generates TTS for multiple sentences concurrently to reduce
+        total generation time for multi-sentence responses.
+        
+        Args:
+            sentences: List of sentences to convert to speech
+            voice_id: The ID of the voice to use
+            
+        Returns:
+            tuple: (success: bool, file_path: str) where file_path is the path
+                  to the concatenated audio file if successful, None otherwise
+        """
+        if not sentences:
+            return False, None
+        
+        # Single sentence - use regular method
+        if len(sentences) == 1:
+            return self.convert_text_to_speech(sentences[0], voice_id)
+        
+        Logger.print_debug(f"Generating TTS for {len(sentences)} sentences in parallel...")
+        
+        # Generate TTS for all sentences in parallel
+        with ThreadPoolExecutor(max_workers=min(3, len(sentences))) as executor:
+            futures = [
+                executor.submit(self.convert_text_to_speech, sentence, voice_id)
+                for sentence in sentences
+            ]
+            results = [future.result() for future in futures]
+        
+        # Check if all succeeded
+        if not all(success for success, _ in results):
+            Logger.print_error("One or more TTS generations failed")
+            return False, None
+        
+        # Extract file paths
+        audio_files = [file_path for success, file_path in results if success]
+        
+        if not audio_files:
+            return False, None
+        
+        # Concatenate audio files
+        try:
+            temp_dir = get_tempdir()
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+            output_file = os.path.join(temp_dir, "tts", f"concatenated_{timestamp}.mp3")
+            
+            # Create file list for ffmpeg
+            file_list_path = os.path.join(temp_dir, "tts", f"concat_list_{timestamp}.txt")
+            with open(file_list_path, "w") as f:
+                for audio_file in audio_files:
+                    f.write(f"file '{audio_file}'\n")
+            
+            # Use ffmpeg to concatenate
+            subprocess.run(
+                ["ffmpeg", "-f", "concat", "-safe", "0", "-i", file_list_path, 
+                 "-c", "copy", output_file],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True
+            )
+            
+            # Clean up individual files and list
+            for audio_file in audio_files:
+                try:
+                    os.remove(audio_file)
+                except Exception:
+                    pass
+            try:
+                os.remove(file_list_path)
+            except Exception:
+                pass
+            
+            Logger.print_debug(f"Concatenated {len(audio_files)} audio files into {output_file}")
+            return True, output_file
+            
+        except Exception as e:
+            Logger.print_error(f"Error concatenating audio files: {e}")
             return False, None
