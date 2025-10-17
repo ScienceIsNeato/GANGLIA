@@ -20,8 +20,8 @@
     "silence_threshold": 2.5,
     "comment_silence_threshold": "Seconds of silence before marking user as 'done speaking' within a conversation. Default: 2.5",
 
-    "conversation_timeout": 30,
-    "comment_conversation_timeout": "Seconds of silence before returning to idle listening mode (stops Google API streaming). Default: 30"
+    "conversation_timeout": 5,
+    "comment_conversation_timeout": "Seconds of silence before returning to idle listening mode (stops Google API streaming). Default: 30. CURRENT: 5 (quick timeout for outdoor environment with passing cars)"
   },
 
   "audio": {
