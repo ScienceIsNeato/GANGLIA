@@ -82,8 +82,12 @@ class ChatGPTQueryDispatcher:
                 audio={"voice": self.audio_voice, "format": "wav"},
                 messages=self.messages
             )
-            reply = chat.choices[0].message.content
+            reply = chat.choices[0].message.content or ""
             audio_data = chat.choices[0].message.audio
+            
+            # Get text transcript from audio if content is missing
+            if not reply and hasattr(audio_data, 'transcript'):
+                reply = audio_data.transcript or "[Audio response - no transcript]"
 
             # Save audio to file
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
