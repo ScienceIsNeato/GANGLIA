@@ -85,6 +85,15 @@ class ChatGPTQueryDispatcher:
             reply = chat.choices[0].message.content or ""
             audio_data = chat.choices[0].message.audio
             
+            # Check if audio was actually returned
+            if not audio_data or not hasattr(audio_data, 'data'):
+                Logger.print_warning("⚠️  Audio output requested but not received from API. Falling back to TTS.")
+                # Fall back to regular text-only response + TTS
+                if not reply:
+                    reply = "[No response received]"
+                self.messages.append({"role": "assistant", "content": reply})
+                return reply  # Return text only, will trigger TTS in conversation handler
+            
             # Get text transcript from audio if content is missing
             if not reply and hasattr(audio_data, 'transcript'):
                 reply = audio_data.transcript or "[Audio response - no transcript]"

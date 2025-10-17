@@ -410,44 +410,63 @@ class Conversation:
             if self.query_dispatcher.audio_output:
                 # Use LLM with integrated audio output (no streaming, no TTS)
                 self.conversation_timer.mark_llm_start()
-                
+
                 # Update user activity and history
                 self.user_profile.update_activity()
                 self.user_profile.add_conversation_entry({
                     'role': 'user',
                     'content': user_input
                 })
+
+                # Get response (may include audio or just text if audio failed)
+                query_result = self.query_dispatcher.send_query(user_input)
                 
-                # Get response with audio
-                response, audio_file = self.query_dispatcher.send_query(user_input)
+                # Check if audio was returned (tuple) or just text (fallback)
+                if isinstance(query_result, tuple):
+                    response, audio_file = query_result
+                    has_audio = True
+                else:
+                    response = query_result
+                    has_audio = False
+                
                 Logger.print_demon_output(response)
-                
+
                 self.conversation_timer.mark_llm_end()
-                
+
                 # Add to user profile
                 self.user_profile.add_conversation_entry({
                     'role': 'assistant',
                     'content': response
                 })
-                
+
                 # Log the interaction
                 if self.session_logger:
                     self.session_logger.log_session_interaction(
                         SessionEvent(user_input, response)
                     )
-                
+
                 if self.ai_turn_indicator:
                     self.ai_turn_indicator.input_out()
-                
-                # Skip TTS - audio came from LLM
-                self.conversation_timer.mark_tts_start()
-                self.conversation_timer.mark_tts_end()
-                
-                # Play the audio directly
-                self.conversation_timer.mark_playback_start()
-                if self.tts:
-                    self.tts.play_speech_response(audio_file, response)
-                    
+
+                if has_audio:
+                    # Skip TTS - audio came from LLM
+                    self.conversation_timer.mark_tts_start()
+                    self.conversation_timer.mark_tts_end()
+
+                    # Play the audio directly
+                    self.conversation_timer.mark_playback_start()
+                    if self.tts:
+                        self.tts.play_speech_response(audio_file, response)
+                else:
+                    # Fallback to TTS since audio wasn't returned
+                    if self.tts:
+                        self.conversation_timer.mark_tts_start()
+                        _, file_path = self.tts.convert_text_to_speech(response)
+                        self.conversation_timer.mark_tts_end()
+                        
+                        self.conversation_timer.mark_playback_start()
+                        self.tts.play_speech_response(file_path, response)
+
             else:
                 # Use streaming LLM + parallel TTS for regular conversation
                 self.conversation_timer.mark_llm_start()
