@@ -24,6 +24,15 @@ config/chatgpt_session_config.json
 config/ttv_config.json
 config_backups/*
 
+# Session scratch files
+AUDIO_PROCESS_HANGING_ANALYSIS.md
+COMMIT_MSG.txt
+prep_env.sh
+dictation/wake_word_dictation.py
+
+# Utility repositories
+cursor-rules/
+
 # Test outputs
 tests/unit/ttv/test_outputs/
 tests/third_party/ttv/test_outputs/
@@ -38,5 +47,5 @@ ganglia_minified.py
 .ai_status.md
 .cursorrules
 .cursor/
-.cursor
+.cursorrules
 .env
