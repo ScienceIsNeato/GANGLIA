@@ -64,10 +64,12 @@ def initialize_components(args):
     # Initialize TTS
     tts = None
     try:
-        tts = parse_tts_interface(args.tts_interface)
+        tts = parse_tts_interface(args.tts_interface, apply_effects=args.audio_effects)
         # The GoogleTTS class doesn't have a set_voice_id method
         # It accepts voice_id directly in the convert_text_to_speech method
         # We'll pass the voice_id when calling convert_text_to_speech
+        if args.audio_effects:
+            Logger.print_info("🎸 Audio effects enabled (pitch down, reverb, bass boost)")
         Logger.print_debug("TTS initialized successfully.")
     except Exception as e:
         Logger.print_error(f"Failed to initialize TTS: {e}")
@@ -179,7 +181,7 @@ def main():
     if args.ttv_config:
         # Process text-to-video generation without conversation
         Logger.print_info("Processing text-to-video generation...")
-        tts_client = parse_tts_interface(args.tts_interface)
+        tts_client = parse_tts_interface(args.tts_interface, apply_effects=args.audio_effects)
         text_to_video(
             config_path=args.ttv_config,
             skip_generation=args.skip_image_generation,

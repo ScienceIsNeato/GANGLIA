@@ -232,10 +232,15 @@ class GoogleTTS(TextToSpeech):
     # Class-level lock for gRPC client creation
     _client_lock = threading.Lock()
 
-    def __init__(self):
-        """Initialize the Google TTS client."""
+    def __init__(self, apply_effects=False):
+        """Initialize the Google TTS client.
+        
+        Args:
+            apply_effects: If True, apply audio effects (pitch shift, reverb, etc.)
+        """
         super().__init__()
-        Logger.print_info("Initializing GoogleTTS...")
+        self.apply_effects = apply_effects
+        Logger.print_info(f"Initializing GoogleTTS{'with audio effects' if apply_effects else ''}...")
         # Create a single shared client instance with thread safety
         with self._client_lock:
             self._client = tts.TextToSpeechClient()
@@ -307,7 +312,67 @@ class GoogleTTS(TextToSpeech):
         with open(file_path, "wb") as out:
             out.write(response.audio_content)
 
+        # Apply audio effects if enabled
+        if self.apply_effects:
+            file_path = self._apply_audio_effects(file_path, temp_dir, timestamp)
+
         return True, file_path
+
+    def _apply_audio_effects(self, input_file: str, temp_dir: str, timestamp: str) -> str:
+        """Apply audio effects to make voice deeper and more dramatic.
+        
+        Effects applied:
+        - Pitch shift down (deeper voice)
+        - Slight reverb (more atmospheric)
+        - Bass boost (more authoritative)
+        
+        Args:
+            input_file: Path to input audio file
+            temp_dir: Temporary directory for output
+            timestamp: Timestamp for unique filename
+            
+        Returns:
+            Path to processed audio file
+        """
+        output_file = os.path.join(temp_dir, "tts", f"processed_{timestamp}.mp3")
+        
+        try:
+            # FFmpeg audio filter chain:
+            # 1. asetrate: Change sample rate to pitch down (lower = deeper)
+            # 2. aresample: Resample back to original rate
+            # 3. bass: Boost bass frequencies for more authority
+            # 4. aecho: Add subtle echo/reverb for atmosphere
+            filter_complex = (
+                "asetrate=44100*0.92,"  # Pitch down ~8% (deeper voice like Onyx)
+                "aresample=44100,"       # Resample to standard rate
+                "bass=g=3,"              # Boost bass by 3dB
+                "aecho=0.8:0.9:60:0.3"   # Subtle echo (delay, decay, delay_ms, decay)
+            )
+            
+            subprocess.run(
+                [
+                    "ffmpeg", "-i", input_file,
+                    "-af", filter_complex,
+                    "-y",  # Overwrite output
+                    output_file
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True
+            )
+            
+            # Remove original file
+            try:
+                os.remove(input_file)
+            except Exception:
+                pass
+                
+            Logger.print_debug(f"Applied audio effects to {output_file}")
+            return output_file
+            
+        except Exception as e:
+            Logger.print_warning(f"Failed to apply audio effects: {e}, using original")
+            return input_file
 
     def convert_text_to_speech(self, text: str, voice_id="en-US-Casual-K",
                              thread_id: str = None):
