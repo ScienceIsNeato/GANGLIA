@@ -83,7 +83,13 @@ def initialize_components(args):
     # Initialize query dispatcher
     query_dispatcher = None
     try:
-        query_dispatcher = ChatGPTQueryDispatcher(config_file_path=config_path)
+        query_dispatcher = ChatGPTQueryDispatcher(
+            config_file_path=config_path,
+            audio_output=args.audio_output,
+            audio_voice=args.audio_voice
+        )
+        if args.audio_output:
+            Logger.print_info(f"🎵 Audio output enabled (gpt-4o-audio-preview with voice: {args.audio_voice})")
         Logger.print_debug("ChatGPTQueryDispatcher initialized successfully.")
     except Exception as e:
         Logger.print_error(f"Failed to initialize ChatGPTQueryDispatcher: {e}")

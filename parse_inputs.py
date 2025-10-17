@@ -92,6 +92,8 @@ def parse_args(args=None):
     parser.add_argument('--display-log-hours', type=int, help="Display the last N hours of logs in transcript format.")
     parser.add_argument('--show-log-errors', action='store_true', help="Display SYSTEM ERROR logs.")
     parser.add_argument('--timing-analysis', action='store_true', help="Enable detailed timing analysis of conversation pipeline (default: False)")
+    parser.add_argument('--audio-output', action='store_true', help="Use gpt-4o-audio-preview to get audio directly from LLM (experimental, ~10x cost)")
+    parser.add_argument('--audio-voice', type=str, default='onyx', help="Voice for audio output: alloy, echo, fable, onyx, nova, shimmer (default: onyx)")
 
     parsed_args = parser.parse_args(args)
 

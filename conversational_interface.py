@@ -375,20 +375,36 @@ class Conversation:
         if uses_special_handling:
             # Use traditional non-streaming approach for special cases
             self.conversation_timer.mark_llm_start()
-            response = self.process_user_input(user_input)
+            query_result = self.process_user_input(user_input)
             self.conversation_timer.mark_llm_end()
 
-            if self.ai_turn_indicator:
-                self.ai_turn_indicator.input_out()
-
-            if self.tts:
-                # Generate speech response
-                self.conversation_timer.mark_tts_start()
-                _, file_path = self.tts.convert_text_to_speech(response)
+            # Check if response includes audio
+            if isinstance(query_result, tuple):
+                response, audio_file = query_result
+                # Audio from LLM - skip TTS entirely
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+                
+                self.conversation_timer.mark_tts_start()  # Mark as 0 time
                 self.conversation_timer.mark_tts_end()
-
                 self.conversation_timer.mark_playback_start()
-                self.tts.play_speech_response(file_path, response)
+                
+                if self.tts:
+                    self.tts.play_speech_response(audio_file, response)
+            else:
+                response = query_result
+                # Traditional TTS path
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+
+                if self.tts:
+                    # Generate speech response
+                    self.conversation_timer.mark_tts_start()
+                    _, file_path = self.tts.convert_text_to_speech(response)
+                    self.conversation_timer.mark_tts_end()
+
+                    self.conversation_timer.mark_playback_start()
+                    self.tts.play_speech_response(file_path, response)
         else:
             # Use streaming LLM + parallel TTS for regular conversation
             self.conversation_timer.mark_llm_start()
