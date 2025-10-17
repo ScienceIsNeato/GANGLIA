@@ -384,11 +384,11 @@ class Conversation:
                 # Audio from LLM - skip TTS entirely
                 if self.ai_turn_indicator:
                     self.ai_turn_indicator.input_out()
-                
+
                 self.conversation_timer.mark_tts_start()  # Mark as 0 time
                 self.conversation_timer.mark_tts_end()
                 self.conversation_timer.mark_playback_start()
-                
+
                 if self.tts:
                     self.tts.play_speech_response(audio_file, response)
             else:
@@ -406,60 +406,103 @@ class Conversation:
                     self.conversation_timer.mark_playback_start()
                     self.tts.play_speech_response(file_path, response)
         else:
-            # Use streaming LLM + parallel TTS for regular conversation
-            self.conversation_timer.mark_llm_start()
-
-            # Update user activity and history
-            self.user_profile.update_activity()
-            self.user_profile.add_conversation_entry({
-                'role': 'user',
-                'content': user_input
-            })
-
-            # Stream LLM response sentence by sentence
-            sentences = []
-            full_response = ""
-
-            for sentence in self.query_dispatcher.send_query_streaming(user_input):
-                sentences.append(sentence)
-                full_response += sentence + " "
-                Logger.print_demon_output(sentence)  # Print each sentence as it arrives
-
-            self.conversation_timer.mark_llm_end()
-
-            # Add to user profile
-            self.user_profile.add_conversation_entry({
-                'role': 'assistant',
-                'content': full_response.strip()
-            })
-
-            # Log the interaction
-            if self.session_logger:
-                self.session_logger.log_session_interaction(
-                    SessionEvent(user_input, full_response.strip())
-                )
-
-            response = full_response.strip()
-
-            if self.ai_turn_indicator:
-                self.ai_turn_indicator.input_out()
-
-            if self.tts and sentences:
-                # Generate speech using parallel TTS for multiple sentences
+            # Check if we should use audio output from LLM
+            if self.query_dispatcher.audio_output:
+                # Use LLM with integrated audio output (no streaming, no TTS)
+                self.conversation_timer.mark_llm_start()
+                
+                # Update user activity and history
+                self.user_profile.update_activity()
+                self.user_profile.add_conversation_entry({
+                    'role': 'user',
+                    'content': user_input
+                })
+                
+                # Get response with audio
+                response, audio_file = self.query_dispatcher.send_query(user_input)
+                Logger.print_demon_output(response)
+                
+                self.conversation_timer.mark_llm_end()
+                
+                # Add to user profile
+                self.user_profile.add_conversation_entry({
+                    'role': 'assistant',
+                    'content': response
+                })
+                
+                # Log the interaction
+                if self.session_logger:
+                    self.session_logger.log_session_interaction(
+                        SessionEvent(user_input, response)
+                    )
+                
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+                
+                # Skip TTS - audio came from LLM
                 self.conversation_timer.mark_tts_start()
-
-                if len(sentences) > 1:
-                    # Use parallel generation for multi-sentence responses
-                    Logger.print_debug(f"Using parallel TTS for {len(sentences)} sentences")
-                    _, file_path = self.tts.convert_text_to_speech_streaming(sentences)
-                else:
-                    # Single sentence - use regular method
-                    _, file_path = self.tts.convert_text_to_speech(sentences[0])
-
                 self.conversation_timer.mark_tts_end()
-
+                
+                # Play the audio directly
                 self.conversation_timer.mark_playback_start()
-                self.tts.play_speech_response(file_path, response)
+                if self.tts:
+                    self.tts.play_speech_response(audio_file, response)
+                    
+            else:
+                # Use streaming LLM + parallel TTS for regular conversation
+                self.conversation_timer.mark_llm_start()
+
+                # Update user activity and history
+                self.user_profile.update_activity()
+                self.user_profile.add_conversation_entry({
+                    'role': 'user',
+                    'content': user_input
+                })
+
+                # Stream LLM response sentence by sentence
+                sentences = []
+                full_response = ""
+
+                for sentence in self.query_dispatcher.send_query_streaming(user_input):
+                    sentences.append(sentence)
+                    full_response += sentence + " "
+                    Logger.print_demon_output(sentence)  # Print each sentence as it arrives
+
+                self.conversation_timer.mark_llm_end()
+
+                # Add to user profile
+                self.user_profile.add_conversation_entry({
+                    'role': 'assistant',
+                    'content': full_response.strip()
+                })
+
+                # Log the interaction
+                if self.session_logger:
+                    self.session_logger.log_session_interaction(
+                        SessionEvent(user_input, full_response.strip())
+                    )
+
+                response = full_response.strip()
+
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+
+                if self.tts and sentences:
+                    # Generate speech using parallel TTS for multiple sentences
+                    self.conversation_timer.mark_tts_start()
+
+                    if len(sentences) > 1:
+                        # Use parallel generation for multi-sentence responses
+                        Logger.print_debug(f"Using parallel TTS for {len(sentences)} sentences")
+                        _, file_path = self.tts.convert_text_to_speech_streaming(sentences)
+                    else:
+                        # Single sentence - use regular method
+                        _, file_path = self.tts.convert_text_to_speech(sentences[0])
+
+                    self.conversation_timer.mark_tts_end()
+
+                    self.conversation_timer.mark_playback_start()
+                    self.tts.play_speech_response(file_path, response)
 
         self.conversation_timer.mark_ai_end()
 
