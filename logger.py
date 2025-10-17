@@ -33,6 +33,7 @@ Color Scheme:
 
 import threading
 import blessed
+from datetime import datetime
 
 term = blessed.Terminal()
 
@@ -46,6 +47,7 @@ class Logger:
 
     Attributes:
         _lock (threading.Lock): Thread lock for synchronizing output operations.
+        _timestamps_enabled (bool): Whether to prepend timestamps to log messages.
 
     Color Scheme:
         - User Input: Deep Sky Blue
@@ -57,6 +59,24 @@ class Logger:
     """
 
     _lock = threading.Lock()
+    _timestamps_enabled = False
+
+    @staticmethod
+    def enable_timestamps():
+        """Enable timestamp prefixes for all log messages."""
+        Logger._timestamps_enabled = True
+
+    @staticmethod
+    def disable_timestamps():
+        """Disable timestamp prefixes for all log messages."""
+        Logger._timestamps_enabled = False
+
+    @staticmethod
+    def _get_timestamp():
+        """Get formatted timestamp if timestamps are enabled."""
+        if Logger._timestamps_enabled:
+            return f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] "
+        return ""
 
     @staticmethod
     def print_user_input(*args, **kwargs):
@@ -104,7 +124,7 @@ class Logger:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
-        print(f"{term.yellow}", end="")
+        print(f"{term.yellow}{Logger._get_timestamp()}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
 
@@ -118,7 +138,7 @@ class Logger:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
-        print(f"{term.yellow}", end="")
+        print(f"{term.yellow}{Logger._get_timestamp()}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
 
@@ -132,7 +152,7 @@ class Logger:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
-        print(f"{term.salmon1}", end="")
+        print(f"{term.salmon1}{Logger._get_timestamp()}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
 
@@ -146,7 +166,7 @@ class Logger:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
-        print(f"{term.snow4}", end="")
+        print(f"{term.snow4}{Logger._get_timestamp()}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
 
@@ -160,7 +180,7 @@ class Logger:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
-        print(f"{term.cyan}", end="")
+        print(f"{term.cyan}{Logger._get_timestamp()}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
 

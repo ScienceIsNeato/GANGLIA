@@ -144,9 +144,11 @@ def main():
     # Enable timing analysis if requested
     if args.timing_analysis:
         enable_timing_analysis()
+        Logger.enable_timestamps()  # Enable timestamps for timing analysis
         Logger.print_perf("=" * 60)
         Logger.print_perf("TIMING ANALYSIS ENABLED")
         Logger.print_perf("Detailed conversation pipeline timing will be logged")
+        Logger.print_perf("Timestamps enabled")
         Logger.print_perf("=" * 60)
 
     # Create temp directory if it doesn't exist

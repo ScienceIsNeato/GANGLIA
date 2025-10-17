@@ -41,7 +41,7 @@ class ChatGPTQueryDispatcher:
         self.audio_output = audio_output
         self.audio_voice = audio_voice
         self.model = "gpt-4o-audio-preview" if audio_output else "gpt-4o-mini"
-        
+
         if pre_prompt:
             self.messages.append({"role": "system", "content": pre_prompt})
 
@@ -84,30 +84,30 @@ class ChatGPTQueryDispatcher:
             )
             reply = chat.choices[0].message.content
             audio_data = chat.choices[0].message.audio
-            
+
             # Save audio to file
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             temp_dir = get_tempdir()
             os.makedirs(os.path.join(temp_dir, "tts"), exist_ok=True)
             audio_file = os.path.join(temp_dir, "tts", f"audio_response_{timestamp}.wav")
-            
-            # Decode base64 audio and save
-            audio_bytes = base64.b64decode(audio_data["data"])
+
+            # Decode base64 audio and save (audio_data is an object, not a dict)
+            audio_bytes = base64.b64decode(audio_data.data)
             with open(audio_file, "wb") as f:
                 f.write(audio_bytes)
-            
+
             self.messages.append({"role": "assistant", "content": reply})
-            
+
             elapsed = time() - start_time
             if is_timing_enabled():
                 Logger.print_perf(f"⏱️  [LLM+AUDIO] Response received in {elapsed:.2f}s ({len(reply)} chars + audio)")
             else:
                 Logger.print_info(f"AI response (with audio) received in {elapsed:.1f} seconds.")
-            
+
             # Save text response
             with open(os.path.join(temp_dir, f"chatgpt_output_{timestamp}_raw.txt"), "w", encoding='utf-8') as file:
                 file.write(reply)
-            
+
             return reply, audio_file
         else:
             # Standard text-only response
