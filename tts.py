@@ -15,6 +15,7 @@ import select
 import subprocess
 import sys
 import threading
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from urllib.parse import urlparse
@@ -28,6 +29,7 @@ from google.api_core import exceptions as google_exceptions
 # Local imports
 from logger import Logger
 from utils import get_tempdir, exponential_backoff
+from utils.performance_profiler import is_timing_enabled
 
 class TextToSpeech(ABC):
     """Abstract base class for text-to-speech functionality.
@@ -109,6 +111,10 @@ class TextToSpeech(ABC):
                 f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)"
             )
             Logger.print_demon_output(raw_response)
+
+            # Mark the moment audio playback begins
+            if is_timing_enabled():
+                Logger.print_perf(f"⏱️  [PLAYBACK] Starting audio playback NOW! (duration: {audio_duration:.1f}s)")
 
             # Start playback in a non-blocking manner
             playback_process = subprocess.Popen(
@@ -260,14 +266,23 @@ class GoogleTTS(TextToSpeech):
         )
 
         thread_prefix = f"{thread_id} " if thread_id else ""
-        Logger.print_debug(f"{thread_prefix}Converting text to speech...")
+        
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [TTS] Converting text to speech ({len(text)} chars)...")
+        else:
+            Logger.print_debug(f"{thread_prefix}Converting text to speech...")
 
         # Use the shared client instance
+        tts_start = time.time()
         response = self._client.synthesize_speech(
             input=synthesis_input,
             voice=voice,
             audio_config=audio_config
         )
+        tts_elapsed = time.time() - tts_start
+        
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [TTS] Audio generated in {tts_elapsed:.2f}s")
 
         # Create temp directory if it doesn't exist
         temp_dir = get_tempdir()
@@ -324,27 +339,27 @@ class GoogleTTS(TextToSpeech):
 
     def convert_text_to_speech_streaming(self, sentences: List[str], voice_id="en-US-Casual-K") -> Tuple[bool, str]:
         """Convert multiple sentences to speech in parallel and concatenate.
-        
+
         This method generates TTS for multiple sentences concurrently to reduce
         total generation time for multi-sentence responses.
-        
+
         Args:
             sentences: List of sentences to convert to speech
             voice_id: The ID of the voice to use
-            
+
         Returns:
             tuple: (success: bool, file_path: str) where file_path is the path
                   to the concatenated audio file if successful, None otherwise
         """
         if not sentences:
             return False, None
-        
+
         # Single sentence - use regular method
         if len(sentences) == 1:
             return self.convert_text_to_speech(sentences[0], voice_id)
-        
+
         Logger.print_debug(f"Generating TTS for {len(sentences)} sentences in parallel...")
-        
+
         # Generate TTS for all sentences in parallel
         with ThreadPoolExecutor(max_workers=min(3, len(sentences))) as executor:
             futures = [
@@ -352,39 +367,39 @@ class GoogleTTS(TextToSpeech):
                 for sentence in sentences
             ]
             results = [future.result() for future in futures]
-        
+
         # Check if all succeeded
         if not all(success for success, _ in results):
             Logger.print_error("One or more TTS generations failed")
             return False, None
-        
+
         # Extract file paths
         audio_files = [file_path for success, file_path in results if success]
-        
+
         if not audio_files:
             return False, None
-        
+
         # Concatenate audio files
         try:
             temp_dir = get_tempdir()
             timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
             output_file = os.path.join(temp_dir, "tts", f"concatenated_{timestamp}.mp3")
-            
+
             # Create file list for ffmpeg
             file_list_path = os.path.join(temp_dir, "tts", f"concat_list_{timestamp}.txt")
             with open(file_list_path, "w") as f:
                 for audio_file in audio_files:
                     f.write(f"file '{audio_file}'\n")
-            
+
             # Use ffmpeg to concatenate
             subprocess.run(
-                ["ffmpeg", "-f", "concat", "-safe", "0", "-i", file_list_path, 
+                ["ffmpeg", "-f", "concat", "-safe", "0", "-i", file_list_path,
                  "-c", "copy", output_file],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=True
             )
-            
+
             # Clean up individual files and list
             for audio_file in audio_files:
                 try:
@@ -395,10 +410,10 @@ class GoogleTTS(TextToSpeech):
                 os.remove(file_list_path)
             except Exception:
                 pass
-            
+
             Logger.print_debug(f"Concatenated {len(audio_files)} audio files into {output_file}")
             return True, output_file
-            
+
         except Exception as e:
             Logger.print_error(f"Error concatenating audio files: {e}")
             return False, None

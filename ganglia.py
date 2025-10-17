@@ -21,6 +21,7 @@ from utils import get_tempdir
 from ttv.ttv import text_to_video
 from fetch_and_display_logs import display_logs
 from pubsub import get_pubsub
+from utils.performance_profiler import enable_timing_analysis
 
 
 def get_config_path():
@@ -133,6 +134,14 @@ def main():
     """Main entry point for the GANGLIA system."""
     # Load command line arguments
     args = load_config()
+
+    # Enable timing analysis if requested
+    if args.timing_analysis:
+        enable_timing_analysis()
+        Logger.print_perf("=" * 60)
+        Logger.print_perf("TIMING ANALYSIS ENABLED")
+        Logger.print_perf("Detailed conversation pipeline timing will be logged")
+        Logger.print_perf("=" * 60)
 
     # Create temp directory if it doesn't exist
     get_tempdir()

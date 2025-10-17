@@ -315,7 +315,7 @@ class Conversation:
         # Reset conversation timer for new turn
         self.conversation_timer = ConversationTimer()
         self.conversation_timer.mark_user_start()
-        
+
         while True:  # Keep asking for input until a non-empty prompt is received
             if self.user_turn_indicator:
                 self.user_turn_indicator.input_in()
@@ -362,16 +362,16 @@ class Conversation:
             The AI's response
         """
         self.conversation_timer.mark_ai_start()
-        
+
         if self.ai_turn_indicator:
             self.ai_turn_indicator.input_in()
 
         # Check for hotwords or special handling that doesn't use LLM streaming
         hotword_detected, _ = self.hotword_manager.detect_hotwords(user_input) if self.hotword_manager else (False, None)
-        uses_special_handling = (hotword_detected or 
-                                 self.waiting_for_ttv_info or 
+        uses_special_handling = (hotword_detected or
+                                 self.waiting_for_ttv_info or
                                  self.ttv_process_running)
-        
+
         if uses_special_handling:
             # Use traditional non-streaming approach for special cases
             self.conversation_timer.mark_llm_start()
@@ -386,43 +386,43 @@ class Conversation:
                 self.conversation_timer.mark_tts_start()
                 _, file_path = self.tts.convert_text_to_speech(response)
                 self.conversation_timer.mark_tts_end()
-                
+
                 self.conversation_timer.mark_playback_start()
                 self.tts.play_speech_response(file_path, response)
         else:
             # Use streaming LLM + parallel TTS for regular conversation
             self.conversation_timer.mark_llm_start()
-            
+
             # Update user activity and history
             self.user_profile.update_activity()
             self.user_profile.add_conversation_entry({
                 'role': 'user',
                 'content': user_input
             })
-            
+
             # Stream LLM response sentence by sentence
             sentences = []
             full_response = ""
-            
+
             for sentence in self.query_dispatcher.send_query_streaming(user_input):
                 sentences.append(sentence)
                 full_response += sentence + " "
                 Logger.print_demon_output(sentence)  # Print each sentence as it arrives
-            
+
             self.conversation_timer.mark_llm_end()
-            
+
             # Add to user profile
             self.user_profile.add_conversation_entry({
                 'role': 'assistant',
                 'content': full_response.strip()
             })
-            
+
             # Log the interaction
             if self.session_logger:
                 self.session_logger.log_session_interaction(
                     SessionEvent(user_input, full_response.strip())
                 )
-            
+
             response = full_response.strip()
 
             if self.ai_turn_indicator:
@@ -431,7 +431,7 @@ class Conversation:
             if self.tts and sentences:
                 # Generate speech using parallel TTS for multiple sentences
                 self.conversation_timer.mark_tts_start()
-                
+
                 if len(sentences) > 1:
                     # Use parallel generation for multi-sentence responses
                     Logger.print_debug(f"Using parallel TTS for {len(sentences)} sentences")
@@ -439,14 +439,14 @@ class Conversation:
                 else:
                     # Single sentence - use regular method
                     _, file_path = self.tts.convert_text_to_speech(sentences[0])
-                
+
                 self.conversation_timer.mark_tts_end()
-                
+
                 self.conversation_timer.mark_playback_start()
                 self.tts.play_speech_response(file_path, response)
-        
+
         self.conversation_timer.mark_ai_end()
-        
+
         # Print timing breakdown for this conversation turn
         self.conversation_timer.print_breakdown()
 

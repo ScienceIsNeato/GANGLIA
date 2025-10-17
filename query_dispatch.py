@@ -15,6 +15,7 @@ from openai import OpenAI
 # Local imports
 from logger import Logger
 from utils import get_tempdir
+from utils.performance_profiler import is_timing_enabled
 
 class ChatGPTQueryDispatcher:
     """A dispatcher for managing conversations with OpenAI's ChatGPT.
@@ -60,7 +61,10 @@ class ChatGPTQueryDispatcher:
 
         self.rotate_session_history()  # Ensure history stays under the max length
 
-        Logger.print_debug("Sending query to AI server...")
+        if is_timing_enabled():
+            Logger.print_perf("⏱️  [LLM] Sending query to OpenAI API (gpt-4o-mini)...")
+        else:
+            Logger.print_debug("Sending query to AI server...")
 
         chat = self.client.chat.completions.create(
             model="gpt-4o-mini",
@@ -69,7 +73,11 @@ class ChatGPTQueryDispatcher:
         reply = chat.choices[0].message.content
         self.messages.append({"role": "assistant", "content": reply})
 
-        Logger.print_info(f"AI response received in {time() - start_time:.1f} seconds.")
+        elapsed = time() - start_time
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [LLM] Response received in {elapsed:.2f}s ({len(reply)} chars)")
+        else:
+            Logger.print_info(f"AI response received in {elapsed:.1f} seconds.")
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         temp_dir = get_tempdir()
@@ -81,7 +89,7 @@ class ChatGPTQueryDispatcher:
 
     def send_query_streaming(self, current_input):
         """Send a query to ChatGPT API and stream the response sentence by sentence.
-        
+
         This enables faster perceived response time by allowing TTS generation to start
         before the full LLM response is complete.
 
@@ -96,7 +104,10 @@ class ChatGPTQueryDispatcher:
 
         self.rotate_session_history()
 
-        Logger.print_debug("Sending streaming query to AI server...")
+        if is_timing_enabled():
+            Logger.print_perf("⏱️  [LLM] Starting streaming query to OpenAI API...")
+        else:
+            Logger.print_debug("Sending streaming query to AI server...")
 
         stream = self.client.chat.completions.create(
             model="gpt-4o-mini",
@@ -107,8 +118,12 @@ class ChatGPTQueryDispatcher:
         full_response = ""
         current_sentence = ""
         sentence_endings = ('.', '!', '?', '\n')
+        first_chunk_received = False
 
         for chunk in stream:
+            if not first_chunk_received and is_timing_enabled():
+                Logger.print_perf(f"⏱️  [LLM] First chunk received (TTFB: {time() - start_time:.2f}s)")
+                first_chunk_received = True
             if chunk.choices[0].delta.content:
                 content = chunk.choices[0].delta.content
                 full_response += content
@@ -118,19 +133,29 @@ class ChatGPTQueryDispatcher:
                 if any(current_sentence.rstrip().endswith(end) for end in sentence_endings):
                     sentence = current_sentence.strip()
                     if sentence:  # Only yield non-empty sentences
-                        Logger.print_debug(f"Streaming sentence: {sentence[:50]}...")
+                        if is_timing_enabled():
+                            Logger.print_perf(f"⏱️  [LLM] Streaming sentence: {sentence[:50]}...")
+                        else:
+                            Logger.print_debug(f"Streaming sentence: {sentence[:50]}...")
                         yield sentence
                         current_sentence = ""
 
         # Yield any remaining text as the final sentence
         if current_sentence.strip():
-            Logger.print_debug(f"Streaming final: {current_sentence[:50]}...")
+            if is_timing_enabled():
+                Logger.print_perf(f"⏱️  [LLM] Streaming final: {current_sentence[:50]}...")
+            else:
+                Logger.print_debug(f"Streaming final: {current_sentence[:50]}...")
             yield current_sentence.strip()
 
         # Add the complete response to message history
         self.messages.append({"role": "assistant", "content": full_response})
 
-        Logger.print_info(f"AI response streamed in {time() - start_time:.1f} seconds.")
+        elapsed = time() - start_time
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [LLM] Complete response streamed in {elapsed:.2f}s ({len(full_response)} chars)")
+        else:
+            Logger.print_info(f"AI response streamed in {elapsed:.1f} seconds.")
 
         # Save the response to disk
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")

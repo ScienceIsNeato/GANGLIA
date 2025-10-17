@@ -11,15 +11,36 @@ from contextlib import contextmanager
 from logger import Logger
 
 
+# Global flag to control timing analysis
+_timing_enabled = False
+
+
+def enable_timing_analysis():
+    """Enable timing analysis globally."""
+    global _timing_enabled
+    _timing_enabled = True
+
+
+def disable_timing_analysis():
+    """Disable timing analysis globally."""
+    global _timing_enabled
+    _timing_enabled = False
+
+
+def is_timing_enabled() -> bool:
+    """Check if timing analysis is enabled."""
+    return _timing_enabled
+
+
 class PerformanceStats:
     """Collect and analyze performance statistics."""
-    
+
     def __init__(self):
         self.timings: Dict[str, List[float]] = {}
-    
+
     def record(self, name: str, duration: float):
         """Record a timing measurement.
-        
+
         Args:
             name: Name of the measured operation
             duration: Duration in seconds
@@ -27,22 +48,22 @@ class PerformanceStats:
         if name not in self.timings:
             self.timings[name] = []
         self.timings[name].append(duration)
-    
+
     def get_stats(self, name: str) -> Optional[Dict[str, float]]:
         """Get statistics for a named operation.
-        
+
         Args:
             name: Name of the operation
-            
+
         Returns:
             Dictionary with mean, median, p95, p99, min, max stats
         """
         if name not in self.timings or not self.timings[name]:
             return None
-        
+
         values = sorted(self.timings[name])
         n = len(values)
-        
+
         return {
             'count': n,
             'mean': sum(values) / n,
@@ -52,13 +73,13 @@ class PerformanceStats:
             'min': values[0],
             'max': values[-1]
         }
-    
+
     def print_summary(self):
         """Print a summary of all collected statistics."""
         Logger.print_info("=" * 60)
         Logger.print_info("PERFORMANCE SUMMARY")
         Logger.print_info("=" * 60)
-        
+
         for name in sorted(self.timings.keys()):
             stats = self.get_stats(name)
             if stats:
@@ -70,9 +91,9 @@ class PerformanceStats:
                 Logger.print_info(f"  P99:     {stats['p99']:.2f}s")
                 Logger.print_info(f"  Min:     {stats['min']:.2f}s")
                 Logger.print_info(f"  Max:     {stats['max']:.2f}s")
-        
+
         Logger.print_info("=" * 60)
-    
+
     def reset(self):
         """Clear all collected statistics."""
         self.timings.clear()
@@ -100,12 +121,16 @@ def Timer(name: str, log: bool = True, collect_stats: bool = True):
         with Timer("my_operation"):
             do_something()
     """
+    if not _timing_enabled:
+        yield
+        return
+        
     start = time.time()
     yield
     elapsed = time.time() - start
     
     if log:
-        Logger.print_info(f"⏱️  {name}: {elapsed:.2f}s")
+        Logger.print_perf(f"⏱️  {name}: {elapsed:.2f}s")
     
     if collect_stats:
         _global_stats.record(name, elapsed)
@@ -113,24 +138,24 @@ def Timer(name: str, log: bool = True, collect_stats: bool = True):
 
 def timed(name: Optional[str] = None, log: bool = True, collect_stats: bool = True):
     """Decorator for timing function execution.
-    
+
     Args:
         name: Custom name for the operation (defaults to function name)
         log: Whether to log the timing immediately
         collect_stats: Whether to collect stats for later analysis
-        
+
     Usage:
         @timed()
         def my_function():
             pass
-            
+
         @timed(name="Custom Operation")
         def another_function():
             pass
     """
     def decorator(func):
         operation_name = name or func.__name__
-        
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             start = time.time()
@@ -139,20 +164,20 @@ def timed(name: Optional[str] = None, log: bool = True, collect_stats: bool = Tr
                 return result
             finally:
                 elapsed = time.time() - start
-                
+
                 if log:
                     Logger.print_info(f"⏱️  {operation_name}: {elapsed:.2f}s")
-                
+
                 if collect_stats:
                     _global_stats.record(operation_name, elapsed)
-        
+
         return wrapper
     return decorator
 
 
 class ConversationTimer:
     """Track timing for a complete conversation turn."""
-    
+
     def __init__(self):
         self.user_start = None
         self.user_end = None
@@ -165,118 +190,121 @@ class ConversationTimer:
         self.tts_start = None
         self.tts_end = None
         self.playback_start = None
-    
+
     def mark_user_start(self):
         """Mark start of user turn."""
         self.user_start = time.time()
-    
+
     def mark_user_end(self):
         """Mark end of user turn (finished speaking)."""
         self.user_end = time.time()
-    
+
     def mark_stt_start(self):
         """Mark start of speech-to-text processing."""
         self.stt_start = time.time()
-    
+
     def mark_stt_end(self):
         """Mark end of speech-to-text processing."""
         self.stt_end = time.time()
-    
+
     def mark_ai_start(self):
         """Mark start of AI turn."""
         self.ai_start = time.time()
-    
+
     def mark_llm_start(self):
         """Mark start of LLM query."""
         self.llm_start = time.time()
-    
+
     def mark_llm_end(self):
         """Mark end of LLM query."""
         self.llm_end = time.time()
-    
+
     def mark_tts_start(self):
         """Mark start of text-to-speech generation."""
         self.tts_start = time.time()
-    
+
     def mark_tts_end(self):
         """Mark end of text-to-speech generation."""
         self.tts_end = time.time()
-    
+
     def mark_playback_start(self):
         """Mark start of audio playback."""
         self.playback_start = time.time()
-    
+
     def mark_ai_end(self):
         """Mark end of AI turn."""
         self.ai_end = time.time()
-    
+
     def get_stt_duration(self) -> Optional[float]:
         """Get STT duration in seconds."""
         if self.stt_start and self.stt_end:
             return self.stt_end - self.stt_start
         return None
-    
+
     def get_llm_duration(self) -> Optional[float]:
         """Get LLM query duration in seconds."""
         if self.llm_start and self.llm_end:
             return self.llm_end - self.llm_start
         return None
-    
+
     def get_tts_duration(self) -> Optional[float]:
         """Get TTS duration in seconds."""
         if self.tts_start and self.tts_end:
             return self.tts_end - self.tts_start
         return None
-    
+
     def get_roundtrip_duration(self) -> Optional[float]:
         """Get total roundtrip duration from user stops speaking to AI starts speaking.
-        
+
         This is the key metric: time from end of user speech to start of AI audio playback.
         """
         if self.user_end and self.playback_start:
             return self.playback_start - self.user_end
         return None
-    
+
     def get_user_duration(self) -> Optional[float]:
         """Get user turn duration in seconds."""
         if self.user_start and self.user_end:
             return self.user_end - self.user_start
         return None
-    
+
     def get_ai_duration(self) -> Optional[float]:
         """Get AI turn duration in seconds."""
         if self.ai_start and self.ai_end:
             return self.ai_end - self.ai_start
         return None
-    
+
     def print_breakdown(self):
         """Print detailed timing breakdown for this conversation turn."""
-        Logger.print_info("=" * 60)
-        Logger.print_info("CONVERSATION TURN TIMING BREAKDOWN")
-        Logger.print_info("=" * 60)
+        if not _timing_enabled:
+            return
+            
+        Logger.print_perf("=" * 60)
+        Logger.print_perf("CONVERSATION TURN TIMING BREAKDOWN")
+        Logger.print_perf("=" * 60)
         
         user_dur = self.get_user_duration()
         if user_dur:
-            Logger.print_info(f"User Speaking: {user_dur:.2f}s")
+            Logger.print_perf(f"User Speaking: {user_dur:.2f}s")
         
         stt_dur = self.get_stt_duration()
         if stt_dur:
-            Logger.print_info(f"Speech-to-Text: {stt_dur:.2f}s")
+            Logger.print_perf(f"Speech-to-Text: {stt_dur:.2f}s")
         
         llm_dur = self.get_llm_duration()
         if llm_dur:
-            Logger.print_info(f"LLM Query: {llm_dur:.2f}s")
+            Logger.print_perf(f"LLM Query: {llm_dur:.2f}s")
         
         tts_dur = self.get_tts_duration()
         if tts_dur:
-            Logger.print_info(f"Text-to-Speech: {tts_dur:.2f}s")
+            Logger.print_perf(f"Text-to-Speech: {tts_dur:.2f}s")
         
         roundtrip = self.get_roundtrip_duration()
         if roundtrip:
-            Logger.print_info(f"")
-            Logger.print_info(f"⏱️  TOTAL ROUNDTRIP (user stops → AI speaks): {roundtrip:.2f}s")
+            Logger.print_perf(f"")
+            Logger.print_perf(f"⏱️  TOTAL ROUNDTRIP (user stops → AI speaks): {roundtrip:.2f}s")
         
-        Logger.print_info("=" * 60)
+        Logger.print_perf("=" * 60)
         
         # Record stats
         if stt_dur:
@@ -287,4 +315,3 @@ class ConversationTimer:
             _global_stats.record("TTS", tts_dur)
         if roundtrip:
             _global_stats.record("Roundtrip", roundtrip)
-

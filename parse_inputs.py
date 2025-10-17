@@ -88,6 +88,7 @@ def parse_args(args=None):
     parser.add_argument('--google-voice-id', type=str, help='Google voice ID to use for TTS')
     parser.add_argument('--display-log-hours', type=int, help="Display the last N hours of logs in transcript format.")
     parser.add_argument('--show-log-errors', action='store_true', help="Display SYSTEM ERROR logs.")
+    parser.add_argument('--timing-analysis', action='store_true', help="Enable detailed timing analysis of conversation pipeline (default: False)")
 
     parsed_args = parser.parse_args(args)
 

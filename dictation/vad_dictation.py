@@ -18,6 +18,7 @@ from logger import Logger
 from threading import Timer
 import time
 from session_logger import SessionEvent
+from utils.performance_profiler import is_timing_enabled
 
 from .dictation import Dictation
 
@@ -249,6 +250,8 @@ class VoiceActivityDictation(Dictation):
 
     def done_speaking(self):
         """Mark the dictation as complete."""
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [STT] Silence detected! User finished speaking.")
         self.listening = False
 
     def transcribe_stream_active_mode(self, device_index, interruptable=False):
@@ -325,6 +328,11 @@ class VoiceActivityDictation(Dictation):
                     finalized_transcript += f"{current_input} "
                     Logger.print_user_input(f'\033[K{current_input}', flush=True)
                     state = 'START'
+                    
+                    # Mark when we start waiting for silence
+                    if is_timing_enabled():
+                        Logger.print_perf(f"⏱️  [STT] Final transcript received, waiting {self.SILENCE_THRESHOLD}s for silence...")
+                    
                     done_speaking_timer = Timer(self.SILENCE_THRESHOLD, self.done_speaking)
                     done_speaking_timer.start()
 

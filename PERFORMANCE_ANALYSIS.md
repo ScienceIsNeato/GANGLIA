@@ -1,7 +1,7 @@
 # GANGLIA Performance Analysis & Optimization Report
 
-**Date**: October 17, 2025  
-**Branch**: `feature/roundtrip_speed`  
+**Date**: October 17, 2025
+**Branch**: `feature/roundtrip_speed`
 **Goal**: Reduce conversation roundtrip latency by 30-50% while maintaining or reducing costs
 
 ---
@@ -152,10 +152,10 @@ Breakdown (baseline measurements):
 ### 🥇 Priority 1: Quick Wins (No Cost Impact)
 
 #### 1.1 Reduce Silence Threshold ⭐
-**Current**: 2.5s  
-**Proposed**: 1.5-2.0s  
-**Estimated Improvement**: 0.5-1.0s  
-**Cost Impact**: None  
+**Current**: 2.5s
+**Proposed**: 1.5-2.0s
+**Estimated Improvement**: 0.5-1.0s
+**Cost Impact**: None
 **Effort**: Trivial (config change)
 
 **Action**: Update `config/vad_config.json`:
@@ -168,8 +168,8 @@ Breakdown (baseline measurements):
 ---
 
 #### 1.2 Enable Streaming LLM Responses ⭐⭐⭐
-**Estimated Improvement**: 1-3s reduction in perceived latency  
-**Cost Impact**: None  
+**Estimated Improvement**: 1-3s reduction in perceived latency
+**Cost Impact**: None
 **Effort**: Medium (code changes in `query_dispatch.py` and `conversational_interface.py`)
 
 **How it works**:
@@ -194,17 +194,17 @@ def send_query_streaming(self, current_input):
         messages=self.messages,
         stream=True
     )
-    
+
     current_sentence = ""
     for chunk in stream:
         if chunk.choices[0].delta.content:
             current_sentence += chunk.choices[0].delta.content
-            
+
             # Yield complete sentences
             if current_sentence.endswith(('.', '!', '?')):
                 yield current_sentence.strip()
                 current_sentence = ""
-    
+
     # Yield any remaining text
     if current_sentence.strip():
         yield current_sentence.strip()
@@ -213,8 +213,8 @@ def send_query_streaming(self, current_input):
 ---
 
 #### 1.3 Parallelize TTS for Multi-Sentence Responses ⭐⭐
-**Estimated Improvement**: 0.5-2.0s for responses with 3+ sentences  
-**Cost Impact**: None  
+**Estimated Improvement**: 0.5-2.0s for responses with 3+ sentences
+**Cost Impact**: None
 **Effort**: Medium (code changes in `tts.py`)
 
 **How it works**:
@@ -241,7 +241,7 @@ def convert_text_to_speech_parallel(self, sentences, voice_id=None):
             for s in sentences
         ]
         results = [f.result() for f in futures]
-    
+
     # Concatenate audio files
     return self.concatenate_audio_files([r[1] for r in results if r[0]])
 ```
@@ -256,7 +256,7 @@ Cache audio for frequent responses:
 - Acknowledgments ("Got it", "Okay", "Sure")
 - Error messages
 
-**Estimated Improvement**: 0.1-0.3s for cached responses  
+**Estimated Improvement**: 0.1-0.3s for cached responses
 **Effort**: Low
 
 ---
@@ -264,8 +264,8 @@ Cache audio for frequent responses:
 #### 2.2 Response Caching
 Cache AI responses for repeated queries.
 
-**Estimated Improvement**: 1.2s for cached queries  
-**Effort**: Medium  
+**Estimated Improvement**: 1.2s for cached queries
+**Effort**: Medium
 **Complexity**: Requires cache invalidation strategy
 
 ---
@@ -354,4 +354,3 @@ The analysis shows that more expensive options (GPT-4o, OpenAI TTS HD) provide m
 5. ⏳ Reduce silence threshold and test
 6. ⏳ Re-measure and validate improvements
 7. ⏳ Document final results
-
