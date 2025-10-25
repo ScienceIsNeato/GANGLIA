@@ -111,12 +111,12 @@ def get_global_stats() -> PerformanceStats:
 @contextmanager
 def Timer(name: str, log: bool = True, collect_stats: bool = True):
     """Context manager for timing code blocks.
-    
+
     Args:
         name: Name of the operation being timed
         log: Whether to log the timing immediately
         collect_stats: Whether to collect stats for later analysis
-        
+
     Usage:
         with Timer("my_operation"):
             do_something()
@@ -124,14 +124,14 @@ def Timer(name: str, log: bool = True, collect_stats: bool = True):
     if not _timing_enabled:
         yield
         return
-        
+
     start = time.time()
     yield
     elapsed = time.time() - start
-    
+
     if log:
         Logger.print_perf(f"⏱️  {name}: {elapsed:.2f}s")
-    
+
     if collect_stats:
         _global_stats.record(name, elapsed)
 
@@ -275,38 +275,85 @@ class ConversationTimer:
         return None
 
     def print_breakdown(self):
-        """Print detailed timing breakdown for this conversation turn."""
+        """Print visual timeline from user stops speaking to AI starts speaking."""
         if not _timing_enabled:
             return
-            
-        Logger.print_perf("=" * 60)
-        Logger.print_perf("CONVERSATION TURN TIMING BREAKDOWN")
-        Logger.print_perf("=" * 60)
-        
-        user_dur = self.get_user_duration()
-        if user_dur:
-            Logger.print_perf(f"User Speaking: {user_dur:.2f}s")
-        
-        stt_dur = self.get_stt_duration()
-        if stt_dur:
-            Logger.print_perf(f"Speech-to-Text: {stt_dur:.2f}s")
-        
-        llm_dur = self.get_llm_duration()
-        if llm_dur:
-            Logger.print_perf(f"LLM Query: {llm_dur:.2f}s")
-        
-        tts_dur = self.get_tts_duration()
-        if tts_dur:
-            Logger.print_perf(f"Text-to-Speech: {tts_dur:.2f}s")
-        
+
+        # Use user_end as T=0 (moment user stopped speaking)
+        if not self.user_end:
+            Logger.print_perf("⚠️  No timing data available (user_end not set)")
+            return
+
+        t0 = self.user_end
+
+        Logger.print_perf("")
+        Logger.print_perf("=" * 80)
+        Logger.print_perf("🎯 RESPONSE LATENCY TIMELINE (T=0 = User Stopped Speaking)")
+        Logger.print_perf("=" * 80)
+
+        timeline = []
+
+        # STT finalization (silence detection already happened)
+        if self.stt_end:
+            elapsed = self.stt_end - t0
+            delta = self.stt_end - t0  # First event, so delta = elapsed
+            timeline.append(("STT Finalized", elapsed, delta))
+
+        # LLM query start
+        if self.llm_start:
+            elapsed = self.llm_start - t0
+            prev = self.stt_end if self.stt_end else t0
+            delta = self.llm_start - prev
+            timeline.append(("LLM Query Started", elapsed, delta))
+
+        # LLM first response (TTFB - when streaming begins)
+        if self.llm_end:
+            elapsed = self.llm_end - t0
+            prev = self.llm_start if self.llm_start else t0
+            delta = self.llm_end - prev
+            timeline.append(("LLM First Sentence Ready", elapsed, delta))
+
+        # TTS for first sentence complete
+        if self.tts_start and self.tts_end:
+            # For streaming, tts_start/end are marked together
+            elapsed = self.tts_end - t0
+            prev = self.llm_end if self.llm_end else t0
+            delta = self.tts_end - prev
+            timeline.append(("First TTS Generated", elapsed, delta))
+
+        # Audio playback starts (THE GOAL!)
+        if self.playback_start:
+            elapsed = self.playback_start - t0
+            prev = self.tts_end if self.tts_end else t0
+            delta = self.playback_start - prev
+            timeline.append(("🔊 AUDIO PLAYBACK START", elapsed, delta))
+
+        # Print timeline
+        for event, elapsed, delta in timeline:
+            # Format: Event name | T+elapsed | (Δ delta)
+            event_str = f"{event:<30}"
+            elapsed_str = f"T+{elapsed:>5.2f}s"
+            delta_str = f"(Δ {delta:>5.2f}s)"
+
+            if "AUDIO PLAYBACK" in event:
+                Logger.print_perf(f"  {event_str} {elapsed_str}  {delta_str}  🎃")
+            else:
+                Logger.print_perf(f"  {event_str} {elapsed_str}  {delta_str}")
+
+        # Print total roundtrip
         roundtrip = self.get_roundtrip_duration()
         if roundtrip:
-            Logger.print_perf(f"")
-            Logger.print_perf(f"⏱️  TOTAL ROUNDTRIP (user stops → AI speaks): {roundtrip:.2f}s")
-        
-        Logger.print_perf("=" * 60)
-        
+            Logger.print_perf("")
+            Logger.print_perf(f"⏱️  TOTAL LATENCY: {roundtrip:.2f}s (user stops speaking → AI audio starts)")
+
+        Logger.print_perf("=" * 80)
+        Logger.print_perf("")
+
         # Record stats
+        stt_dur = self.get_stt_duration()
+        llm_dur = self.get_llm_duration()
+        tts_dur = self.get_tts_duration()
+
         if stt_dur:
             _global_stats.record("STT", stt_dur)
         if llm_dur:

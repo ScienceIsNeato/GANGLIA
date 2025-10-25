@@ -3,7 +3,7 @@
   "description": "Tune these settings to optimize speech detection sensitivity for your environment",
 
   "detection": {
-    "energy_threshold": 300,
+    "energy_threshold": 150,
     "comment_energy_threshold": "Audio energy level required to detect speech. LOWER = more sensitive (picks up quiet speech), HIGHER = less sensitive (ignores background noise). Typical range: 300-1000. Default: 500. CURRENT: 300 (more sensitive based on user feedback)",
 
     "speech_confirmation_chunks": 2,

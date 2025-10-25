@@ -9,6 +9,7 @@ import time
 import sys
 import os
 import signal
+import warnings
 from logger import Logger
 from parse_inputs import load_config, parse_tts_interface, parse_dictation_type
 from query_dispatch import ChatGPTQueryDispatcher
@@ -22,6 +23,10 @@ from ttv.ttv import text_to_video
 from fetch_and_display_logs import display_logs
 from pubsub import get_pubsub
 from utils.performance_profiler import enable_timing_analysis
+
+# Suppress gRPC fork warnings
+os.environ['GRPC_ENABLE_FORK_SUPPORT'] = '0'
+warnings.filterwarnings('ignore', message='.*fork_posix.*')
 
 
 def get_config_path():
@@ -142,6 +147,11 @@ def main():
     """Main entry point for the GANGLIA system."""
     # Load command line arguments
     args = load_config()
+
+    # Enable debug logging if requested
+    if args.debug:
+        Logger.enable_debug()
+        Logger.print_debug("Debug logging enabled")
 
     # Enable timing analysis if requested
     if args.timing_analysis:

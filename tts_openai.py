@@ -202,6 +202,8 @@ class OpenAITTS(TextToSpeech):
         Returns:
             Path to concatenated audio file
         """
+        concat_start = time.time()
+        
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         temp_dir = get_tempdir()
         output_path = os.path.join(temp_dir, "tts", f"concatenated_{timestamp}.mp3")
@@ -222,6 +224,11 @@ class OpenAITTS(TextToSpeech):
 
         try:
             subprocess.run(cmd, check=True, capture_output=True)
+            concat_elapsed = time.time() - concat_start
+            
+            if is_timing_enabled():
+                Logger.print_perf(f"⏱️  [TTS] Concatenation took {concat_elapsed:.2f}s")
+            
             Logger.print_debug(f"Concatenated {len(audio_files)} audio files into {output_path}")
 
             # Clean up individual files and list file

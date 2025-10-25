@@ -66,16 +66,12 @@ def parse_tts_interface(tts_interface: str, apply_effects: bool = False) -> Text
         )
 
 def parse_dictation_type(dictation_type: str) -> Dictation:
-    if dictation_type.lower() == "static_google":
-        return StaticGoogleDictation()
-    elif dictation_type.lower() == "live_google":
-        return LiveGoogleDictation()
-    elif dictation_type.lower() == "vad":
-        return VoiceActivityDictation()
-    else:
-        raise ValueError(
-            "Invalid dictation type provided. Available options: 'static_google', 'live_google', 'vad'"
-        )
+    """Parse dictation type. VAD (Voice Activity Detection) is always used for cost efficiency.
+
+    Legacy options are maintained for backwards compatibility but all use VAD.
+    """
+    # Always use VAD - it's cost-efficient and prevents $20/day idle listening costs
+    return VoiceActivityDictation()
 
 def parse_args(args=None):
     parser = argparse.ArgumentParser(description="GANGLIA - AI Assistant")
@@ -83,7 +79,7 @@ def parse_args(args=None):
     parser.add_argument("--tts-interface", type=str, default="google", help="Text-to-speech interface to use. Options: 'google' (default), 'openai' (potentially faster)")
     parser.add_argument("--suppress-session-logging", action="store_true", help="Disable session logging (default: False)")
     parser.add_argument("--enable-turn-indicators", action="store_true", help="Enable turn indicators (default: False)")
-    parser.add_argument("--dictation-type", type=str, default="static_google", choices=["static_google", "live_google", "vad"], help="Dictation type to use. Options: 'static_google', 'live_google', 'vad' (Voice Activity Detection - cost-efficient)")
+    parser.add_argument("--dictation-type", type=str, default="vad", help="Dictation type (legacy argument - VAD is always used for cost efficiency)")
     parser.add_argument("--store-logs", action="store_true", help="Enable storing logs in the cloud (default: False)")
     parser.add_argument('--text-to-video', action='store_true', help='Generate video from text input.')
     parser.add_argument('--ttv-config', type=str, help='Path to the JSON input file for video generation.')
@@ -95,6 +91,7 @@ def parse_args(args=None):
     parser.add_argument('--audio-output', action='store_true', help="Use gpt-4o-audio-preview to get audio directly from LLM (experimental, ~10x cost)")
     parser.add_argument('--audio-voice', type=str, default='onyx', help="Voice for audio output: alloy, echo, fable, onyx, nova, shimmer (default: onyx)")
     parser.add_argument('--audio-effects', action='store_true', help="Apply audio effects to Google TTS (pitch down, reverb, bass boost for deeper voice)")
+    parser.add_argument('--debug', action='store_true', help="Enable debug logging (default: False)")
 
     parsed_args = parser.parse_args(args)
 

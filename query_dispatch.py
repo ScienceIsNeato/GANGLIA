@@ -84,7 +84,7 @@ class ChatGPTQueryDispatcher:
             )
             reply = chat.choices[0].message.content or ""
             audio_data = chat.choices[0].message.audio
-            
+
             # Check if audio was actually returned
             if not audio_data or not hasattr(audio_data, 'data'):
                 Logger.print_warning("⚠️  Audio output requested but not received from API. Falling back to TTS.")
@@ -93,7 +93,7 @@ class ChatGPTQueryDispatcher:
                     reply = "[No response received]"
                 self.messages.append({"role": "assistant", "content": reply})
                 return reply  # Return text only, will trigger TTS in conversation handler
-            
+
             # Get text transcript from audio if content is missing
             if not reply and hasattr(audio_data, 'transcript'):
                 reply = audio_data.transcript or "[Audio response - no transcript]"
@@ -162,10 +162,7 @@ class ChatGPTQueryDispatcher:
 
         self.rotate_session_history()
 
-        if is_timing_enabled():
-            Logger.print_perf("⏱️  [LLM] Starting streaming query to OpenAI API...")
-        else:
-            Logger.print_debug("Sending streaming query to AI server...")
+        Logger.print_debug("Sending streaming query to AI server...")
 
         stream = self.client.chat.completions.create(
             model="gpt-4o-mini",
@@ -191,29 +188,20 @@ class ChatGPTQueryDispatcher:
                 if any(current_sentence.rstrip().endswith(end) for end in sentence_endings):
                     sentence = current_sentence.strip()
                     if sentence:  # Only yield non-empty sentences
-                        if is_timing_enabled():
-                            Logger.print_perf(f"⏱️  [LLM] Streaming sentence: {sentence[:50]}...")
-                        else:
-                            Logger.print_debug(f"Streaming sentence: {sentence[:50]}...")
+                        Logger.print_debug(f"Streaming sentence: {sentence[:50]}...")
                         yield sentence
                         current_sentence = ""
 
         # Yield any remaining text as the final sentence
         if current_sentence.strip():
-            if is_timing_enabled():
-                Logger.print_perf(f"⏱️  [LLM] Streaming final: {current_sentence[:50]}...")
-            else:
-                Logger.print_debug(f"Streaming final: {current_sentence[:50]}...")
+            Logger.print_debug(f"Streaming final: {current_sentence[:50]}...")
             yield current_sentence.strip()
 
         # Add the complete response to message history
         self.messages.append({"role": "assistant", "content": full_response})
 
         elapsed = time() - start_time
-        if is_timing_enabled():
-            Logger.print_perf(f"⏱️  [LLM] Complete response streamed in {elapsed:.2f}s ({len(full_response)} chars)")
-        else:
-            Logger.print_info(f"AI response streamed in {elapsed:.1f} seconds.")
+        Logger.print_debug(f"AI response streamed in {elapsed:.1f} seconds ({len(full_response)} chars)")
 
         # Save the response to disk
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")

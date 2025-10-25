@@ -60,6 +60,7 @@ class Logger:
 
     _lock = threading.Lock()
     _timestamps_enabled = False
+    _debug_enabled = False
 
     @staticmethod
     def enable_timestamps():
@@ -70,6 +71,16 @@ class Logger:
     def disable_timestamps():
         """Disable timestamp prefixes for all log messages."""
         Logger._timestamps_enabled = False
+
+    @staticmethod
+    def enable_debug():
+        """Enable debug logging."""
+        Logger._debug_enabled = True
+
+    @staticmethod
+    def disable_debug():
+        """Disable debug logging."""
+        Logger._debug_enabled = False
 
     @staticmethod
     def _get_timestamp():
@@ -161,11 +172,14 @@ class Logger:
         """Print debug messages in snow gray.
 
         Used for logging detailed debug information and technical details.
+        Only prints if debug logging is enabled.
 
         Args:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
+        if not Logger._debug_enabled:
+            return
         print(f"{term.snow4}{Logger._get_timestamp()}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
