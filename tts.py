@@ -92,12 +92,13 @@ class TextToSpeech(ABC):
 
         return chunks
 
-    def play_speech_response(self, file_path, raw_response):
+    def play_speech_response(self, file_path, raw_response, suppress_text_output=False):
         """Play speech response and handle user interaction.
 
         Args:
             file_path: Path to the audio file to play
             raw_response: The text response to display
+            suppress_text_output: If True, don't print "GANGLIA says..." (for streaming)
         """
         if file_path.endswith('.txt'):
             file_path = self.concatenate_audio_from_text(file_path)
@@ -107,10 +108,12 @@ class TextToSpeech(ABC):
             # Prepare the play command and determine the audio duration
             play_command, audio_duration = self.prepare_playback(file_path)
 
-            Logger.print_demon_output(
-                f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)"
-            )
-            Logger.print_demon_output(raw_response)
+            # Only print header if not suppressed (for streaming playback)
+            if not suppress_text_output:
+                Logger.print_demon_output(
+                    f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)"
+                )
+                Logger.print_demon_output(raw_response)
 
             # Mark the moment audio playback begins
             if is_timing_enabled():
@@ -124,20 +127,8 @@ class TextToSpeech(ABC):
                 stdin=subprocess.DEVNULL
             )
 
-            # Start the Enter key listener in a separate thread
-            stop_thread = threading.Thread(
-                target=self.monitor_enter_keypress,
-                args=(playback_process,)
-            )
-            # Ensure the thread exits when the main program exits
-            stop_thread.daemon = True
-            stop_thread.start()
-
-            # Wait for playback process to finish
+            # Wait for playback to finish (no enter key monitoring for streaming)
             playback_process.wait()
-
-            # Ensure Enter key thread finishes
-            stop_thread.join(timeout=1)  # Attempt to join, but timeout if it hangs
 
     def monitor_enter_keypress(self, playback_process):
         """Monitor for Enter key press to stop playback.
@@ -234,7 +225,7 @@ class GoogleTTS(TextToSpeech):
 
     def __init__(self, apply_effects=False):
         """Initialize the Google TTS client.
-        
+
         Args:
             apply_effects: If True, apply audio effects (pitch shift, reverb, etc.)
         """
@@ -265,17 +256,22 @@ class GoogleTTS(TextToSpeech):
             name=voice_id,
         )
 
-        # Set the audio configuration
-        audio_config = tts.AudioConfig(
-            audio_encoding=tts.AudioEncoding.MP3
-        )
+        # Set the audio configuration with optional effects
+        if self.apply_effects:
+            # Use Google's native audio parameters for deeper, more dramatic voice
+            audio_config = tts.AudioConfig(
+                audio_encoding=tts.AudioEncoding.MP3,
+                pitch=-20.0,          # Deep pitch for demonic voice (range: -20.0 to 20.0)
+                speaking_rate=1,   # Slower for more menacing effect (range: 0.25 to 4.0)
+                # effects_profile_id=['headphone-class-device']  # Optional: optimize for headphones
+            )
+        else:
+            audio_config = tts.AudioConfig(
+                audio_encoding=tts.AudioEncoding.MP3
+            )
 
         thread_prefix = f"{thread_id} " if thread_id else ""
-        
-        if is_timing_enabled():
-            Logger.print_perf(f"⏱️  [TTS] Converting text to speech ({len(text)} chars)...")
-        else:
-            Logger.print_debug(f"{thread_prefix}Converting text to speech...")
+        Logger.print_debug(f"{thread_prefix}Converting text to speech ({len(text)} chars)...")
 
         # Use the shared client instance
         tts_start = time.time()
@@ -285,7 +281,7 @@ class GoogleTTS(TextToSpeech):
             audio_config=audio_config
         )
         tts_elapsed = time.time() - tts_start
-        
+
         if is_timing_enabled():
             Logger.print_perf(f"⏱️  [TTS] Audio generated in {tts_elapsed:.2f}s")
 
@@ -303,8 +299,8 @@ class GoogleTTS(TextToSpeech):
             sanitized_words.append(sanitized)
         snippet = '_'.join(sanitized_words)
 
-        # Save the audio to a file
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        # Save the audio to a file (with microseconds to avoid collisions in parallel generation)
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
         file_path = os.path.join(
             temp_dir, "tts",
             f"chatgpt_response_{snippet}_{timestamp}.mp3"
@@ -312,67 +308,7 @@ class GoogleTTS(TextToSpeech):
         with open(file_path, "wb") as out:
             out.write(response.audio_content)
 
-        # Apply audio effects if enabled
-        if self.apply_effects:
-            file_path = self._apply_audio_effects(file_path, temp_dir, timestamp)
-
         return True, file_path
-
-    def _apply_audio_effects(self, input_file: str, temp_dir: str, timestamp: str) -> str:
-        """Apply audio effects to make voice deeper and more dramatic.
-        
-        Effects applied:
-        - Pitch shift down (deeper voice)
-        - Slight reverb (more atmospheric)
-        - Bass boost (more authoritative)
-        
-        Args:
-            input_file: Path to input audio file
-            temp_dir: Temporary directory for output
-            timestamp: Timestamp for unique filename
-            
-        Returns:
-            Path to processed audio file
-        """
-        output_file = os.path.join(temp_dir, "tts", f"processed_{timestamp}.mp3")
-        
-        try:
-            # FFmpeg audio filter chain:
-            # 1. asetrate: Change sample rate to pitch down (lower = deeper)
-            # 2. aresample: Resample back to original rate
-            # 3. bass: Boost bass frequencies for more authority
-            # 4. aecho: Add subtle echo/reverb for atmosphere
-            filter_complex = (
-                "asetrate=44100*0.92,"  # Pitch down ~8% (deeper voice like Onyx)
-                "aresample=44100,"       # Resample to standard rate
-                "bass=g=3,"              # Boost bass by 3dB
-                "aecho=0.8:0.9:60:0.3"   # Subtle echo (delay, decay, delay_ms, decay)
-            )
-            
-            subprocess.run(
-                [
-                    "ffmpeg", "-i", input_file,
-                    "-af", filter_complex,
-                    "-y",  # Overwrite output
-                    output_file
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True
-            )
-            
-            # Remove original file
-            try:
-                os.remove(input_file)
-            except Exception:
-                pass
-                
-            Logger.print_debug(f"Applied audio effects to {output_file}")
-            return output_file
-            
-        except Exception as e:
-            Logger.print_warning(f"Failed to apply audio effects: {e}, using original")
-            return input_file
 
     def convert_text_to_speech(self, text: str, voice_id="en-US-Casual-K",
                              thread_id: str = None):
