@@ -318,6 +318,12 @@ class VoiceActivityDictation(Dictation):
             )
 
             for response in responses:
+                # CRITICAL: Check timeout flags on EVERY iteration
+                # Generator stopping isn't enough - must actively break from response loop
+                if not self.listening or self.mode != 'ACTIVE':
+                    Logger.print_info("⏰ Timeout detected - closing stream immediately")
+                    break
+
                 if not response.results:
                     continue
 
