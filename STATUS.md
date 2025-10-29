@@ -2,7 +2,7 @@
 
 ## Current Branch: feature/roundtrip_speed
 
-## Recent Work (Oct 28, 2025)
+## Recent Work (Oct 29, 2025)
 
 ### ✅ FIXED: 305-Second Google STT Stream Timeout Bug
 
@@ -38,6 +38,58 @@ pytest tests/unit/test_vad_stream_timeout.py -v
 - Streams close 0.75s after final transcript (silence_threshold)
 - Prevents $1.80/occurrence cost waste
 - No more mysterious "400 Exceeded maximum allowed stream duration" crashes
+
+### ✅ VERIFIED: Production Deployment and 500-Second Soak Test
+
+**Problem Discovery (Oct 29, 2025):**
+- GANGLIA was immediately activating (showing 🎤) without idle state (💤)
+- Still hitting 305-second timeout errors despite code fixes
+- Root cause: Old Python bytecode (.pyc files) still running
+- Secondary issue: Audio device index changed (was 14, now 6 for pipewire)
+
+**Diagnostic Process:**
+1. **Created VAD Energy Analyzer** (`utils/vad_energy_analyzer.py`):
+   - Measures ambient noise energy levels over time
+   - Shows real-time energy readings and histogram
+   - Provides statistical analysis (min, max, percentiles)
+   - Recommends threshold values (conservative, balanced, aggressive)
+
+2. **Calibrated Energy Threshold**:
+   - Ran 30-second ambient noise analysis on ganglia hardware
+   - Ambient noise median: 396.8 (was using threshold 150!)
+   - Ambient noise 75th percentile: 618.0
+   - Updated `energy_threshold` from 150 → 800 (balanced recommendation)
+
+3. **Fixed Audio Device Configuration**:
+   - Audio device indices changed between reboots
+   - Pipewire moved from index 14 → 6
+   - Updated `~/start_ganglia_monitored.sh` to use device index 6
+
+**Fixes Applied:**
+1. Cleared Python bytecode cache:
+   ```bash
+   rm -rf dictation/__pycache__ __pycache__
+   find . -type f -name '*.pyc' -delete
+   ```
+
+2. Updated startup script device index (14 → 6)
+
+3. Updated VAD config energy threshold (150 → 800)
+
+**Production Verification (500-Second Soak Test):**
+- ✅ GANGLIA ran for 500+ seconds without errors
+- ✅ No "Exceeded maximum allowed stream duration" errors
+- ✅ Streams closing after 5s timeout (not 305s)
+- ✅ Proper 💤 (idle) → 🎤 (active) state transitions
+- ✅ No crash loops or audio device errors
+
+**Remote Access Setup:**
+- Configured SSH key-based authentication to ganglia@192.168.4.63
+- Enables remote diagnostics and monitoring without password prompts
+
+**Tools Created:**
+- `utils/vad_energy_analyzer.py` - Ambient noise calibration tool
+- Documented in commit e4ab9cb
 
 ### ✅ FIXED: Ganglia Hardware Auto-Restart Setup
 
@@ -83,27 +135,20 @@ sudo dmesg | grep segfault
 - Service account authentication configured
 - `.envrc.systemd` created for systemd compatibility
 
-### 🔧 PENDING: Hardware Testing
-
-**Next Steps:**
-1. Let ganglia hardware run for 4-5 hours
-2. Monitor for segfaults: `sudo dmesg | grep -i segfault`
-3. Check restart count: `sudo systemctl show ganglia.service -p NRestarts`
-   *(Note: Not using systemd service anymore, check ganglia_monitor.log instead)*
-4. Verify 305s timeout fix prevents stream crashes
-
 ### Files Modified
 
 **Core Fixes:**
 - `dictation/vad_dictation.py` - Stream timeout handling + state machine fix
 - `tests/unit/test_vad_stream_timeout.py` - NEW TDD tests
+- `utils/vad_energy_analyzer.py` - NEW ambient noise calibration tool
 
 **Configuration:**
 - `.envrc` - Added GRPC logging suppression
 - `.envrc.systemd` - NEW systemd-compatible env file
+- `config/vad_config.json` - Updated energy_threshold from 150 to 800
 
 **Ganglia Hardware:**
-- `~/start_ganglia_monitored.sh` - Auto-restart wrapper
+- `~/start_ganglia_monitored.sh` - Auto-restart wrapper, updated device index to 6
 - `~/.config/autostart/ganglia.desktop` - Boot autostart config
 
 ### Technical Notes
@@ -111,7 +156,7 @@ sudo dmesg | grep segfault
 **VAD Configuration (config/vad_config.json):**
 - `conversation_timeout`: 5s (returns to IDLE after 5s silence)
 - `silence_threshold`: 0.75s (marks user done speaking)
-- `energy_threshold`: 150 (sensitive for outdoor use)
+- `energy_threshold`: 800 (calibrated above ambient noise 75th percentile: 618)
 
 **Google STT Limits:**
 - Hard limit: 305 seconds per stream
@@ -125,10 +170,10 @@ sudo dmesg | grep segfault
 
 ## Known Issues
 
-None! All critical bugs fixed and tested.
+None! All critical bugs fixed and verified in production.
 
 ## Next Session
 
-1. Monitor ganglia hardware for libspeexdsp stability
-2. Verify 305s timeout fix in production
-3. Consider removing `--audio-effects` if segfaults continue
+1. Monitor ganglia hardware for multi-hour stability (libspeexdsp segfault test)
+2. Test with actual trick-or-treaters on Halloween! 🎃
+3. Consider removing `--audio-effects` if segfaults occur during extended operation
