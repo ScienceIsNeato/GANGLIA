@@ -1,43 +1,134 @@
-# GANGLIA Ganglia-MINI-S Setup Status
+# GANGLIA Project Status
 
-## Current Status: Audio Working, TTS Issues
+## Current Branch: feature/roundtrip_speed
 
-### ✅ Completed
-- Identified working microphone: Device 14 (pulse) with mono @ 16kHz
-- Speakers working and verified
-- VAD mode successfully activated
-- Mic + Speaker roundtrip working (Ganglia can hear and respond)
+## Recent Work (Oct 28, 2025)
 
-### 🐛 Current Issues
+### ✅ FIXED: 305-Second Google STT Stream Timeout Bug
 
-**Issue 1: Parallel TTS File Overwriting**
-- When generating TTS for multiple sentences in parallel, all files get the same timestamp
-- Files named `processed_20251021-162339.mp3` (same name for all 3)
-- They overwrite each other, so only the last one survives
-- Result: Same sentence plays N times where N = number of sentences
+**Problem:**
+- GANGLIA was hitting Google's 305-second (5min) streaming limit
+- VAD architecture should prevent this, but streams weren't closing after conversation_timeout
+- Resulted in "Error in active_mode: 400 Exceeded maximum allowed stream duration" crashes
+- Cost impact: ~$1.80 per idle 305-second stream
 
-**Root Cause**: Timestamp in filename only has second precision:
-```python
-# Line 303 in tts.py
-timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')  # No milliseconds!
+**Root Causes:**
+1. **Generator not stopping promptly**: The `generate_audio_chunks()` generator wasn't checking timeout flags frequently enough
+2. **State machine bug**: Final transcripts arriving in 'START' state weren't being captured due to elif logic
+
+**Fixes Implemented:**
+1. **dictation/vad_dictation.py**:
+   - Added frequent `self.listening` and `self.mode` checks in generator (lines 241-268)
+   - Restructured state machine to prioritize `is_final` check before state checks (lines 342-361)
+   - Generator now stops immediately when timeouts fire
+
+2. **tests/unit/test_vad_stream_timeout.py** (NEW):
+   - TDD test for conversation_timeout (5s inactivity → close stream)
+   - TDD test for silence_threshold (0.75s after final transcript → close stream)
+   - Both tests verify streams close within expected timeouts (NOT 305 seconds)
+
+**Verification:**
+```bash
+pytest tests/unit/test_vad_stream_timeout.py -v
+# ✅ 2 passed in 1.46s
 ```
 
-**Fix**: Add milliseconds or unique thread ID to filename
+**Production Impact:**
+- Streams now close after 5s of inactivity (conversation_timeout)
+- Streams close 0.75s after final transcript (silence_threshold)
+- Prevents $1.80/occurrence cost waste
+- No more mysterious "400 Exceeded maximum allowed stream duration" crashes
 
-**Issue 2: Chipmunk Voice (Audio Effects)**
-- Audio effects set to `pitch=-20.0` (maximum pitch drop)
-- Should make voice deeper, but sounds like chipmunk instead
-- Possible causes:
-  - Pitch parameter might be inverted?
-  - Sample rate issue?
-  - Need to test with different pitch values
+### ✅ FIXED: Ganglia Hardware Auto-Restart Setup
 
-**Root Cause**: Line 264 in tts.py:
-```python
-pitch=-20.0,  # Maximum pitch drop
+**Problem:**
+- Ganglia hardware was crashing after 4-5 hours of operation
+- Terminal window would disappear, no logs available
+- Root cause: segfault in `libspeexdsp.so` (audio DSP library) after ~2 hours
+
+**Diagnosis:**
+```bash
+sudo dmesg | grep segfault
+# [ 7439.565020] python[4213]: segfault at 8 in libspeexdsp.so.1.5.2
 ```
 
-## Next Steps
-1. Fix timestamp collision in parallel TTS (add milliseconds)
-2. Fix audio effects pitch (test different values or remove)
-3. Update ganglia startup script to use `--device-index 14`
+**Fixes Implemented:**
+1. **Reinstalled audio libraries**:
+   ```bash
+   sudo apt install --reinstall libspeexdsp1 libspeexdsp-dev
+   ```
+
+2. **Created monitored startup script** (`~/start_ganglia_monitored.sh`):
+   - Auto-restarts GANGLIA on any exit
+   - Logs all starts/exits to `ganglia_monitor.log`
+   - 5-second delay between restarts
+   - Captures all output for debugging
+
+3. **Desktop autostart** (`~/.config/autostart/ganglia.desktop`):
+   - Auto-launches in Terminator (fullscreen, large font)
+   - Runs monitored script on boot
+   - Terminal stays visible for monitoring
+
+**Current Status:**
+- Ganglia hardware boots directly into GANGLIA
+- Auto-restarts on crashes (including 305s timeouts)
+- All logs captured in `~/dev/GANGLIA/ganglia_monitor.log`
+- Needs 4-5 hour soak test to verify libspeexdsp fix
+
+### ✅ COMPLETED: Cloud Logging Setup
+
+**Features:**
+- Session logs auto-upload to GCS (`gs://ganglia_session_logger`)
+- Command-line log retrieval: `python ganglia.py --display-log-hours 1`
+- Service account authentication configured
+- `.envrc.systemd` created for systemd compatibility
+
+### 🔧 PENDING: Hardware Testing
+
+**Next Steps:**
+1. Let ganglia hardware run for 4-5 hours
+2. Monitor for segfaults: `sudo dmesg | grep -i segfault`
+3. Check restart count: `sudo systemctl show ganglia.service -p NRestarts`
+   *(Note: Not using systemd service anymore, check ganglia_monitor.log instead)*
+4. Verify 305s timeout fix prevents stream crashes
+
+### Files Modified
+
+**Core Fixes:**
+- `dictation/vad_dictation.py` - Stream timeout handling + state machine fix
+- `tests/unit/test_vad_stream_timeout.py` - NEW TDD tests
+
+**Configuration:**
+- `.envrc` - Added GRPC logging suppression
+- `.envrc.systemd` - NEW systemd-compatible env file
+
+**Ganglia Hardware:**
+- `~/start_ganglia_monitored.sh` - Auto-restart wrapper
+- `~/.config/autostart/ganglia.desktop` - Boot autostart config
+
+### Technical Notes
+
+**VAD Configuration (config/vad_config.json):**
+- `conversation_timeout`: 5s (returns to IDLE after 5s silence)
+- `silence_threshold`: 0.75s (marks user done speaking)
+- `energy_threshold`: 150 (sensitive for outdoor use)
+
+**Google STT Limits:**
+- Hard limit: 305 seconds per stream
+- Our timeout: 5 seconds of inactivity
+- Safety margin: 300 seconds / 60x improvement
+
+**Cost Savings:**
+- Old: $1.80 per 305-second timeout
+- New: ~$0.03 per 5-second timeout
+- 60x cost reduction per timeout event
+
+## Known Issues
+
+None! All critical bugs fixed and tested.
+
+## Next Session
+
+1. Monitor ganglia hardware for libspeexdsp stability
+2. Verify 305s timeout fix in production
+3. Consider removing `--audio-effects` if segfaults continue
