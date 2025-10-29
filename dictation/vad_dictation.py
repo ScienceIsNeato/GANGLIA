@@ -306,6 +306,11 @@ class VoiceActivityDictation(Dictation):
             self.listening = False
 
         try:
+            # Start conversation timeout immediately when entering ACTIVE mode
+            # If no actual speech detected within timeout, return to IDLE
+            conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
+            conversation_timer.start()
+
             # Create streaming request
             requests = (
                 speech.StreamingRecognizeRequest(audio_content=chunk)
@@ -333,11 +338,13 @@ class VoiceActivityDictation(Dictation):
 
                 current_input = result.alternatives[0].transcript.strip()
 
-                # Reset conversation timeout on any speech
-                if conversation_timer:
-                    conversation_timer.cancel()
-                conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
-                conversation_timer.start()
+                # Reset conversation timeout ONLY on actual speech (not ambient noise)
+                # This prevents ambient noise from keeping the Google stream alive indefinitely
+                if current_input:  # Only if there's actual transcript content
+                    if conversation_timer:
+                        conversation_timer.cancel()
+                    conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
+                    conversation_timer.start()
 
                 # Cancel silence timer
                 if done_speaking_timer is not None:
