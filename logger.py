@@ -97,6 +97,61 @@ class Logger:
             *args: Variable length argument list to be printed.
             **kwargs: Arbitrary keyword arguments passed to print function.
         """
+        import re
+        import shutil
+
+        end_char = kwargs.get('end', '\n')
+        is_carriage_return = (end_char == '\r' or end_char == '')
+
+        # Get terminal width once
+        try:
+            terminal_width = shutil.get_terminal_size().columns
+        except:
+            terminal_width = 80
+
+        if len(args) == 1 and isinstance(args[0], str):
+            text = args[0]
+            # Strip ANSI codes to measure actual text length
+            clean_text = re.sub(r'\033\[[0-9;]*[mK]', '', text)
+            clean_text = re.sub(r'\r', '', clean_text)
+
+            if is_carriage_return:
+                # INTERIM UPDATE (while speaking) - truncate if too long to prevent flooding
+                if len(clean_text) > terminal_width - 5:
+                    # Show "..." + last N characters that fit
+                    visible_width = terminal_width - 8  # Leave room for "..." and color codes
+                    truncated = "..." + clean_text[-visible_width:]
+                    print(f"{term.deepskyblue}\r\033[K{truncated}{term.white}", end=end_char, flush=True)
+                    return
+            else:
+                # FINAL OUTPUT (sentence complete) - wrap if too long
+                if len(clean_text) > terminal_width - 2:
+                    # Word wrapping for final output
+                    words = clean_text.split()
+                    lines = []
+                    current_line = []
+                    current_length = 0
+
+                    for word in words:
+                        word_len = len(word) + (1 if current_line else 0)
+                        if current_length + word_len <= terminal_width - 2:
+                            current_line.append(word)
+                            current_length += word_len
+                        else:
+                            if current_line:
+                                lines.append(' '.join(current_line))
+                            current_line = [word]
+                            current_length = len(word)
+
+                    if current_line:
+                        lines.append(' '.join(current_line))
+
+                    # Print wrapped lines
+                    for line in lines:
+                        print(f"{term.deepskyblue}{line}{term.white}")
+                    return
+
+        # Default: print normally
         print(f"{term.deepskyblue}", end="")
         print(*args, **kwargs)
         print(f"{term.white}", end="", flush=True)
