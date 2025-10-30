@@ -12,24 +12,50 @@ GANGLIA runs as a desktop application (not a systemd service) because it require
 ## Architecture
 
 ```
-Boot → Login → Desktop Autostart → Terminator → start_ganglia_monitored.sh → ganglia.py
-                                                      ↓ (on crash)
-                                                   Auto-restart (5s delay)
+Boot → Login → Desktop Autostart → Watchdog (background)
+                                        ↓ (monitors)
+                                    Terminator → start_ganglia_monitored.sh → ganglia.py
+                                        ↑                  ↓ (on exit)
+                                        |              Kill Terminator
+                                        └─────────────────┘
+                                        Watchdog relaunches (5s delay)
 ```
+
+**Key Innovation**: When GANGLIA exits, the monitor script kills terminator entirely. The watchdog sees terminator is gone and relaunches everything fresh - simulating a full reboot.
 
 ## Components
 
-### 1. Monitored Start Script
+### 1. Watchdog Script
+
+**Location**: `~/ganglia_watchdog.sh` (also in repo as `ganglia_watchdog.sh`)
+
+**Purpose**: Background process that continuously monitors and relaunches terminator when it disappears
+
+**Features**:
+- Runs forever in the background
+- Checks every 5 seconds if terminator is running
+- Automatically relaunches terminator when it exits
+- Logs all launches to `ganglia_watchdog.log`
+
+**Installation**:
+```bash
+# Copy from repo
+cd ~/dev/GANGLIA
+cp ganglia_watchdog.sh ~/
+chmod +x ~/ganglia_watchdog.sh
+```
+
+### 2. Monitored Start Script
 
 **Location**: `~/start_ganglia_monitored.sh` (also in repo as `start_ganglia_monitored.sh`)
 
-**Purpose**: Wrapper that automatically restarts GANGLIA on any exit/crash
+**Purpose**: Wrapper that runs GANGLIA and kills terminator on exit (triggering watchdog restart)
 
 **Features**:
-- Infinite restart loop
-- Logs all starts/exits to `ganglia_monitor.log`
-- 5-second delay between restarts
-- Captures all stdout/stderr
+- Runs GANGLIA once
+- Logs all activity to `ganglia_monitor.log`
+- Kills parent terminator process on exit
+- Triggers watchdog to relaunch everything fresh
 
 **Installation**:
 ```bash
@@ -39,19 +65,19 @@ cp start_ganglia_monitored.sh ~/
 chmod +x ~/start_ganglia_monitored.sh
 ```
 
-### 2. Desktop Autostart Entry
+### 3. Desktop Autostart Entry
 
 **Location**: `~/.config/autostart/ganglia.desktop`
 
-**Purpose**: Launches GANGLIA automatically on boot/login
+**Purpose**: Launches the watchdog automatically on boot/login
 
 **Content**:
 ```ini
 [Desktop Entry]
 Type=Application
-Name=GANGLIA Voice Assistant
-Comment=Start GANGLIA in Terminator with auto-restart on crash
-Exec=terminator -f -p LargeFont -e "bash -c '~/start_ganglia_monitored.sh; exec bash'"
+Name=GANGLIA Voice Assistant Watchdog
+Comment=Monitor and auto-restart GANGLIA with terminator
+Exec=/home/ganglia/ganglia_watchdog.sh
 Terminal=false
 Hidden=false
 NoDisplay=false
@@ -61,16 +87,15 @@ X-GNOME-Autostart-enabled=true
 **Installation**:
 ```bash
 mkdir -p ~/.config/autostart
-nano ~/.config/autostart/ganglia.desktop
-# Paste the above content
+cp ~/dev/GANGLIA/deployment/ganglia.desktop ~/.config/autostart/
 ```
 
 **Key Settings**:
-- `-f`: Fullscreen mode
-- `-p LargeFont`: Custom Terminator profile (must be configured separately)
-- `exec bash`: Keeps terminal open if script exits (for debugging)
+- Launches watchdog in background (not terminator directly)
+- Watchdog handles all restarts
+- No terminal needed for watchdog itself
 
-### 3. Environment Configuration
+### 4. Environment Configuration
 
 **Location**: `~/dev/GANGLIA/.envrc`
 
@@ -126,17 +151,19 @@ export GRPC_TRACE=
    export GOOGLE_APPLICATION_CREDENTIALS="/home/ganglia/ganglia-service-account.json"
    ```
 
-5. **Install Monitored Start Script**:
+5. **Install Scripts**:
    ```bash
+   # Install both watchdog and monitor scripts
+   cp ~/dev/GANGLIA/ganglia_watchdog.sh ~/
    cp ~/dev/GANGLIA/start_ganglia_monitored.sh ~/
+   chmod +x ~/ganglia_watchdog.sh
    chmod +x ~/start_ganglia_monitored.sh
    ```
 
 6. **Configure Desktop Autostart**:
    ```bash
    mkdir -p ~/.config/autostart
-   nano ~/.config/autostart/ganglia.desktop
-   # Paste content from "Desktop Autostart Entry" section above
+   cp ~/dev/GANGLIA/deployment/ganglia.desktop ~/.config/autostart/
    ```
 
 7. **Setup Terminator Profile** (if using LargeFont):
@@ -152,14 +179,19 @@ export GRPC_TRACE=
    ~/start_ganglia_monitored.sh
    # Should launch GANGLIA, Ctrl+C to stop
    
-   # Test in Terminator (as autostart will use)
-   terminator -f -p LargeFont -e "bash -c '~/start_ganglia_monitored.sh; exec bash'"
+   # Test in Terminator (as watchdog will use)
+   terminator -f -p LargeFont -e ~/start_ganglia_monitored.sh
+   
+   # Test the watchdog
+   ~/ganglia_watchdog.sh &
+   # Should launch terminator with GANGLIA
+   # Kill terminator and watch it restart
    ```
 
 9. **Reboot and Verify**:
    ```bash
    sudo reboot
-   # After reboot, GANGLIA should auto-start in fullscreen Terminator
+   # After reboot, watchdog should auto-start and launch GANGLIA in fullscreen Terminator
    ```
 
 ## Maintenance Commands
@@ -193,12 +225,15 @@ python ganglia.py --store-logs --device-index 14 --audio-effects
 ### Stop GANGLIA
 
 ```bash
-# Kill the process
+# Kill the GANGLIA process
 pkill -f ganglia.py
 
-# It will auto-restart in 5 seconds via monitor script
-# To prevent restart, kill the monitor script too:
-pkill -f start_ganglia_monitored
+# It will auto-restart in ~5-10 seconds via watchdog
+# To prevent restart, kill the watchdog:
+pkill -f ganglia_watchdog
+
+# Or kill everything (terminator will also close):
+pkill -f ganglia_watchdog && pkill -f terminator
 ```
 
 ### Update Code
@@ -207,9 +242,14 @@ pkill -f start_ganglia_monitored
 cd ~/dev/GANGLIA
 git pull origin feature/roundtrip_speed
 
-# GANGLIA will auto-restart with new code on next crash
-# Or manually restart:
-pkill -f ganglia.py  # Will auto-restart in 5s with new code
+# Update scripts if they changed
+cp ganglia_watchdog.sh ~/
+cp start_ganglia_monitored.sh ~/
+chmod +x ~/ganglia_watchdog.sh ~/start_ganglia_monitored.sh
+
+# Restart everything to use new code
+pkill -f ganglia_watchdog
+~/ganglia_watchdog.sh &  # Watchdog will relaunch with new code
 ```
 
 ### Check for Crashes
@@ -290,9 +330,11 @@ grep "source .envrc" ~/start_ganglia_monitored.sh
 | Item | Location | Purpose |
 |------|----------|---------|
 | GANGLIA Code | `~/dev/GANGLIA/` | Main repository |
-| Monitor Script | `~/start_ganglia_monitored.sh` | Auto-restart wrapper |
+| Watchdog Script | `~/ganglia_watchdog.sh` | Background restart monitor |
+| Monitor Script | `~/start_ganglia_monitored.sh` | GANGLIA launcher |
 | Autostart Config | `~/.config/autostart/ganglia.desktop` | Boot configuration |
-| Monitor Log | `~/dev/GANGLIA/ganglia_monitor.log` | Restart/crash log |
+| Watchdog Log | `~/ganglia_watchdog.log` | Watchdog activity log |
+| Monitor Log | `~/dev/GANGLIA/ganglia_monitor.log` | GANGLIA restart/crash log |
 | Environment | `~/dev/GANGLIA/.envrc` | API keys, credentials |
 | Service Account | `~/ganglia-service-account.json` | GCP credentials |
 | App Config | `~/dev/GANGLIA/config/ganglia_config.json` | Personal settings |
