@@ -99,15 +99,25 @@ class Logger:
         """
         import re
         import shutil
+        import os
 
         end_char = kwargs.get('end', '\n')
         is_carriage_return = (end_char == '\r' or end_char == '')
 
-        # Get terminal width once
-        try:
-            terminal_width = shutil.get_terminal_size().columns
-        except:
-            terminal_width = 80
+        # Get terminal width: ENV VAR > auto-detect > default 80
+        terminal_width = None
+        env_width = os.environ.get('GANGLIA_TERMINAL_WIDTH')
+        if env_width:
+            try:
+                terminal_width = int(env_width)
+            except ValueError:
+                pass  # Fall through to auto-detect
+
+        if terminal_width is None:
+            try:
+                terminal_width = shutil.get_terminal_size().columns
+            except:
+                terminal_width = 80
 
         if len(args) == 1 and isinstance(args[0], str):
             text = args[0]
