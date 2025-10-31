@@ -1,5 +1,11 @@
-# Test Requirements - Lightweight version for CI/CD
-# Excludes heavy ML dependencies (torch, transformers, whisper) that aren't needed for tests
+# Test Requirements - Includes dependencies needed for test collection
+# Some modules import these at top-level, so they're required even for tests
+
+# ML Dependencies (needed for audio_alignment.py and music_backends/meta.py imports)
+torch>=2.0.0
+torchaudio>=2.0.0
+openai-whisper>=20231117
+transformers>=4.30.0
 
 # Video and Image Processing (needed for TTV tests)
 opencv-python>=4.9.0.80
