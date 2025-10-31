@@ -15,9 +15,10 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements files
 COPY requirements.txt .
 COPY requirements_core.txt .
-COPY requirements_large.txt .
+COPY requirements_test.txt .
 
-RUN pip install --no-cache-dir -r requirements_large.txt
+# Install test dependencies (lightweight - excludes torch/transformers/whisper)
+RUN pip install --no-cache-dir -r requirements_test.txt
 
 # Install remaining dependencies
 RUN pip install --no-cache-dir -r requirements_core.txt
