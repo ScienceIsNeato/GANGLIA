@@ -1,6 +1,9 @@
 import json
 import datetime
 import subprocess
+from blessed import Terminal
+
+term = Terminal()
 
 def parse_timestamp(timestamp_str):
     """Parse timestamp string into datetime object, handling both formats with and without milliseconds."""
@@ -69,10 +72,23 @@ def display_logs(hours):
 
         # Detect conversation break (more than 5 minutes between events)
         if previous_timestamp and (timestamp - previous_timestamp).total_seconds() > 300:
-            print("--- Conversation Break ---\n")
+            print(f"\n{term.gray}{'='*80}")
+            print(f"{term.gray}  Conversation Break - {int((timestamp - previous_timestamp).total_seconds() / 60)} minutes")
+            print(f"{term.gray}{'='*80}{term.white}\n")
 
-        # Print user and AI conversation in chronological order with the date and time
-        print(f"{timestamp.strftime('%m/%d/%Y %I:%M:%S %p')}  User: {user_input}")
-        print(f"{timestamp.strftime('%m/%d/%Y %I:%M:%S %p')}  GANGLIA: {response_output}")
+        # Format timestamp
+        time_str = timestamp.strftime('%I:%M:%S %p')
+        
+        # Print user input (left side, cyan)
+        if user_input:
+            print(f"{term.deepskyblue}[{time_str}] You:{term.white}")
+            print(f"{term.deepskyblue}{user_input}{term.white}")
+            print()  # Empty line for spacing
+        
+        # Print GANGLIA response (right side visually with indent, red)
+        if response_output:
+            print(f"{term.firebrick2}             [{time_str}] GANGLIA:{term.white}")
+            print(f"{term.firebrick2}             {response_output}{term.white}")
+            print()  # Empty line for spacing
 
         previous_timestamp = timestamp
