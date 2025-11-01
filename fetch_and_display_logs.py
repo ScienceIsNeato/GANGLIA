@@ -1,6 +1,8 @@
 import json
 import datetime
 import subprocess
+import os
+import tempfile
 from blessed import Terminal
 
 term = Terminal()
@@ -64,31 +66,42 @@ def display_logs(hours):
     # Combine and sort the logs based on timestamps
     sorted_logs = sorted(logs, key=lambda x: parse_timestamp(x['time_logged']))
 
-    previous_timestamp = None
-    for entry in sorted_logs:
-        timestamp = parse_timestamp(entry['time_logged'])
-        user_input = entry.get('user_input', '')
-        response_output = entry.get('response_output', '')
+    # Get output file path in GANGLIA temp directory
+    from utils.file_utils import get_tempdir
+    temp_dir = get_tempdir()
+    output_file = os.path.join(temp_dir, 'conversation_logs.txt')
+    
+    # Write logs to file
+    with open(output_file, 'w', encoding='utf-8') as f:
+        previous_timestamp = None
+        for entry in sorted_logs:
+            timestamp = parse_timestamp(entry['time_logged'])
+            user_input = entry.get('user_input', '')
+            response_output = entry.get('response_output', '')
 
-        # Detect conversation break (more than 5 minutes between events)
-        if previous_timestamp and (timestamp - previous_timestamp).total_seconds() > 300:
-            print(f"\n{term.gray}{'='*80}")
-            print(f"{term.gray}  Conversation Break - {int((timestamp - previous_timestamp).total_seconds() / 60)} minutes")
-            print(f"{term.gray}{'='*80}{term.white}\n")
+            # Detect conversation break (more than 5 minutes between events)
+            if previous_timestamp and (timestamp - previous_timestamp).total_seconds() > 300:
+                f.write(f"\n{term.gray}{'='*80}\n")
+                f.write(f"{term.gray}  Conversation Break - {int((timestamp - previous_timestamp).total_seconds() / 60)} minutes\n")
+                f.write(f"{term.gray}{'='*80}{term.white}\n\n")
 
-        # Format timestamp
-        time_str = timestamp.strftime('%I:%M:%S %p')
-        
-        # Print user input (left side, cyan)
-        if user_input:
-            print(f"{term.deepskyblue}[{time_str}] You:{term.white}")
-            print(f"{term.deepskyblue}{user_input}{term.white}")
-            print()  # Empty line for spacing
-        
-        # Print GANGLIA response (right side visually with indent, red)
-        if response_output:
-            print(f"{term.firebrick2}             [{time_str}] GANGLIA:{term.white}")
-            print(f"{term.firebrick2}             {response_output}{term.white}")
-            print()  # Empty line for spacing
+            # Format timestamp
+            time_str = timestamp.strftime('%I:%M:%S %p')
+            
+            # Write user input (left side, cyan)
+            if user_input:
+                f.write(f"{term.deepskyblue}[{time_str}] You:{term.white}\n")
+                f.write(f"{term.deepskyblue}{user_input}{term.white}\n")
+                f.write("\n")  # Empty line for spacing
+            
+            # Write GANGLIA response (right side visually with indent, red)
+            if response_output:
+                f.write(f"{term.firebrick2}             [{time_str}] GANGLIA:{term.white}\n")
+                f.write(f"{term.firebrick2}             {response_output}{term.white}\n")
+                f.write("\n")  # Empty line for spacing
 
-        previous_timestamp = timestamp
+            previous_timestamp = timestamp
+    
+    # Print location and cat the file
+    print(f"\n{term.green}Conversation logs saved to: {output_file}{term.white}\n")
+    subprocess.run(['cat', output_file])
