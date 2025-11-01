@@ -7,6 +7,12 @@ from blessed import Terminal
 
 term = Terminal()
 
+# ANSI color codes for file output (these will be preserved in the file)
+CYAN = '\033[38;5;39m'      # Deep sky blue for user
+RED = '\033[38;5;160m'      # Firebrick red for GANGLIA  
+GRAY = '\033[90m'           # Gray for conversation breaks
+WHITE = '\033[0m'           # Reset to default
+
 def parse_timestamp(timestamp_str):
     """Parse timestamp string into datetime object, handling both formats with and without milliseconds."""
     # Replace periods with colons in the time portion of the timestamp
@@ -81,23 +87,23 @@ def display_logs(hours):
 
             # Detect conversation break (more than 5 minutes between events)
             if previous_timestamp and (timestamp - previous_timestamp).total_seconds() > 300:
-                f.write(f"\n{term.gray}{'='*80}\n")
-                f.write(f"{term.gray}  Conversation Break - {int((timestamp - previous_timestamp).total_seconds() / 60)} minutes\n")
-                f.write(f"{term.gray}{'='*80}{term.white}\n\n")
+                f.write(f"\n{GRAY}{'='*80}\n")
+                f.write(f"{GRAY}  Conversation Break - {int((timestamp - previous_timestamp).total_seconds() / 60)} minutes\n")
+                f.write(f"{GRAY}{'='*80}{WHITE}\n\n")
 
             # Format timestamp
             time_str = timestamp.strftime('%I:%M:%S %p')
             
             # Write user input (left side, cyan)
             if user_input:
-                f.write(f"{term.deepskyblue}[{time_str}] You:{term.white}\n")
-                f.write(f"{term.deepskyblue}{user_input}{term.white}\n")
+                f.write(f"{CYAN}[{time_str}] You:{WHITE}\n")
+                f.write(f"{CYAN}{user_input}{WHITE}\n")
                 f.write("\n")  # Empty line for spacing
             
             # Write GANGLIA response (right side visually with indent, red)
             if response_output:
-                f.write(f"{term.firebrick2}             [{time_str}] GANGLIA:{term.white}\n")
-                f.write(f"{term.firebrick2}             {response_output}{term.white}\n")
+                f.write(f"{RED}             [{time_str}] GANGLIA:{WHITE}\n")
+                f.write(f"{RED}             {response_output}{WHITE}\n")
                 f.write("\n")  # Empty line for spacing
 
             previous_timestamp = timestamp
