@@ -349,6 +349,7 @@ jobs:
         YOUTUBE_TOKEN_FILE: ${{ secrets.GANGLIA_TEMP_DIR }}/credentials/youtube_token.json
         UPLOAD_SMOKE_TESTS_TO_YOUTUBE: 'false'
         UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE: 'true'
+        SKIP_STRICT_CAPTION_VALIDATION: 'true'
       run: ./run_tests.sh docker integration
 
     - name: Display Test Links

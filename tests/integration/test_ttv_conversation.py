@@ -107,10 +107,10 @@ class MockTTS:
         logger.debug(f"MockTTS generated audio file: {audio_file}")
         return text, audio_file
 
-    def play_speech_response(self, audio_file, text):
+    def play_speech_response(self, audio_file, text, suppress_text_output=False):
         """Mock implementation of play_speech_response."""
         # Do nothing in the mock
-        logger.debug(f"MockTTS playing audio file: {audio_file}")
+        logger.debug(f"MockTTS playing audio file: {audio_file}, suppress={suppress_text_output}")
         pass
 
     def set_voice_id(self, voice_id):
