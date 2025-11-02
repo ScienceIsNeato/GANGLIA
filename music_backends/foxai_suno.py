@@ -151,10 +151,20 @@ class FoxAISunoBackend(MusicBackend, SunoInterface):
         # Use default 30 seconds for instrumentals if none specified
         actual_duration = duration if duration is not None else 30
 
+        # Map user-friendly model names to API format
+        model_mapping = {
+            'V3_5': 'chirp-v3-5',
+            'V4': 'chirp-v4',
+            'chirp-v3-5': 'chirp-v3-5',  # Allow direct API format too
+            'chirp-v4': 'chirp-v4'
+        }
+        
         # Ensure model is set to a valid value
-        if not model or model.lower() not in ['chirp-v3-5', 'chirp-v4']:
+        if not model or model not in model_mapping:
             Logger.print_warning(f"Invalid model '{model}', defaulting to 'chirp-v3-5'")
             model = 'chirp-v3-5'
+        else:
+            model = model_mapping[model]
 
         # Enhance prompt with duration and title context
         enhanced_prompt = f"Create a {actual_duration}-second {prompt}"
