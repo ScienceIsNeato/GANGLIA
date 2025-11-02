@@ -20,6 +20,12 @@ cd "$HOME/dev/GANGLIA" || exit 1
 source venv/bin/activate
 source .envrc
 
+# Copy VAD config template if user config doesn't exist
+if [ ! -f "config/vad_config.json" ]; then
+    echo "[$(date)] No VAD config found - copying template..." | tee -a "$LOG_FILE"
+    cp config/vad_config.json.template config/vad_config.json
+fi
+
 echo "[$(date)] Starting GANGLIA..." | tee -a "$LOG_FILE"
 
 # Run GANGLIA and capture all output to log

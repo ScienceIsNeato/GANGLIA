@@ -101,6 +101,14 @@ class VoiceActivityDictation(Dictation):
                 'vad_config.json'
             )
 
+        # Copy template if config doesn't exist
+        if not os.path.exists(config_path):
+            template_path = config_path + '.template'
+            if os.path.exists(template_path):
+                Logger.print_info(f"No VAD config found - copying template to {config_path}")
+                import shutil
+                shutil.copy(template_path, config_path)
+
         # Try to load config file
         if os.path.exists(config_path):
             try:

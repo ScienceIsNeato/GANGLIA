@@ -33,6 +33,11 @@ jobs:
           exit 1
         fi
 
+    # Standard GitHub Actions workaround: Remove pre-installed software we don't need
+    # GitHub Actions runners come with ~14GB of pre-installed tools (dotnet, android SDK, etc.)
+    # Docker builds for ML dependencies (torch, transformers) need ~10-12GB
+    # Without cleanup: "No space left on device" during pip install
+    # This is a common practice for Docker-heavy CI workflows
     - name: Free up disk space
       run: |
         echo "Disk space before cleanup:"
@@ -156,6 +161,11 @@ jobs:
           exit 1
         fi
 
+    # Standard GitHub Actions workaround: Remove pre-installed software we don't need
+    # GitHub Actions runners come with ~14GB of pre-installed tools (dotnet, android SDK, etc.)
+    # Docker builds for ML dependencies (torch, transformers) need ~10-12GB
+    # Without cleanup: "No space left on device" during pip install
+    # This is a common practice for Docker-heavy CI workflows
     - name: Free up disk space
       run: |
         echo "Disk space before cleanup:"
@@ -278,6 +288,11 @@ jobs:
           exit 1
         fi
 
+    # Standard GitHub Actions workaround: Remove pre-installed software we don't need
+    # GitHub Actions runners come with ~14GB of pre-installed tools (dotnet, android SDK, etc.)
+    # Docker builds for ML dependencies (torch, transformers) need ~10-12GB
+    # Without cleanup: "No space left on device" during pip install
+    # This is a common practice for Docker-heavy CI workflows
     - name: Free up disk space
       run: |
         echo "Disk space before cleanup:"

@@ -231,7 +231,7 @@ class GoogleTTS(TextToSpeech):
         """
         super().__init__()
         self.apply_effects = apply_effects
-        Logger.print_info(f"Initializing GoogleTTS{'with audio effects' if apply_effects else ''}...")
+        Logger.print_info(f"Initializing GoogleTTS{' with audio effects' if apply_effects else ''}...")
         # Create a single shared client instance with thread safety
         with self._client_lock:
             self._client = tts.TextToSpeechClient()

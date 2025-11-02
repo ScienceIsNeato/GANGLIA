@@ -344,7 +344,11 @@ class Conversation:
                     # Generate TTS for this sentence immediately
                     if self.tts:
                         _, audio_file = self.tts.convert_text_to_speech(sentence)
-                        audio_queue.put((sentence, audio_file))
+                        # Only queue if TTS conversion succeeded
+                        if audio_file is not None:
+                            audio_queue.put((sentence, audio_file))
+                        else:
+                            Logger.print_warning(f"TTS conversion failed for sentence: {sentence[:50]}...")
 
                 # Signal that all TTS generation is complete
                 audio_queue.put(None)
@@ -421,6 +425,11 @@ class Conversation:
         Returns:
             The user's input
         """
+        # TODO: REFACTOR THIS METHOD - It's become a catchall basket for all the weird things we want to do.
+        # Need to break this into smaller, focused methods with clear responsibilities.
+        # Consider: separate input handling, validation, and control flow into distinct helper methods.
+        # Current complexity makes it hard to understand control flow and adds technical debt.
+        
         # Reset conversation timer for new turn
         self.conversation_timer = ConversationTimer()
         self.conversation_timer.mark_user_start()
@@ -453,13 +462,6 @@ class Conversation:
                     Logger.print_info("User killed program - exiting gracefully")
                     self.end()
                     exit(0)
-
-            # Print a fun little prompt at the beginning of the user's turn
-            Logger.print_info(self.dictation.generate_random_phrase())
-            self.conversation_timer.mark_stt_start()
-            prompt = self.dictation.getDictatedInput(args.device_index, interruptable=False) if self.dictation else input()
-            self.conversation_timer.mark_stt_end()
-            self.conversation_timer.mark_user_end()
 
     def ai_turn(self, user_input: str, args) -> str:
         """

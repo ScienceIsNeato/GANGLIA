@@ -64,10 +64,16 @@ class PerformanceStats:
         values = sorted(self.timings[name])
         n = len(values)
 
+        # Calculate median correctly for even and odd datasets
+        if n % 2 == 0:
+            median = (values[n // 2 - 1] + values[n // 2]) / 2
+        else:
+            median = values[n // 2]
+
         return {
             'count': n,
             'mean': sum(values) / n,
-            'median': values[n // 2],
+            'median': median,
             'p95': values[int(n * 0.95)] if n > 1 else values[0],
             'p99': values[int(n * 0.99)] if n > 1 else values[0],
             'min': values[0],
