@@ -3,8 +3,8 @@
   "description": "Tune these settings to optimize speech detection sensitivity for your environment",
 
   "detection": {
-    "energy_threshold": 300,
-    "comment_energy_threshold": "Audio energy level required to detect speech. LOWER = more sensitive (picks up quiet speech), HIGHER = less sensitive (ignores background noise). Typical range: 300-1000. Default: 500. CURRENT: 300 (more sensitive based on user feedback)",
+    "energy_threshold": 150,
+    "comment_energy_threshold": "Audio energy level required to detect speech. LOWER = more sensitive (picks up quiet speech), HIGHER = less sensitive (ignores background noise). Typical range: 300-1000. Default: 500. CURRENT: 150 (very sensitive - lower than 'very_sensitive' preset)",
 
     "speech_confirmation_chunks": 2,
     "comment_speech_confirmation_chunks": "Number of consecutive high-energy audio chunks needed to confirm real speech (not just noise spike). LOWER = faster activation but more false positives, HIGHER = slower but more reliable. Range: 1-5. Default: 3. CURRENT: 2 (faster activation)",
@@ -17,8 +17,8 @@
   },
 
   "timing": {
-    "silence_threshold": 2.5,
-    "comment_silence_threshold": "Seconds of silence before marking user as 'done speaking' within a conversation. Default: 2.5",
+    "silence_threshold": 0.75,
+    "comment_silence_threshold": "Seconds of silence before marking user as 'done speaking' within a conversation. Default: 2.5. CURRENT: 0.75 (VERY AGGRESSIVE - optimized for Halloween rapid-fire interactions. May cut off mid-sentence for normal conversations. Increase to 1.25-1.5s for balanced use. See tuning_guide below.)",
 
     "conversation_timeout": 5,
     "comment_conversation_timeout": "Seconds of silence before returning to idle listening mode (stops Google API streaming). Default: 30. CURRENT: 5 (quick timeout for outdoor environment with passing cars)"

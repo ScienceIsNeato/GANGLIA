@@ -16,6 +16,7 @@ from user_management import UserProfile
 from logger import Logger
 from pubsub import get_pubsub, Event, EventType
 from story_generation_driver import StoryGenerationDriver, StoryInfoType, StoryGenerationState
+from utils.performance_profiler import ConversationTimer, Timer
 
 
 class Conversation:
@@ -68,6 +69,9 @@ class Conversation:
         self.waiting_for_ttv_info = False
         self.current_ttv_info_type = None
         self.ttv_process_running = False
+
+        # Performance tracking
+        self.conversation_timer = ConversationTimer()
 
         # Publish conversation started event
         self.pubsub.publish(Event(
@@ -298,6 +302,119 @@ class Conversation:
         # Otherwise, just have a normal conversation
         return self.query_dispatcher.send_query(user_input)
 
+    def _stream_llm_and_play_audio(self, user_input: str) -> str:
+        """
+        Stream LLM response and play audio as soon as each sentence is ready.
+
+        This provides the lowest latency by starting audio playback immediately
+        when the first sentence's TTS is complete, while continuing to generate
+        TTS for subsequent sentences in the background.
+
+        Args:
+            user_input: The user's input
+
+        Returns:
+            The complete AI response text
+        """
+        import threading
+        import queue
+
+        self.conversation_timer.mark_llm_start()
+
+        # Update user activity and history
+        self.user_profile.update_activity()
+        self.user_profile.add_conversation_entry({
+            'role': 'user',
+            'content': user_input
+        })
+
+        # Queue for audio files ready to play
+        audio_queue = queue.Queue()
+        full_response = ""
+        sentences = []
+        tts_complete = threading.Event()
+
+        def generate_tts_worker():
+            """Background thread that generates TTS for each sentence."""
+            try:
+                for sentence in self.query_dispatcher.send_query_streaming(user_input):
+                    sentences.append(sentence)
+                    # Don't print here - will print during playback
+
+                    # Generate TTS for this sentence immediately
+                    if self.tts:
+                        _, audio_file = self.tts.convert_text_to_speech(sentence)
+                        # Only queue if TTS conversion succeeded
+                        if audio_file is not None:
+                            audio_queue.put((sentence, audio_file))
+                        else:
+                            Logger.print_warning(f"TTS conversion failed for sentence: {sentence[:50]}...")
+
+                # Signal that all TTS generation is complete
+                audio_queue.put(None)
+                tts_complete.set()
+            except Exception as e:
+                Logger.print_error(f"Error in TTS worker: {e}")
+                audio_queue.put(None)
+                tts_complete.set()
+
+        # Start TTS generation in background
+        tts_thread = threading.Thread(target=generate_tts_worker, daemon=True)
+        tts_thread.start()
+
+        # Mark LLM streaming start (will be updated when first sentence arrives)
+        first_sentence = True
+        playback_started = False
+
+        if self.ai_turn_indicator:
+            self.ai_turn_indicator.input_out()
+
+        # Play audio files as they become available
+        while True:
+            item = audio_queue.get()
+
+            if item is None:
+                # All done
+                break
+
+            sentence, audio_file = item
+            full_response += sentence + " "
+
+            if first_sentence:
+                # Mark timing for first audio playback
+                self.conversation_timer.mark_llm_end()
+                self.conversation_timer.mark_tts_start()
+                self.conversation_timer.mark_tts_end()
+                self.conversation_timer.mark_playback_start()
+                first_sentence = False
+                playback_started = True
+
+            # Print sentence as it's about to be played
+            Logger.print_demon_output(sentence)
+
+            # Play this sentence's audio immediately (suppress redundant output)
+            if self.tts:
+                self.tts.play_speech_response(audio_file, sentence, suppress_text_output=True)
+
+        # Wait for TTS thread to complete
+        tts_thread.join(timeout=5.0)
+
+        response = full_response.strip()
+
+        # Add to user profile
+        self.user_profile.add_conversation_entry({
+            'role': 'assistant',
+            'content': response
+        })
+
+        # Log the interaction
+        if self.session_logger:
+            self.session_logger.log_session_interaction(
+                SessionEvent(user_input, response)
+            )
+
+        return response
+
     def user_turn(self, args) -> str:
         """
         Handle the user's turn in the conversation.
@@ -308,6 +425,15 @@ class Conversation:
         Returns:
             The user's input
         """
+        # TODO: REFACTOR THIS METHOD - It's become a catchall basket for all the weird things we want to do.
+        # Need to break this into smaller, focused methods with clear responsibilities.
+        # Consider: separate input handling, validation, and control flow into distinct helper methods.
+        # Current complexity makes it hard to understand control flow and adds technical debt.
+        
+        # Reset conversation timer for new turn
+        self.conversation_timer = ConversationTimer()
+        self.conversation_timer.mark_user_start()
+
         while True:  # Keep asking for input until a non-empty prompt is received
             if self.user_turn_indicator:
                 self.user_turn_indicator.input_in()
@@ -315,7 +441,12 @@ class Conversation:
             got_input = False
             while not got_input:
                 try:
+                    # Print prompt indicator to show we're ready for input
+                    print("> ", end="", flush=True)
+                    self.conversation_timer.mark_stt_start()
                     prompt = self.dictation.getDictatedInput(args.device_index, interruptable=False) if self.dictation else input()
+                    self.conversation_timer.mark_stt_end()
+                    self.conversation_timer.mark_user_end()
 
                     # If the input is empty restart the loop
                     if not prompt.strip():
@@ -332,10 +463,6 @@ class Conversation:
                     self.end()
                     exit(0)
 
-            # Print a fun little prompt at the beginning of the user's turn
-            Logger.print_info(self.dictation.generate_random_phrase())
-            prompt = self.dictation.getDictatedInput(args.device_index, interruptable=False) if self.dictation else input()
-
     def ai_turn(self, user_input: str, args) -> str:
         """
         Handle the AI's turn in the conversation.
@@ -347,18 +474,120 @@ class Conversation:
         Returns:
             The AI's response
         """
+        self.conversation_timer.mark_ai_start()
+
         if self.ai_turn_indicator:
             self.ai_turn_indicator.input_in()
 
-        response = self.process_user_input(user_input)
+        # Check for hotwords or special handling that doesn't use LLM streaming
+        hotword_detected, _ = self.hotword_manager.detect_hotwords(user_input) if self.hotword_manager else (False, None)
+        uses_special_handling = (hotword_detected or
+                                 self.waiting_for_ttv_info or
+                                 self.ttv_process_running)
 
-        if self.ai_turn_indicator:
-            self.ai_turn_indicator.input_out()
+        if uses_special_handling:
+            # Use traditional non-streaming approach for special cases
+            self.conversation_timer.mark_llm_start()
+            query_result = self.process_user_input(user_input)
+            self.conversation_timer.mark_llm_end()
 
-        if self.tts:
-            # Generate speech response
-            _, file_path = self.tts.convert_text_to_speech(response)
-            self.tts.play_speech_response(file_path, response)
+            # Check if response includes audio
+            if isinstance(query_result, tuple):
+                response, audio_file = query_result
+                # Audio from LLM - skip TTS entirely
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+
+                self.conversation_timer.mark_tts_start()  # Mark as 0 time
+                self.conversation_timer.mark_tts_end()
+                self.conversation_timer.mark_playback_start()
+
+                if self.tts:
+                    self.tts.play_speech_response(audio_file, response)
+            else:
+                response = query_result
+                # Traditional TTS path
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+
+                if self.tts:
+                    # Generate speech response
+                    self.conversation_timer.mark_tts_start()
+                    _, file_path = self.tts.convert_text_to_speech(response)
+                    self.conversation_timer.mark_tts_end()
+
+                    self.conversation_timer.mark_playback_start()
+                    self.tts.play_speech_response(file_path, response)
+        else:
+            # Check if we should use audio output from LLM
+            if self.query_dispatcher.audio_output:
+                # Use LLM with integrated audio output (no streaming, no TTS)
+                self.conversation_timer.mark_llm_start()
+
+                # Update user activity and history
+                self.user_profile.update_activity()
+                self.user_profile.add_conversation_entry({
+                    'role': 'user',
+                    'content': user_input
+                })
+
+                # Get response (may include audio or just text if audio failed)
+                query_result = self.query_dispatcher.send_query(user_input)
+
+                # Check if audio was returned (tuple) or just text (fallback)
+                if isinstance(query_result, tuple):
+                    response, audio_file = query_result
+                    has_audio = True
+                else:
+                    response = query_result
+                    has_audio = False
+
+                Logger.print_demon_output(response)
+
+                self.conversation_timer.mark_llm_end()
+
+                # Add to user profile
+                self.user_profile.add_conversation_entry({
+                    'role': 'assistant',
+                    'content': response
+                })
+
+                # Log the interaction
+                if self.session_logger:
+                    self.session_logger.log_session_interaction(
+                        SessionEvent(user_input, response)
+                    )
+
+                if self.ai_turn_indicator:
+                    self.ai_turn_indicator.input_out()
+
+                if has_audio:
+                    # Skip TTS - audio came from LLM
+                    self.conversation_timer.mark_tts_start()
+                    self.conversation_timer.mark_tts_end()
+
+                    # Play the audio directly
+                    self.conversation_timer.mark_playback_start()
+                    if self.tts:
+                        self.tts.play_speech_response(audio_file, response)
+                else:
+                    # Fallback to TTS since audio wasn't returned
+                    if self.tts:
+                        self.conversation_timer.mark_tts_start()
+                        _, file_path = self.tts.convert_text_to_speech(response)
+                        self.conversation_timer.mark_tts_end()
+
+                        self.conversation_timer.mark_playback_start()
+                        self.tts.play_speech_response(file_path, response)
+
+            else:
+                # Use streaming LLM + streaming TTS with immediate playback
+                response = self._stream_llm_and_play_audio(user_input)
+
+        self.conversation_timer.mark_ai_end()
+
+        # Print timing breakdown for this conversation turn
+        self.conversation_timer.print_breakdown()
 
         return response
 

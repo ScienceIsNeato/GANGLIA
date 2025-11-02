@@ -18,6 +18,7 @@ from logger import Logger
 from threading import Timer
 import time
 from session_logger import SessionEvent
+from utils.performance_profiler import is_timing_enabled
 
 from .dictation import Dictation
 
@@ -99,6 +100,14 @@ class VoiceActivityDictation(Dictation):
                 'config',
                 'vad_config.json'
             )
+
+        # Copy template if config doesn't exist
+        if not os.path.exists(config_path):
+            template_path = config_path + '.template'
+            if os.path.exists(template_path):
+                Logger.print_info(f"No VAD config found - copying template to {config_path}")
+                import shutil
+                shutil.copy(template_path, config_path)
 
         # Try to load config file
         if os.path.exists(config_path):
@@ -230,25 +239,46 @@ class VoiceActivityDictation(Dictation):
         Generator that yields audio chunks from the stream.
         Yields: buffered audio → transition audio → live stream
         This ensures no gaps in audio coverage.
+
+        CRITICAL: Must check self.listening/self.mode frequently to avoid
+        hitting Google's 305-second streaming limit.
         """
         # First, yield buffered audio chunks (captured before activation)
         if self.audio_buffer:
             for buffered_chunk in self.audio_buffer:
+                if not self.listening or self.mode != 'ACTIVE':
+                    return  # Stop immediately if timeout occurs
                 yield buffered_chunk
             self.audio_buffer = []
 
         # Second, yield transition buffer (captured during stream setup)
         if self.transition_buffer:
             for transition_chunk in self.transition_buffer:
+                if not self.listening or self.mode != 'ACTIVE':
+                    return  # Stop immediately if timeout occurs
                 yield transition_chunk
             self.transition_buffer = []
 
         # Finally, yield live audio
+        # Check flags before EACH read to ensure prompt timeout handling
         while self.listening and self.mode == 'ACTIVE':
-            yield stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+            try:
+                # Use a shorter timeout on the read so we can check flags frequently
+                chunk = stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+
+                # Double-check flags after potentially blocking read
+                if not self.listening or self.mode != 'ACTIVE':
+                    return  # Stop immediately
+
+                yield chunk
+            except Exception as e:
+                Logger.print_error(f"Error reading audio chunk: {e}")
+                return  # Stop on any error
 
     def done_speaking(self):
         """Mark the dictation as complete."""
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [STT] Silence detected! User finished speaking.")
         self.listening = False
 
     def transcribe_stream_active_mode(self, device_index, interruptable=False):
@@ -284,6 +314,11 @@ class VoiceActivityDictation(Dictation):
             self.listening = False
 
         try:
+            # Start conversation timeout immediately when entering ACTIVE mode
+            # If no actual speech detected within timeout, return to IDLE
+            conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
+            conversation_timer.start()
+
             # Create streaming request
             requests = (
                 speech.StreamingRecognizeRequest(audio_content=chunk)
@@ -296,7 +331,13 @@ class VoiceActivityDictation(Dictation):
             )
 
             for response in responses:
-                if not response.results or self.mode != 'ACTIVE':
+                # CRITICAL: Check timeout flags on EVERY iteration
+                # Generator stopping isn't enough - must actively break from response loop
+                if not self.listening or self.mode != 'ACTIVE':
+                    Logger.print_info("⏰ Timeout detected - closing stream immediately")
+                    break
+
+                if not response.results:
                     continue
 
                 result = response.results[0]
@@ -305,11 +346,13 @@ class VoiceActivityDictation(Dictation):
 
                 current_input = result.alternatives[0].transcript.strip()
 
-                # Reset conversation timeout on any speech
-                if conversation_timer:
-                    conversation_timer.cancel()
-                conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
-                conversation_timer.start()
+                # Reset conversation timeout ONLY on actual speech (not ambient noise)
+                # This prevents ambient noise from keeping the Google stream alive indefinitely
+                if current_input:  # Only if there's actual transcript content
+                    if conversation_timer:
+                        conversation_timer.cancel()
+                    conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
+                    conversation_timer.start()
 
                 # Cancel silence timer
                 if done_speaking_timer is not None:
@@ -317,16 +360,23 @@ class VoiceActivityDictation(Dictation):
 
                 is_final = result.is_final
 
-                if state == 'START':
-                    Logger.print_user_input(f'\033[K{current_input}\r', end='', flush=True)
-                    state = 'LISTENING'
-
-                elif is_final:
+                # Handle final transcripts (complete utterances)
+                if is_final:
                     finalized_transcript += f"{current_input} "
                     Logger.print_user_input(f'\033[K{current_input}', flush=True)
                     state = 'START'
+
+                    # Mark when we start waiting for silence
+                    if is_timing_enabled():
+                        Logger.print_perf(f"⏱️  [STT] Final transcript received, waiting {self.SILENCE_THRESHOLD}s for silence...")
+
                     done_speaking_timer = Timer(self.SILENCE_THRESHOLD, self.done_speaking)
                     done_speaking_timer.start()
+
+                # Handle interim transcripts (partial results)
+                elif state == 'START':
+                    Logger.print_user_input(f'\033[K{current_input}\r', end='', flush=True)
+                    state = 'LISTENING'
 
                 elif state == 'LISTENING':
                     Logger.print_user_input(f'\033[K{current_input}', end='\r', flush=True)

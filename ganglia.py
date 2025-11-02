@@ -9,6 +9,7 @@ import time
 import sys
 import os
 import signal
+import warnings
 from logger import Logger
 from parse_inputs import load_config, parse_tts_interface, parse_dictation_type
 from query_dispatch import ChatGPTQueryDispatcher
@@ -21,6 +22,11 @@ from utils import get_tempdir
 from ttv.ttv import text_to_video
 from fetch_and_display_logs import display_logs
 from pubsub import get_pubsub
+from utils.performance_profiler import enable_timing_analysis
+
+# Suppress gRPC fork warnings
+os.environ['GRPC_ENABLE_FORK_SUPPORT'] = '0'
+warnings.filterwarnings('ignore', message='.*fork_posix.*')
 
 
 def get_config_path():
@@ -63,10 +69,12 @@ def initialize_components(args):
     # Initialize TTS
     tts = None
     try:
-        tts = parse_tts_interface(args.tts_interface)
+        tts = parse_tts_interface(args.tts_interface, apply_effects=args.audio_effects)
         # The GoogleTTS class doesn't have a set_voice_id method
         # It accepts voice_id directly in the convert_text_to_speech method
         # We'll pass the voice_id when calling convert_text_to_speech
+        if args.audio_effects:
+            Logger.print_info("🎸 Audio effects enabled (pitch down, reverb, bass boost)")
         Logger.print_debug("TTS initialized successfully.")
     except Exception as e:
         Logger.print_error(f"Failed to initialize TTS: {e}")
@@ -82,7 +90,13 @@ def initialize_components(args):
     # Initialize query dispatcher
     query_dispatcher = None
     try:
-        query_dispatcher = ChatGPTQueryDispatcher(config_file_path=config_path)
+        query_dispatcher = ChatGPTQueryDispatcher(
+            config_file_path=config_path,
+            audio_output=args.audio_output,
+            audio_voice=args.audio_voice
+        )
+        if args.audio_output:
+            Logger.print_info(f"🎵 Audio output enabled (gpt-4o-audio-preview with voice: {args.audio_voice})")
         Logger.print_debug("ChatGPTQueryDispatcher initialized successfully.")
     except Exception as e:
         Logger.print_error(f"Failed to initialize ChatGPTQueryDispatcher: {e}")
@@ -134,6 +148,21 @@ def main():
     # Load command line arguments
     args = load_config()
 
+    # Enable debug logging if requested
+    if args.debug:
+        Logger.enable_debug()
+        Logger.print_debug("Debug logging enabled")
+
+    # Enable timing analysis if requested
+    if args.timing_analysis:
+        enable_timing_analysis()
+        Logger.enable_timestamps()  # Enable timestamps for timing analysis
+        Logger.print_perf("=" * 60)
+        Logger.print_perf("TIMING ANALYSIS ENABLED")
+        Logger.print_perf("Detailed conversation pipeline timing will be logged")
+        Logger.print_perf("Timestamps enabled")
+        Logger.print_perf("=" * 60)
+
     # Create temp directory if it doesn't exist
     get_tempdir()
 
@@ -162,7 +191,7 @@ def main():
     if args.ttv_config:
         # Process text-to-video generation without conversation
         Logger.print_info("Processing text-to-video generation...")
-        tts_client = parse_tts_interface(args.tts_interface)
+        tts_client = parse_tts_interface(args.tts_interface, apply_effects=args.audio_effects)
         text_to_video(
             config_path=args.ttv_config,
             skip_generation=args.skip_image_generation,

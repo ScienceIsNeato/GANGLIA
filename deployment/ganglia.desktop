@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=GANGLIA Voice Assistant Watchdog
+Comment=Monitor and auto-restart GANGLIA with terminator
+Exec=/home/ganglia/ganglia_watchdog.sh
+Terminal=false
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+

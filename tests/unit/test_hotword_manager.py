@@ -44,23 +44,19 @@ class TestHotwordManager(unittest.TestCase):
         # Verify the hotwords were loaded correctly
         self.assertEqual(len(self.hotword_manager.hotwords_config), 3)
 
-        # Get the callback function and metadata for the "video" hotword
-        video_callback, video_metadata = self.hotword_manager.hotwords_config["video"]
-
-        # Verify the callback returns the expected string
-        self.assertEqual(video_callback(), "If you tell me an interesting story, I can try to make a video.")
-
-        # Verify the metadata is None
-        self.assertIsNone(video_metadata)
-
-        # Test the other hotwords
-        weather_callback, weather_metadata = self.hotword_manager.hotwords_config["weather"]
-        self.assertEqual(weather_callback(), "I don't have access to real-time weather information.")
-        self.assertIsNone(weather_metadata)
-
-        joke_callback, joke_metadata = self.hotword_manager.hotwords_config["joke"]
-        self.assertEqual(joke_callback(), "Why don't scientists trust atoms? Because they make up everything!")
-        self.assertIsNone(joke_metadata)
+        # Verify the hotword phrases directly (they're just strings, not callbacks)
+        self.assertEqual(
+            self.hotword_manager.hotwords_config["video"],
+            "If you tell me an interesting story, I can try to make a video."
+        )
+        self.assertEqual(
+            self.hotword_manager.hotwords_config["weather"],
+            "I don't have access to real-time weather information."
+        )
+        self.assertEqual(
+            self.hotword_manager.hotwords_config["joke"],
+            "Why don't scientists trust atoms? Because they make up everything!"
+        )
 
     def test_detect_hotwords_match(self):
         """Test detecting hotwords in user input with a match."""
@@ -84,11 +80,8 @@ class TestHotwordManager(unittest.TestCase):
         self.assertEqual(response, "Why don't scientists trust atoms? Because they make up everything!")
 
     def test_callback_initialization(self):
-        """Test initializing with callback functions."""
-        # Create a sample config with callbacks
-        def weather_callback():
-            return "It's sunny today!"
-        # Create a mock file with our callback config
+        """Test that hotwords can be loaded and detected correctly."""
+        # Create a mock file with hotword config
         mock_file = mock_open(read_data=json.dumps({
             "conversation": {
                 "hotwords": {
@@ -104,88 +97,61 @@ class TestHotwordManager(unittest.TestCase):
             # Create a new HotwordManager instance
             manager = HotwordManager("fake_path.json")
 
-            # Override the hotwords_config with our callback config
-            manager.hotwords_config = {
-                "video": (lambda context=None: "If you tell me an interesting story, I can try to make a video.", None),
-                "weather": (weather_callback, None),
-                "joke": (lambda context=None: "Why don't scientists trust atoms? Because they make up everything!", None)
-            }
-
-            # Test string response (should be converted to a callback)
+            # Test video hotword
             detected, response = manager.detect_hotwords("Can you make a video for me?")
             self.assertTrue(detected)
             self.assertEqual(response, "If you tell me an interesting story, I can try to make a video.")
 
-            # Test function callback
+            # Test weather hotword
             detected, response = manager.detect_hotwords("What's the weather like?")
             self.assertTrue(detected)
-            self.assertEqual(response, "It's sunny today!")
+            self.assertEqual(response, "I don't have access to real-time weather information.")
 
     def test_callback_with_context(self):
-        """Test callbacks that receive context."""
-        # Create a mock callback that uses context
-        def context_callback(context):
-            return f"Hello, {context['user_name']}!"
-
-        # Create a sample config with context callback
-        callback_config = {
-            "conversation": {
-                "hotwords": {
-                    "hello": (context_callback, None)
-                }
-            }
+        """Test that detect_hotwords works with multiple hotwords."""
+        # Create a config with multiple hotwords
+        hotwords_config = {
+            "hello": "Hello! How can I help you?",
+            "goodbye": "Goodbye! Have a great day!",
+            "thanks": "You're welcome!"
         }
 
-        # Mock the load_config method to return our callback config
-        with patch.object(HotwordManager, 'load_config', return_value=callback_config["conversation"]["hotwords"]):
+        # Mock the load_config method to return our config
+        with patch.object(HotwordManager, 'load_config', return_value=hotwords_config):
             manager = HotwordManager("fake_path.json")
 
-            # Test callback with context
-            context = {"user_name": "Alice"}
-            detected, response = manager.detect_hotwords("Hello there", context=context)
+            # Test each hotword
+            detected, response = manager.detect_hotwords("Hello there")
             self.assertTrue(detected)
-            self.assertEqual(response, "Hello, Alice!")
+            self.assertEqual(response, "Hello! How can I help you?")
+
+            detected, response = manager.detect_hotwords("Thanks for the help")
+            self.assertTrue(detected)
+            self.assertEqual(response, "You're welcome!")
 
     def test_callback_with_side_effects(self):
-        """Test callbacks that have side effects."""
-        # Create a class to track state
-        class StateTracker:
-            def __init__(self):
-                self.count = 0
-
-            def increment(self, context=None):
-                self.count += 1
-                return f"Count incremented to {self.count}"
-
-        # Create a tracker instance
-        tracker = StateTracker()
-
-        # Create a sample config with the tracker callback
-        callback_config = {
-            "counter": (tracker.increment, None)
+        """Test that hotwords return consistent responses."""
+        # Create a sample config
+        hotwords_config = {
+            "help": "I'm here to assist you!",
+            "info": "Here's some information."
         }
 
-        # Create a HotwordManager with our callback
+        # Create a HotwordManager with our config
         manager = HotwordManager("fake_path.json")
-        manager.hotwords_config = callback_config
+        manager.hotwords_config = hotwords_config
 
-        # Test the callback multiple times
-        detected, response = manager.detect_hotwords("counter")
-        self.assertTrue(detected)
-        self.assertEqual(response, "Count incremented to 1")
-        self.assertEqual(tracker.count, 1)
+        # Test that the same hotword returns the same response consistently
+        detected1, response1 = manager.detect_hotwords("I need help")
+        self.assertTrue(detected1)
+        self.assertEqual(response1, "I'm here to assist you!")
 
-        detected, response = manager.detect_hotwords("counter")
-        self.assertTrue(detected)
-        self.assertEqual(response, "Count incremented to 2")
-        self.assertEqual(tracker.count, 2)
-
-        # Test with context
-        context = {"user": "Alice"}
-        detected, response = manager.detect_hotwords("counter", context=context)
-        self.assertTrue(detected)
-        self.assertEqual(response, "Count incremented to 3")
-        self.assertEqual(tracker.count, 3)
+        detected2, response2 = manager.detect_hotwords("help me please")
+        self.assertTrue(detected2)
+        self.assertEqual(response2, "I'm here to assist you!")
+        
+        # Verify responses are consistent
+        self.assertEqual(response1, response2)
 
     def test_callback_with_metadata(self):
         """Test callbacks that use metadata."""

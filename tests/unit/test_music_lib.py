@@ -1,4 +1,6 @@
 import pytest
+import tempfile
+import os
 from unittest.mock import Mock, patch
 from music_lib import MusicGenerator, _exponential_backoff
 from music_backends import MetaMusicBackend
@@ -7,6 +9,12 @@ from music_backends.foxai_suno import FoxAISunoBackend
 from ttv.config_loader import TTVConfig
 from typing import Union
 from logger import Logger
+
+@pytest.fixture
+def temp_output_dir():
+    """Fixture to provide a temporary output directory for tests."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield temp_dir
 
 class MockSunoBackend(SunoApiOrgBackend):
     def __init__(self, should_fail=False, fail_count=None):
@@ -157,7 +165,7 @@ def test_instrumental_generation_with_parameters():
         duration=30,
         title="Test Song",
         tags=["test", "music"],
-        output_path="/test/output.mp3"
+        output_path=os.path.join(tempfile.gettempdir(), "output.mp3")
     )
 
     assert suno_backend.start_generation_called
@@ -197,7 +205,7 @@ def test_lyrics_generation_with_parameters():
         story_text="test story",
         title="Test Song",
         tags=["test", "music"],
-        output_path="/test/output.mp3",
+        output_path=os.path.join(tempfile.gettempdir(), "output.mp3"),
         query_dispatcher=query_dispatcher
     )
 
@@ -237,7 +245,7 @@ def test_parameter_passing_through_retry_chain():
             duration=30,
             title="Test Song",
             tags=["test", "music"],
-            output_path="/test/output.mp3"
+            output_path=os.path.join(tempfile.gettempdir(), "output.mp3")
         )
 
     assert suno_backend.attempts == 2  # One failure + one success
@@ -287,7 +295,7 @@ def test_instrumental_generation_string_result():
     # a string as if it were a tuple
     result = generator.get_background_music_from_prompt(
         prompt="test prompt",
-        output_dir="/test/output",
+        output_dir=os.path.join(tempfile.gettempdir(), "output"),
         thread_id="test"
     )
 
@@ -311,7 +319,7 @@ def test_closing_credits_string_result():
     result_path, result_lyrics = generator.get_closing_credits_from_prompt(
         prompt="test prompt",
         story_text="test story",
-        output_dir="/test/output",
+        output_dir=os.path.join(tempfile.gettempdir(), "output"),
         thread_id="test"
     )
 
@@ -337,17 +345,17 @@ def test_output_path_handling():
 
         result = generator.get_background_music_from_prompt(
             prompt="test prompt",
-            output_dir="/test/output",
+            output_dir=os.path.join(tempfile.gettempdir(), "output"),
             thread_id="test"
         )
 
         # Verify the copy was attempted with correct paths
         mock_copy.assert_called_once_with(
             "/mock/source/path.mp3",
-            "/test/output/background_music.mp3"
+            os.path.join(tempfile.gettempdir(), "output", "background_music.mp3")
         )
         # Result should be the output path since copy succeeded
-        assert result == "/test/output/background_music.mp3"
+        assert result == os.path.join(tempfile.gettempdir(), "output", "background_music.mp3")
 
 def test_output_path_copy_failure():
     """Test graceful handling of file copy failures."""
@@ -368,7 +376,7 @@ def test_output_path_copy_failure():
 
         result = generator.get_background_music_from_prompt(
             prompt="test prompt",
-            output_dir="/test/output",
+            output_dir=os.path.join(tempfile.gettempdir(), "output"),
             thread_id="test"
         )
 
@@ -419,7 +427,7 @@ def test_duration_handling():
     # Test default duration
     generator.get_background_music_from_prompt(
         prompt="test prompt",
-        output_dir="/test/output"
+        output_dir=os.path.join(tempfile.gettempdir(), "output")
     )
     assert backend.last_duration == 30  # Default duration
 
@@ -488,7 +496,7 @@ def test_thread_id_propagation():
     with patch('logger.Logger.print_info') as mock_log:
         generator.get_background_music_from_prompt(
             prompt="test prompt",
-            output_dir="/test/output",
+            output_dir=os.path.join(tempfile.gettempdir(), "output"),
             thread_id="test_thread"
         )
 
