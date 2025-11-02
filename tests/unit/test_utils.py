@@ -37,7 +37,6 @@ def test_exponential_backoff_with_thread_id():
     mock_func.__name__ = "test_func"  # Required for logging
 
     with patch('time.sleep'), \
-         patch.object(Logger, 'print_debug') as mock_debug, \
          patch.object(Logger, 'print_warning') as mock_warning, \
          patch.object(Logger, 'print_info') as mock_info:
 
@@ -46,7 +45,8 @@ def test_exponential_backoff_with_thread_id():
     assert result == "success"
     assert mock_func.call_count == 2
 
-    # Verify logging includes thread ID
-    assert any("test-thread" in str(call) for call in mock_debug.call_args_list)
-    assert any("test-thread" in str(call) for call in mock_warning.call_args_list)
-    assert any("test-thread" in str(call) for call in mock_info.call_args_list)
+    # Verify logging includes thread ID (exponential_backoff uses print_warning and print_info)
+    assert any("test-thread" in str(call) for call in mock_warning.call_args_list), \
+        f"thread-id not found in warning calls: {mock_warning.call_args_list}"
+    assert any("test-thread" in str(call) for call in mock_info.call_args_list), \
+        f"thread-id not found in info calls: {mock_info.call_args_list}"

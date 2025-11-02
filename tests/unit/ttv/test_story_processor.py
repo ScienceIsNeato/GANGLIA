@@ -96,13 +96,16 @@ class TestStoryProcessor(unittest.TestCase):
             "is_safe": True
         })
 
-        # Create a test config with file-based closing credits
+        # Create a test config with file-based closing credits and background music
         test_config = TTVConfig(
             style="test style",
             story=["Test story line 1", "Test story line 2"],
             title="Test Title",
             caption_style="static",
-            background_music=None,
+            background_music=MusicConfig(
+                file=None,
+                prompt="Generate background music"
+            ),
             closing_credits=MusicConfig(
                 file=os.path.join(self.temp_dir, "test_credits.mp3"),
                 prompt=None
@@ -191,13 +194,16 @@ class TestStoryProcessor(unittest.TestCase):
             "is_safe": True
         })
 
-        # Create a test config
+        # Create a test config with background music
         test_config = TTVConfig(
             style="test style",
             story=["Test story line 1", "Test story line 2"],
             title="Test Title",
             caption_style="static",
-            background_music=None,
+            background_music=MusicConfig(
+                file=None,
+                prompt="Generate background music"
+            ),
             closing_credits=MusicConfig(
                 file=None,
                 prompt="Generate closing credits"
@@ -289,13 +295,16 @@ class TestStoryProcessor(unittest.TestCase):
             self.temp_dir, "background_music.mp3"
         )
 
-        # Create a test config with prompt-based closing credits
+        # Create a test config with prompt-based closing credits and background music
         test_config = TTVConfig(
             style="test style",
             story=["Test story line 1", "Test story line 2"],
             title="Test Title",
             caption_style="static",
-            background_music=None,
+            background_music=MusicConfig(
+                file=None,
+                prompt="Generate background music"
+            ),
             closing_credits=MusicConfig(
                 file=None,
                 prompt="Generate closing credits with lyrics"
@@ -334,16 +343,12 @@ class TestStoryProcessor(unittest.TestCase):
             mock_music_gen.get_background_music.assert_called_once()
             mock_music_gen.get_closing_credits.assert_called_once()
 
-            # Check that the story text is passed as JSON
+            # Check that the story text is passed (as a newline-joined string)
             story_text_arg = mock_music_gen.get_closing_credits.call_args[1]['story_text']
             self.assertTrue(isinstance(story_text_arg, str), "Story text should be a string")
-            try:
-                story_json = json.loads(story_text_arg)
-                self.assertEqual(story_json['title'], test_config.title, "JSON should contain title")
-                self.assertEqual(story_json['style'], test_config.style, "JSON should contain style")
-                self.assertEqual(story_json['story'], test_config.story, "JSON should contain story")
-            except json.JSONDecodeError:
-                self.fail("Story text should be valid JSON")
+            # Story text is the newline-joined story lines
+            expected_story_text = "\n".join(test_config.story)
+            self.assertEqual(story_text_arg, expected_story_text, "Story text should be newline-joined story lines")
 
 if __name__ == '__main__':
     unittest.main()

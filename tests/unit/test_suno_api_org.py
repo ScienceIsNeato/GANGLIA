@@ -340,32 +340,23 @@ def test_generate_with_lyrics_success(backend):
             with patch.object(backend, '_get_start_time', return_value=980):  # Mock start time
                 with patch('time.sleep'):  # Mock sleep to skip waiting
                     # Start the generation
-                    job_id, story_text = backend.generate_with_lyrics(
+                    result_path, story_text = backend.generate_with_lyrics(
                         prompt="test song",
                         story_text="Test story for lyrics",
                         title="Test Song",
                         tags="pop"
                     )
 
-                    assert job_id == "test_job_id"
+                    # generate_with_lyrics returns (file_path, story_text), not (job_id, story_text)
+                    # It's a blocking call that handles polling internally
+                    assert result_path is not None
+                    assert result_path.endswith('.mp3')
+                    assert 'test_job_id' in result_path  # Job ID is part of the filename
                     assert story_text == "Test story for lyrics"
-
-                    # Wait for completion by polling
-                    max_wait = 30  # Maximum wait time in seconds
-                    start_time = time.time()
-                    while True:
-                        status, progress = backend.check_progress(job_id)
-                        if progress >= 100:
-                            break
-                        if time.time() - start_time > max_wait:
-                            pytest.fail("Generation timed out")
-                        time.sleep(1)
-
-                    # Get the final result
-                    result = backend.get_result(job_id)
-                    assert result is not None
-                    assert mock_request.call_count == 4
-                    mock_file.assert_called()
+                    
+                    # Verify the expected number of API calls were made
+                    assert mock_request.call_count == 4  # start + check + result + download
+                    mock_file.assert_called()  # Verify file was written
 
 def test_exponential_backoff_retries(backend, mock_exponential_backoff):
     """Test that exponential backoff retries work correctly without delays."""
