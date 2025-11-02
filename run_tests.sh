@@ -298,6 +298,7 @@ case $MODE in
                 -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
                 -e UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE \
                 -e UPLOAD_SMOKE_TESTS_TO_YOUTUBE \
+                -e SKIP_STRICT_CAPTION_VALIDATION \
                 -e "GANGLIA_TEMP_DIR=${GANGLIA_TEMP_DIR}" \
                 ganglia:latest \
                 /bin/sh -c "pytest tests/unit/ -v -s -m 'costly'" 2>&1 | tee -a "$LOG_FILE"
@@ -334,6 +335,7 @@ case $MODE in
             -e YOUTUBE_TOKEN_FILE=/tmp/youtube_token.json \
             -e UPLOAD_INTEGRATION_TESTS_TO_YOUTUBE \
             -e UPLOAD_SMOKE_TESTS_TO_YOUTUBE \
+            -e SKIP_STRICT_CAPTION_VALIDATION \
             -e "GANGLIA_TEMP_DIR=${GANGLIA_TEMP_DIR}" \
             ganglia:latest \
             /bin/sh -c "pytest ${TEST_DIR} -v -s $([ "$TEST_TYPE" = "unit" ] && echo "-m 'not costly'")" 2>&1 | tee -a "$LOG_FILE"

@@ -384,9 +384,9 @@ def test_ttv_conversation_flow():
                     output_log.append(f"GANGLIA: {response}")
 
                     # If we're waiting for the TTV process to complete, give it some time
-                    if conversation.ttv_handler.is_ttv_process_running():
+                    if conversation.ttv_process_running:
                         logger.debug("Waiting for TTV process to complete...")
-                        logger.debug(f"TTV process running: {conversation.ttv_handler.is_ttv_process_running()}")
+                        logger.debug(f"TTV process running: {conversation.ttv_process_running}")
 
                         # Manually trigger the TTV process for testing
                         if not ttv_process_triggered:
@@ -450,11 +450,11 @@ def test_ttv_conversation_flow():
                         logger.debug(f"Events captured so far: {[e.event_type for e in event_capture.events]}")
 
                         # Debug: Check if the conversation state was updated
-                        logger.debug(f"Conversation TTV process running: {conversation.ttv_handler.is_ttv_process_running()}")
-                        logger.debug(f"Conversation TTV completion pending: {conversation.ttv_handler.is_ttv_completion_pending()}")
+                        logger.debug(f"Conversation TTV process running: {conversation.ttv_process_running}")
+                        logger.debug(f"Conversation waiting for TTV info: {conversation.waiting_for_ttv_info}")
 
-                        # Verify that the TTV completion notification is pending
-                        assert conversation.ttv_handler.is_ttv_completion_pending(), "TTV completion notification should be pending"
+                        # Verify that we're waiting for TTV info (completion notification pending)
+                        assert conversation.waiting_for_ttv_info, "Should be waiting for TTV info"
 
                         # Simulate the next user turn to trigger the notification
                         logger.debug("Simulating next user turn to trigger TTV completion notification")
@@ -465,8 +465,8 @@ def test_ttv_conversation_flow():
                         user_input = conversation.user_turn(args)
                         output_log.append(f"User: {user_input}")
 
-                        # Verify that the notification was sent
-                        assert not conversation.ttv_handler.is_ttv_completion_pending(), "TTV completion notification should have been sent"
+                        # Verify that the notification was sent (no longer waiting for TTV info)
+                        assert not conversation.waiting_for_ttv_info, "TTV completion notification should have been sent"
 
                         # AI's turn - regular response to the user's question
                         response = conversation.ai_turn(user_input, args)
@@ -485,8 +485,8 @@ def test_ttv_conversation_flow():
                         response = conversation.ai_turn(user_input, args)
                         output_log.append(f"GANGLIA: {response}")
 
-                        if hasattr(conversation.ttv_handler, 'ttv_output_path'):
-                            logger.debug(f"Conversation TTV output path: {conversation.ttv_handler.ttv_output_path}")
+                        if hasattr(conversation, 'ttv_output_path'):
+                            logger.debug(f"Conversation TTV output path: {conversation.ttv_output_path}")
 
                 # Save output log for debugging
                 output_str = "\n".join(output_log)
@@ -514,7 +514,7 @@ def test_ttv_conversation_flow():
                         ttv_output_path = event.data.get('output_path')
                         logger.debug(f"Found TTV output path in event: {ttv_output_path}")
                         # Add the output path to the conversation object for testing
-                        conversation.ttv_handler.ttv_output_path = ttv_output_path
+                        conversation.ttv_output_path = ttv_output_path
 
                 # If we didn't capture any events, let's manually set the output path for testing
                 if ttv_output_path is None:
@@ -536,7 +536,7 @@ def test_ttv_conversation_flow():
                                 f.write(b'mock video')
 
                     # Add the output path to the conversation object for testing
-                    conversation.ttv_handler.ttv_output_path = ttv_output_path
+                    conversation.ttv_output_path = ttv_output_path
 
                 # Verify the TTV process was triggered
                 assert ttv_process_triggered, "TTV process was not triggered during the test"
