@@ -310,7 +310,7 @@ class TestStreamLifecycle(unittest.TestCase):
                 vad.listening = False  # Prevent infinite loop in generate_audio_chunks
 
                 # Mock the streaming recognize to avoid network calls
-                with patch.object(vad.client, 'streaming_recognize'):
+                with patch.object(vad.stt_provider.client, 'streaming_recognize'):
                     try:
                         vad.transcribe_stream_active_mode(device_index=0)
                     except:

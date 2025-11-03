@@ -150,7 +150,7 @@ class TestVADStreamTimeout(unittest.TestCase):
                 time.sleep(0.05)
 
         mock_client.streaming_recognize = mock_streaming_recognize
-        vad.client = mock_client
+        vad.stt_provider.client = mock_client
 
         vad.mode = 'ACTIVE'
 
