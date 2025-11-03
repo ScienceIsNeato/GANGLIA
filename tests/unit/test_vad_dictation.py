@@ -28,7 +28,7 @@ class TestVADConfiguration(unittest.TestCase):
 
     def test_default_config_values(self):
         """Test that default configuration values are set correctly."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 # Mock os.path.exists to prevent loading the actual config file
                 with patch('os.path.exists', return_value=False):
@@ -69,7 +69,7 @@ class TestVADConfiguration(unittest.TestCase):
             config_path = f.name
 
         try:
-            with patch('dictation.vad_dictation.speech.SpeechClient'):
+            with patch('dictation.stt_provider.speech.SpeechClient'):
                 with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                     vad = VoiceActivityDictation(config_path=config_path)
 
@@ -85,7 +85,7 @@ class TestVADConfiguration(unittest.TestCase):
 
     def test_buffer_size_calculation(self):
         """Test that buffer size is calculated correctly from config."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -100,7 +100,7 @@ class TestEnergyCalculation(unittest.TestCase):
 
     def test_calculate_energy_with_silence(self):
         """Test energy calculation for silent audio."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -112,7 +112,7 @@ class TestEnergyCalculation(unittest.TestCase):
 
     def test_calculate_energy_with_noise(self):
         """Test energy calculation for audio with content."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -127,7 +127,7 @@ class TestEnergyCalculation(unittest.TestCase):
 
     def test_calculate_energy_with_invalid_data(self):
         """Test that invalid audio data returns 0."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -141,7 +141,7 @@ class TestAudioBuffering(unittest.TestCase):
 
     def test_buffer_initialization(self):
         """Test that audio buffer is initialized empty."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -150,7 +150,7 @@ class TestAudioBuffering(unittest.TestCase):
 
     def test_buffer_prepending_order(self):
         """Test that audio chunks are yielded in correct order."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -181,7 +181,7 @@ class TestAudioBuffering(unittest.TestCase):
 
     def test_buffer_clearing_after_yield(self):
         """Test that buffers are cleared after being yielded."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -221,7 +221,7 @@ class TestSpeechDetection(unittest.TestCase):
     @patch('dictation.vad_dictation.Logger')
     def test_speech_detection_requires_confirmation(self, mock_logger):
         """Test that speech detection requires consecutive high-energy chunks."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio') as mock_pyaudio:
                 vad = VoiceActivityDictation()
                 vad.SPEECH_CONFIRMATION_CHUNKS = 3
@@ -253,7 +253,7 @@ class TestSpeechDetection(unittest.TestCase):
     @patch('dictation.vad_dictation.Logger')
     def test_low_energy_resets_counter(self, mock_logger):
         """Test that low energy audio resets the confirmation counter."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio') as mock_pyaudio:
                 vad = VoiceActivityDictation()
                 vad.SPEECH_CONFIRMATION_CHUNKS = 2
@@ -270,7 +270,7 @@ class TestStreamLifecycle(unittest.TestCase):
     @patch('dictation.vad_dictation.Logger')
     def test_vad_stream_stays_open_during_transition(self, mock_logger):
         """Test that VAD stream is not closed immediately on detection."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio') as mock_pyaudio:
                 vad = VoiceActivityDictation()
 
@@ -294,7 +294,7 @@ class TestStreamLifecycle(unittest.TestCase):
     @patch('dictation.vad_dictation.Logger')
     def test_transition_buffer_collection(self, mock_logger):
         """Test that transition audio is collected during stream setup."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
 
@@ -326,14 +326,14 @@ class TestModeTransitions(unittest.TestCase):
 
     def test_initial_mode_is_idle(self):
         """Test that VAD starts in IDLE mode."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                 vad = VoiceActivityDictation()
                 self.assertEqual(vad.mode, 'IDLE')
 
     def test_mode_changes_to_active_on_detection(self):
         """Test that mode changes to ACTIVE when speech is detected."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio') as mock_pyaudio:
                 vad = VoiceActivityDictation()
 
@@ -355,7 +355,7 @@ class TestModeTransitions(unittest.TestCase):
 
     def test_mode_returns_to_idle_after_conversation(self):
         """Test that mode returns to IDLE after getDictatedInput completes."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio') as mock_pyaudio:
                 vad = VoiceActivityDictation()
 
@@ -376,7 +376,7 @@ class TestErrorHandling(unittest.TestCase):
     @patch('dictation.vad_dictation.Logger')
     def test_keyboard_interrupt_handling(self, mock_logger):
         """Test that KeyboardInterrupt is handled gracefully."""
-        with patch('dictation.vad_dictation.speech.SpeechClient'):
+        with patch('dictation.stt_provider.speech.SpeechClient'):
             with patch('dictation.vad_dictation.pyaudio.PyAudio') as mock_pyaudio:
                 vad = VoiceActivityDictation()
 
@@ -399,7 +399,7 @@ class TestErrorHandling(unittest.TestCase):
             config_path = f.name
 
         try:
-            with patch('dictation.vad_dictation.speech.SpeechClient'):
+            with patch('dictation.stt_provider.speech.SpeechClient'):
                 with patch('dictation.vad_dictation.pyaudio.PyAudio'):
                     with patch('dictation.vad_dictation.Logger'):
                         vad = VoiceActivityDictation(config_path=config_path)

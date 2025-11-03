@@ -16,7 +16,7 @@ import time
 class TestVADStreamTimeout(unittest.TestCase):
     """Test that streams close promptly after conversation timeout."""
 
-    @patch('dictation.vad_dictation.speech')
+    @patch('dictation.stt_provider.speech')
     @patch('dictation.vad_dictation.pyaudio.PyAudio')
     def test_stream_closes_after_conversation_timeout(self, mock_pyaudio, mock_speech):
         """
@@ -97,7 +97,7 @@ class TestVADStreamTimeout(unittest.TestCase):
                        f"Processed {request_count[0]} requests, generator should stop after timeout")
 
 
-    @patch('dictation.vad_dictation.speech')
+    @patch('dictation.stt_provider.speech')
     @patch('dictation.vad_dictation.pyaudio.PyAudio')
     def test_stream_closes_after_final_transcript(self, mock_pyaudio, mock_speech):
         """
