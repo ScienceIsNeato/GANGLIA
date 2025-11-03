@@ -3,9 +3,7 @@ Voice Activity Detection (VAD) Dictation Module
 
 This module implements a cost-efficient two-stage dictation system:
 1. Local Voice Activity Detection (FREE) - listens for ANY human speech
-2. Google Cloud Speech streaming (PAID) - only activates when speech detected
-
-Cost Reduction: ~95% savings ($20/day → $1-2/day)
+2. STT streaming (PAID) - only activates when speech detected
 """
 
 import pyaudio
@@ -13,7 +11,6 @@ import struct
 import math
 import json
 import os
-from google.cloud import speech_v1p1beta1 as speech
 from logger import Logger
 from threading import Timer
 import time
@@ -21,6 +18,19 @@ from session_logger import SessionEvent
 from utils.performance_profiler import is_timing_enabled
 
 from .dictation import Dictation
+from .stt_provider import STTProvider, GoogleSTTProvider
+
+# Default VAD configuration (overridden by vad_config.json if present)
+DEFAULT_VAD_CONFIG = {
+    "energy_threshold": 500,
+    "speech_confirmation_chunks": 3,
+    "chunk_size": 1024,
+    "silence_threshold": 2.5,
+    "conversation_timeout": 30,
+    "sample_rate": 16000,
+    "channels": 1,
+    "audio_buffer_seconds": 2.0  # How much audio to keep in buffer for prepending
+}
 
 
 class VoiceActivityDictation(Dictation):
@@ -29,28 +39,25 @@ class VoiceActivityDictation(Dictation):
 
     Two modes:
     - IDLE: Local audio processing, listening for ANY speech (FREE)
-    - ACTIVE: Google Cloud Speech streaming (PAID, only when speech detected)
+    - ACTIVE: STT streaming (PAID, only when speech detected)
+    
+    The STT provider is abstracted, allowing use of different services
+    (Google, AWS, Azure, etc.) via the STTProvider interface.
     """
-
-    # Default configuration (overridden by vad_config.json if present)
-    DEFAULT_CONFIG = {
-        "energy_threshold": 500,
-        "speech_confirmation_chunks": 3,
-        "chunk_size": 1024,
-        "silence_threshold": 2.5,
-        "conversation_timeout": 30,
-        "sample_rate": 16000,
-        "channels": 1,
-        "audio_buffer_seconds": 2.0  # How much audio to keep in buffer for prepending
-    }
 
     # Constants
     FORMAT = pyaudio.paInt16
     MAX_RETRIES = 5
     RETRY_DELAY = 2
 
-    def __init__(self, config_path=None):
-        """Initialize the Voice Activity Detection dictation system."""
+    def __init__(self, config_path=None, stt_provider: STTProvider = None):
+        """
+        Initialize the Voice Activity Detection dictation system.
+        
+        Args:
+            config_path: Path to VAD configuration JSON file (optional)
+            stt_provider: STT provider implementation (defaults to GoogleSTTProvider)
+        """
         try:
             self.session_logger = None
             self.mode = 'IDLE'  # IDLE or ACTIVE
@@ -75,8 +82,9 @@ class VoiceActivityDictation(Dictation):
             # Audio buffer for prepending (stores recent chunks before activation)
             self.audio_buffer = []
 
-            # Google Speech client (only used when ACTIVE)
-            self.client = speech.SpeechClient()
+            # STT provider (abstracted - can be Google, AWS, Azure, etc.)
+            self.stt_provider = stt_provider or GoogleSTTProvider()
+            self.stt_provider.initialize()
 
             # Audio stream
             self.audio = pyaudio.PyAudio()
@@ -117,14 +125,14 @@ class VoiceActivityDictation(Dictation):
 
                 # Extract settings from nested structure
                 config = {
-                    "energy_threshold": file_config.get("detection", {}).get("energy_threshold", self.DEFAULT_CONFIG["energy_threshold"]),
-                    "speech_confirmation_chunks": file_config.get("detection", {}).get("speech_confirmation_chunks", self.DEFAULT_CONFIG["speech_confirmation_chunks"]),
-                    "chunk_size": file_config.get("detection", {}).get("chunk_size", self.DEFAULT_CONFIG["chunk_size"]),
-                    "audio_buffer_seconds": file_config.get("detection", {}).get("audio_buffer_seconds", self.DEFAULT_CONFIG["audio_buffer_seconds"]),
-                    "silence_threshold": file_config.get("timing", {}).get("silence_threshold", self.DEFAULT_CONFIG["silence_threshold"]),
-                    "conversation_timeout": file_config.get("timing", {}).get("conversation_timeout", self.DEFAULT_CONFIG["conversation_timeout"]),
-                    "sample_rate": file_config.get("audio", {}).get("sample_rate", self.DEFAULT_CONFIG["sample_rate"]),
-                    "channels": file_config.get("audio", {}).get("channels", self.DEFAULT_CONFIG["channels"])
+                    "energy_threshold": file_config.get("detection", {}).get("energy_threshold", DEFAULT_VAD_CONFIG["energy_threshold"]),
+                    "speech_confirmation_chunks": file_config.get("detection", {}).get("speech_confirmation_chunks", DEFAULT_VAD_CONFIG["speech_confirmation_chunks"]),
+                    "chunk_size": file_config.get("detection", {}).get("chunk_size", DEFAULT_VAD_CONFIG["chunk_size"]),
+                    "audio_buffer_seconds": file_config.get("detection", {}).get("audio_buffer_seconds", DEFAULT_VAD_CONFIG["audio_buffer_seconds"]),
+                    "silence_threshold": file_config.get("timing", {}).get("silence_threshold", DEFAULT_VAD_CONFIG["silence_threshold"]),
+                    "conversation_timeout": file_config.get("timing", {}).get("conversation_timeout", DEFAULT_VAD_CONFIG["conversation_timeout"]),
+                    "sample_rate": file_config.get("audio", {}).get("sample_rate", DEFAULT_VAD_CONFIG["sample_rate"]),
+                    "channels": file_config.get("audio", {}).get("channels", DEFAULT_VAD_CONFIG["channels"])
                 }
 
                 Logger.print_info(f"Loaded VAD config from: {config_path}")
@@ -133,10 +141,10 @@ class VoiceActivityDictation(Dictation):
             except Exception as e:
                 Logger.print_error(f"Error loading VAD config from {config_path}: {e}")
                 Logger.print_info("Using default VAD configuration")
-                return self.DEFAULT_CONFIG
+                return DEFAULT_VAD_CONFIG
         else:
             Logger.print_info(f"VAD config not found at {config_path}, using defaults")
-            return self.DEFAULT_CONFIG
+            return DEFAULT_VAD_CONFIG
 
     def calculate_energy(self, audio_chunk):
         """
@@ -163,6 +171,11 @@ class VoiceActivityDictation(Dictation):
         4. Keep collecting audio during transition to avoid gaps
 
         This is simpler and more natural than wake word detection.
+        
+        TODO: Implement auto-adaptive VAD threshold (Issue #62)
+        Background energy fluctuates daily (wind, traffic, etc.). A background
+        thread should dynamically adjust energy_threshold to optimize for both
+        sensitivity and cost (fewer false alarms = less STT API usage).
         """
 
         # Open audio stream
@@ -222,17 +235,8 @@ class VoiceActivityDictation(Dictation):
 
 
     def get_streaming_config(self):
-        """Get configuration for streaming recognition."""
-        return speech.StreamingRecognitionConfig(
-            config=speech.RecognitionConfig(
-                encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=self.RATE,
-                language_code="en-US",
-                enable_automatic_punctuation=True,
-                use_enhanced=True
-            ),
-            interim_results=True,
-        )
+        """Get configuration for streaming recognition from the STT provider."""
+        return self.stt_provider.get_streaming_config(sample_rate=self.RATE)
 
     def generate_audio_chunks(self, stream):
         """
@@ -319,32 +323,25 @@ class VoiceActivityDictation(Dictation):
             conversation_timer = Timer(self.CONVERSATION_TIMEOUT, return_to_idle)
             conversation_timer.start()
 
-            # Create streaming request
-            requests = (
-                speech.StreamingRecognizeRequest(audio_content=chunk)
-                for chunk in self.generate_audio_chunks(stream)
-            )
-
-            responses = self.client.streaming_recognize(
+            # Stream audio to STT provider
+            responses = self.stt_provider.stream_recognize(
                 self.get_streaming_config(),
-                requests
+                self.generate_audio_chunks(stream)
             )
 
             for response in responses:
                 # CRITICAL: Check timeout flags on EVERY iteration
                 # Generator stopping isn't enough - must actively break from response loop
                 if not self.listening or self.mode != 'ACTIVE':
-                    Logger.print_info("⏰ Timeout detected - closing stream immediately")
+                    Logger.print_info("🌬️  Thought I heard something - must have been the wind")
                     break
 
-                if not response.results:
+                # Extract transcript from provider-specific response
+                transcript, is_final = self.stt_provider.extract_transcript(response)
+                if not transcript:
                     continue
 
-                result = response.results[0]
-                if not result.alternatives:
-                    continue
-
-                current_input = result.alternatives[0].transcript.strip()
+                current_input = transcript.strip()
 
                 # Reset conversation timeout ONLY on actual speech (not ambient noise)
                 # This prevents ambient noise from keeping the Google stream alive indefinitely
@@ -357,8 +354,6 @@ class VoiceActivityDictation(Dictation):
                 # Cancel silence timer
                 if done_speaking_timer is not None:
                     done_speaking_timer.cancel()
-
-                is_final = result.is_final
 
                 # Handle final transcripts (complete utterances)
                 if is_final:

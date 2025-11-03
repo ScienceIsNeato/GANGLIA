@@ -10,6 +10,7 @@ from enum import Enum, auto
 import uuid
 import queue
 import threading
+import time
 from logger import Logger
 
 
@@ -56,7 +57,7 @@ class Event:
         self.data = data or {}
         self.source = source
         self.target = target
-        self.timestamp = threading.Event()  # For tracking acknowledgements
+        self.timestamp = time.time()  # Event creation time
 
     def __str__(self):
         return f"Event({self.event_type.name}, source={self.source}, target={self.target})"

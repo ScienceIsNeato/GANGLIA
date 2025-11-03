@@ -28,7 +28,6 @@ config_backups/*
 # Session scratch files
 AUDIO_PROCESS_HANGING_ANALYSIS.md
 COMMIT_MSG.txt
-prep_env.sh
 dictation/wake_word_dictation.py
 baseline_performance.txt
 

@@ -21,10 +21,10 @@ from utils.performance_profiler import ConversationTimer, Timer
 
 class Conversation:
     """
-    Manages the conversation with a user.
+    Manages the conversation flow between user and AI.
 
-    This class replaces the direct chatbot functionality in ganglia.py with a more
-    modular approach.
+    Handles user input, AI response generation, TTS playback, and integration
+    with the TTV (Text-to-Video) system via pubsub events.
     """
 
     def __init__(self, query_dispatcher: ChatGPTQueryDispatcher,
