@@ -12,5 +12,16 @@ def test_load_git_repo_into_history():
     assert token_count > 0
 
 def test_query_dispatcher_init():
-    dispatcher = ChatGPTQueryDispatcher(pre_prompt="Test pre-prompt", config_file_path=get_config_path())
-    assert dispatcher.messages == [{"role": "system", "content": "Test pre-prompt"}]
+    """Test that the query dispatcher initializes correctly."""
+    dispatcher = ChatGPTQueryDispatcher()
+    assert dispatcher.client is not None
+    assert dispatcher.messages == []
+
+    # Test with pre_prompt
+    pre_prompt = "You are a helpful assistant."
+    dispatcher = ChatGPTQueryDispatcher(pre_prompt=pre_prompt)
+    assert dispatcher.messages == [{"role": "system", "content": pre_prompt}]
+
+# Test removed - send_merged_query method does not exist in the codebase
+# The ChatGPTQueryDispatcher maintains conversation history internally via session_history
+# and doesn't expose a merged query method

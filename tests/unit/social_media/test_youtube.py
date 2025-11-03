@@ -36,7 +36,11 @@ def mock_youtube_build():
 @pytest.fixture
 def youtube_client(mock_service_account, mock_youtube_build):
     """Create a YouTubeClient instance with mocked dependencies."""
-    return YouTubeClient()
+    client = YouTubeClient()
+    # Set small values for testing to make tests run faster
+    client.upload_retry_delay_seconds = 0.01
+    client.upload_retry_count = 2
+    return client
 
 def test_upload_video_success(youtube_client, mock_youtube_build):
     """Test successful video upload."""
@@ -66,6 +70,10 @@ def test_upload_video_success(youtube_client, mock_youtube_build):
         mock_youtube_build.videos().insert.assert_called_once()
         call_args = mock_youtube_build.videos().insert.call_args
         assert call_args[1]['body']['status']['privacyStatus'] == 'public'
+
+        # Verify exponential backoff parameters were set correctly
+        assert youtube_client.upload_retry_delay_seconds == 0.01
+        assert youtube_client.upload_retry_count == 2
 
     finally:
         # Clean up test file

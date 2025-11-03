@@ -3,9 +3,11 @@ import json
 import os
 import sys
 from tts import TextToSpeech, GoogleTTS
+from tts_openai import OpenAITTS
 from dictation.dictation import Dictation
 from dictation.static_google_dictation import StaticGoogleDictation
 from dictation.live_google_dictation import LiveGoogleDictation
+from dictation.vad_dictation import VoiceActivityDictation
 from logger import Logger
 
 def check_environment_variables():
@@ -53,31 +55,31 @@ def load_coqui_config():
         Logger.print_error(f"Error: {ve}", file=sys.stderr)
         sys.exit(1)
 
-def parse_tts_interface(tts_interface: str) -> TextToSpeech:
+def parse_tts_interface(tts_interface: str, apply_effects: bool = False) -> TextToSpeech:
     if tts_interface.lower() == "google":
-        return GoogleTTS()
+        return GoogleTTS(apply_effects=apply_effects)
+    elif tts_interface.lower() == "openai":
+        return OpenAITTS(voice="onyx")  # Deep voice similar to GANGLIA's personality
     else:
         raise ValueError(
-            "Invalid TTS interface provided. Available options: 'google'"
+            "Invalid TTS interface provided. Available options: 'google', 'openai'"
         )
 
 def parse_dictation_type(dictation_type: str) -> Dictation:
-    if dictation_type.lower() == "static_google":
-        return StaticGoogleDictation()
-    elif dictation_type.lower() == "live_google":
-        return LiveGoogleDictation()
-    else:
-        raise ValueError(
-            "Invalid dictation type provided. Available options: 'static_google'"
-        )
+    """Parse dictation type. VAD (Voice Activity Detection) is always used for cost efficiency.
+
+    Legacy options are maintained for backwards compatibility but all use VAD.
+    """
+    # Always use VAD - it's cost-efficient and prevents $20/day idle listening costs
+    return VoiceActivityDictation()
 
 def parse_args(args=None):
     parser = argparse.ArgumentParser(description="GANGLIA - AI Assistant")
     parser.add_argument("--device-index", type=int, default=0, help="Index of the input device to use.")
-    parser.add_argument("--tts-interface", type=str, default="google", help="Text-to-speech interface to use. Available options: 'google'")
+    parser.add_argument("--tts-interface", type=str, default="google", help="Text-to-speech interface to use. Options: 'google' (default), 'openai' (potentially faster)")
     parser.add_argument("--suppress-session-logging", action="store_true", help="Disable session logging (default: False)")
     parser.add_argument("--enable-turn-indicators", action="store_true", help="Enable turn indicators (default: False)")
-    parser.add_argument("--dictation-type", type=str, default="static_google", choices=["static_google", "live_google"], help="Dictation type to use. Available options: 'static_google', 'live_google'")
+    parser.add_argument("--dictation-type", type=str, default="vad", help="Dictation type (legacy argument - VAD is always used for cost efficiency)")
     parser.add_argument("--store-logs", action="store_true", help="Enable storing logs in the cloud (default: False)")
     parser.add_argument('--text-to-video', action='store_true', help='Generate video from text input.')
     parser.add_argument('--ttv-config', type=str, help='Path to the JSON input file for video generation.')
@@ -85,6 +87,11 @@ def parse_args(args=None):
     parser.add_argument('--google-voice-id', type=str, help='Google voice ID to use for TTS')
     parser.add_argument('--display-log-hours', type=int, help="Display the last N hours of logs in transcript format.")
     parser.add_argument('--show-log-errors', action='store_true', help="Display SYSTEM ERROR logs.")
+    parser.add_argument('--timing-analysis', action='store_true', help="Enable detailed timing analysis of conversation pipeline (default: False)")
+    parser.add_argument('--audio-output', action='store_true', help="Use gpt-4o-audio-preview to get audio directly from LLM (experimental, ~10x cost)")
+    parser.add_argument('--audio-voice', type=str, default='onyx', help="Voice for audio output: alloy, echo, fable, onyx, nova, shimmer (default: onyx)")
+    parser.add_argument('--audio-effects', action='store_true', help="Apply audio effects to Google TTS (pitch down, reverb, bass boost for deeper voice)")
+    parser.add_argument('--debug', action='store_true', help="Enable debug logging (default: False)")
 
     parsed_args = parser.parse_args(args)
 

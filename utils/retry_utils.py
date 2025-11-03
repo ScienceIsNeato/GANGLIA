@@ -31,10 +31,7 @@ def exponential_backoff(
 
     while attempt <= max_retries:
         try:
-            func_name = getattr(func, '__name__', '<unknown function>')
-            Logger.print_debug(
-                f"{thread_prefix}Attempt {attempt}/{max_retries} calling {func_name}..."
-            )
+            # Only log on first attempt if it fails, or retries
             return func()
         except Exception as error:
             last_exception = error

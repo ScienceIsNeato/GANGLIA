@@ -335,13 +335,7 @@ class MusicGenerator:
             return file_path
         return None
 
-    def get_background_music_from_prompt(
-        self,
-        prompt: str,
-        output_dir: str,
-        skip_generation: bool = False,
-        thread_id: Optional[str] = None
-    ) -> Optional[str]:
+    def get_background_music_from_prompt(self, prompt: str, output_dir: str, skip_generation: bool = False, thread_id: Optional[str] = None) -> Optional[str]:
         """Generate background music from a prompt.
 
         Args:
@@ -361,6 +355,11 @@ class MusicGenerator:
 
         Logger.print_info(f"{thread_prefix}Generating background music with prompt: {prompt}")
         output_path = os.path.join(output_dir, "background_music.mp3")
+
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Generate music synchronously within this thread
         result = self.generate_instrumental(
             prompt=prompt,
             duration=30,  # TODO: Calculate actual duration
@@ -484,6 +483,11 @@ class MusicGenerator:
 
         Logger.print_info(f"{thread_prefix}Generating closing credits with prompt: {prompt}")
         output_path = os.path.join(output_dir, "closing_credits.mp3")
+
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Generate music synchronously within this thread
         result = self.generate_with_lyrics(
             prompt=prompt,
             story_text=story_text,

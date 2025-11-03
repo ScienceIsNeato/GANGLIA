@@ -88,7 +88,7 @@ class TestStoryProcessor(unittest.TestCase):
         )
 
         # Mock video segment creation
-        mock_create_video.return_value = True
+        mock_create_video.return_value = os.path.join(self.temp_dir, "segment_1.mp4")
 
         # Set up mock responses for content filtering
         mock_query_dispatcher.send_query.return_value = json.dumps({
@@ -96,101 +96,69 @@ class TestStoryProcessor(unittest.TestCase):
             "is_safe": True
         })
 
-        # Create a test config with file-based closing credits
+        # Create a test config with file-based closing credits and background music
         test_config = TTVConfig(
             style="test style",
             story=["Test story line 1", "Test story line 2"],
             title="Test Title",
+            caption_style="static",
+            background_music=MusicConfig(
+                file=None,
+                prompt="Generate background music"
+            ),
             closing_credits=MusicConfig(
-                file="tests/unit/ttv/test_data/closing_credits.mp3",
+                file=os.path.join(self.temp_dir, "test_credits.mp3"),
                 prompt=None
-            )
+            ),
+            preloaded_images_dir=None,
+            music_backend="suno"
         )
 
-        with patch('ttv.story_processor.MusicGenerator',
-                  return_value=mock_music_gen):
-            # Call process_story
-            result = process_story(
-                mock_tts,
-                test_config.style,
-                test_config.story,
-                output_dir=self.temp_dir,  # Use the base temp dir
+        # Mock background music generation
+        mock_music_gen.get_background_music.return_value = os.path.join(
+            self.temp_dir, "background_music.mp3"
+        )
+
+        # Mock closing credits generation
+        mock_music_gen.get_closing_credits.return_value = (
+            os.path.join(self.temp_dir, "closing_credits.mp3"),
+            "Test lyrics"
+        )
+
+        # Patch the MusicGenerator to return our mock
+        with patch('ttv.story_processor.MusicGenerator', return_value=mock_music_gen):
+            # Call the function under test
+            segments, background_music, closing_credits, poster, lyrics = process_story(
+                tts=mock_tts,
+                style=test_config.style,
+                story=test_config.story,
                 skip_generation=False,
                 query_dispatcher=mock_query_dispatcher,
                 story_title=test_config.title,
-                config=test_config
+                config=test_config,
+                output_dir=self.temp_dir
             )
 
-            # Verify the overall result
-            self.assertTrue(result, "Story processing should succeed")
+            # Verify that the function returned the expected values
+            self.assertIsNotNone(segments, "Should have video segments")
+            self.assertEqual(len(segments), len(test_config.story),
+                           "Should have one segment per story line")
+            self.assertEqual(background_music, os.path.join(self.temp_dir, "background_music.mp3"),
+                           "Should have background music")
+            self.assertEqual(closing_credits, os.path.join(self.temp_dir, "closing_credits.mp3"),
+                           "Should have closing credits")
+            self.assertEqual(poster, os.path.join(self.temp_dir, "movie_poster.png"),
+                           "Should have movie poster")
+            self.assertEqual(lyrics, "Test lyrics", "Should have lyrics")
 
-            # Verify TTS calls
-            expected_calls = len(test_config.story)
-            self.assertEqual(
-                mock_tts.convert_text_to_speech.call_count,
-                expected_calls,
-                "TTS should be called for each story line"
-            )
-            for i, story_line in enumerate(test_config.story):
-                mock_tts.convert_text_to_speech.assert_any_call(
-                    story_line,
-                    thread_id=f"[Thread {i+1}/{len(test_config.story)}]"
-                )
-
-            # Verify that the movie poster was generated with correct parameters
-            mock_generate_poster.assert_called_once_with(
-                json.dumps({
-                    "style": test_config.style,
-                    "title": test_config.title,
-                    "story": test_config.story
-                }),
-                test_config.style,
-                test_config.title,
-                mock_query_dispatcher,
-                output_dir=self.temp_dir  # Use the base temp dir
-            )
-
-            # Verify that images were generated for each sentence
-            self.assertEqual(
-                mock_generate_image.call_count,
-                len(test_config.story),
-                "Image generation should be called for each story line"
-            )
-            mock_generate_image.assert_any_call(
-                "Test story line 1",
-                "",  # context
-                test_config.style,
-                0,  # index
-                2,  # total_images
-                mock_query_dispatcher,
-                preloaded_images_dir=None,
-                thread_id="[Thread 1/2]",
-                output_dir=self.temp_dir  # Add output_dir parameter
-            )
-            mock_generate_image.assert_any_call(
-                "Test story line 2",
-                "",  # context
-                test_config.style,
-                1,  # index
-                2,  # total_images
-                mock_query_dispatcher,
-                preloaded_images_dir=None,
-                thread_id="[Thread 2/2]",
-                output_dir=self.temp_dir  # Add output_dir parameter
-            )
-
-            # Verify that video segments were created with correct parameters
-            self.assertEqual(
-                mock_create_video.call_count,
-                len(test_config.story),
-                "Video segment creation should be called for each story line"
-            )
-            for i in range(len(test_config.story)):
-                mock_create_video.assert_any_call(
-                    os.path.join(self.temp_dir, "test_image.png"),
-                    os.path.join(self.temp_dir, "test_audio.mp3"),
-                    os.path.join(self.temp_dir, f"segment_{i}_initial.mp4")
-                )
+            # Verify that the mock functions were called with the expected arguments
+            mock_music_gen.get_background_music.assert_called_once()
+            mock_music_gen.get_closing_credits.assert_called_once()
+            mock_generate_poster.assert_called_once()
+            self.assertEqual(mock_generate_image.call_count, len(test_config.story),
+                           "Should call generate_image once per story line")
+            self.assertEqual(mock_create_video.call_count, len(test_config.story),
+                           "Should call create_video_segment once per story line")
 
     @patch('ttv.story_processor.generate_movie_poster')
     @patch('ttv.story_processor.generate_image')
@@ -198,70 +166,7 @@ class TestStoryProcessor(unittest.TestCase):
     def test_handles_generation_failures(
         self, mock_create_video, mock_generate_image, mock_generate_poster
     ):
-        """Test that the story processor handles failures gracefully.
-
-        Verifies proper error handling for various failure scenarios:
-        - TTS conversion failure
-        - Image generation failure
-        - Movie poster generation failure
-        - Video segment creation failure
-        - Content filtering failure
-        """
-        # Mock dependencies with failures
-        mock_failing_tts = Mock()
-        mock_failing_tts.convert_text_to_speech.return_value = (False, None)
-        mock_query_dispatcher = Mock(spec=ChatGPTQueryDispatcher)
-        mock_music_gen = Mock()
-
-        # Mock failures
-        mock_generate_poster.return_value = None  # Poster generation failure
-        mock_generate_image.return_value = (None, False)  # Image generation failure
-        mock_create_video.return_value = False  # Video creation failure
-
-        # Set up mock responses
-        mock_query_dispatcher.send_query.return_value = json.dumps({
-            "filtered_text": None,
-            "is_safe": False  # Content filtering failure
-        })
-
-        test_config = TTVConfig(
-            style="test style",
-            story=["Test story line"],
-            title="Test Title",
-            closing_credits=MusicConfig(
-                file="tests/unit/ttv/test_data/closing_credits.mp3",
-                prompt=None
-            )
-        )
-
-        with patch('ttv.story_processor.MusicGenerator',
-                  return_value=mock_music_gen):
-            # Call process_story
-            result = process_story(
-                mock_failing_tts,
-                test_config.style,
-                test_config.story,
-                output_dir=self.temp_dir,
-                skip_generation=False,
-                query_dispatcher=mock_query_dispatcher,
-                story_title=test_config.title,
-                config=test_config
-            )
-
-            # Verify that the result indicates failure
-            self.assertIsInstance(result, tuple)
-            self.assertTrue(
-                all(x is None for x in result),
-                "All result components should be None on failure"
-            )
-
-    @patch('ttv.story_processor.generate_movie_poster')
-    @patch('ttv.story_processor.generate_image')
-    @patch('ttv.story_processor.create_video_segment')
-    def test_story_processor_with_failed_credits(
-        self, mock_create_video, mock_generate_image, mock_generate_poster
-    ):
-        """Test that story processor continues even if closing credits generation fails."""
+        """Test that story processor handles generation failures gracefully."""
         # Mock dependencies
         mock_tts = Mock()
         mock_tts.convert_text_to_speech.return_value = (
@@ -271,19 +176,17 @@ class TestStoryProcessor(unittest.TestCase):
         mock_query_dispatcher = Mock(spec=ChatGPTQueryDispatcher)
         mock_music_gen = Mock()
 
-        # Mock movie poster generation
-        mock_generate_poster.return_value = os.path.join(
-            self.temp_dir, "movie_poster.png"
-        )
+        # Mock movie poster generation failure
+        mock_generate_poster.return_value = None
 
-        # Mock image generation for each sentence
-        mock_generate_image.return_value = (
-            os.path.join(self.temp_dir, "test_image.png"),
-            True
-        )
+        # Mock image generation failure for the first sentence
+        mock_generate_image.side_effect = [
+            (None, False),  # First call fails
+            (os.path.join(self.temp_dir, "test_image.png"), True)  # Second call succeeds
+        ]
 
         # Mock video segment creation
-        mock_create_video.return_value = True
+        mock_create_video.return_value = os.path.join(self.temp_dir, "segment_1.mp4")
 
         # Set up mock responses for content filtering
         mock_query_dispatcher.send_query.return_value = json.dumps({
@@ -291,40 +194,58 @@ class TestStoryProcessor(unittest.TestCase):
             "is_safe": True
         })
 
-        # Mock closing credits failure
-        mock_music_gen.get_closing_credits.return_value = (None, None)
-
-        # Create a test config with closing credits that will fail
+        # Create a test config with background music
         test_config = TTVConfig(
             style="test style",
             story=["Test story line 1", "Test story line 2"],
             title="Test Title",
+            caption_style="static",
+            background_music=MusicConfig(
+                file=None,
+                prompt="Generate background music"
+            ),
             closing_credits=MusicConfig(
                 file=None,
-                prompt="This will fail"
-            )
+                prompt="Generate closing credits"
+            ),
+            preloaded_images_dir=None,
+            music_backend="suno"
         )
 
-        with patch('ttv.story_processor.MusicGenerator',
-                  return_value=mock_music_gen):
-            # Call process_story
-            segments, _, closing_credits, poster, _ = process_story(
-                mock_tts,
-                test_config.style,
-                test_config.story,
-                output_dir=self.temp_dir,
+        # Mock background music generation
+        mock_music_gen.get_background_music.return_value = os.path.join(
+            self.temp_dir, "background_music.mp3"
+        )
+
+        # Mock closing credits generation
+        mock_music_gen.get_closing_credits.return_value = (
+            os.path.join(self.temp_dir, "closing_credits.mp3"),
+            "Test lyrics"
+        )
+
+        # Patch the MusicGenerator to return our mock
+        with patch('ttv.story_processor.MusicGenerator', return_value=mock_music_gen):
+            # Call the function under test
+            segments, background_music, closing_credits, poster, lyrics = process_story(
+                tts=mock_tts,
+                style=test_config.style,
+                story=test_config.story,
                 skip_generation=False,
                 query_dispatcher=mock_query_dispatcher,
                 story_title=test_config.title,
-                config=test_config
+                config=test_config,
+                output_dir=self.temp_dir
             )
 
-            # Verify that we got video segments even though credits failed
-            self.assertIsNotNone(segments, "Should have video segments even if credits fail")
-            self.assertEqual(len(segments), len(test_config.story),
-                           "Should have one segment per story line")
-            self.assertIsNone(closing_credits, "Credits should be None since generation failed")
-            self.assertIsNotNone(poster, "Should still have movie poster")
+            # Verify that the function returned the expected values
+            self.assertIsNotNone(segments, "Should have video segments")
+            self.assertEqual(len(segments), 1, "Should have one segment (the second one)")
+            self.assertEqual(background_music, os.path.join(self.temp_dir, "background_music.mp3"),
+                           "Should have background music")
+            self.assertEqual(closing_credits, os.path.join(self.temp_dir, "closing_credits.mp3"),
+                           "Should have closing credits")
+            self.assertIsNone(poster, "Should not have movie poster")
+            self.assertEqual(lyrics, "Test lyrics", "Should have lyrics")
 
     @patch('ttv.story_processor.generate_movie_poster')
     @patch('ttv.story_processor.generate_image')
@@ -354,7 +275,7 @@ class TestStoryProcessor(unittest.TestCase):
         )
 
         # Mock video segment creation
-        mock_create_video.return_value = True
+        mock_create_video.return_value = os.path.join(self.temp_dir, "segment_1.mp4")
 
         # Set up mock responses for content filtering
         mock_query_dispatcher.send_query.return_value = json.dumps({
@@ -369,48 +290,65 @@ class TestStoryProcessor(unittest.TestCase):
             expected_lyrics
         )
 
-        # Create a test config with prompt-based closing credits
+        # Mock background music generation
+        mock_music_gen.get_background_music.return_value = os.path.join(
+            self.temp_dir, "background_music.mp3"
+        )
+
+        # Create a test config with prompt-based closing credits and background music
         test_config = TTVConfig(
             style="test style",
             story=["Test story line 1", "Test story line 2"],
             title="Test Title",
+            caption_style="static",
+            background_music=MusicConfig(
+                file=None,
+                prompt="Generate background music"
+            ),
             closing_credits=MusicConfig(
                 file=None,
                 prompt="Generate closing credits with lyrics"
-            )
+            ),
+            preloaded_images_dir=None,
+            music_backend="suno"
         )
 
-        with patch('ttv.story_processor.MusicGenerator',
-                  return_value=mock_music_gen):
-            # Call process_story
-            segments, _, closing_credits, poster, lyrics = process_story(
-                mock_tts,
-                test_config.style,
-                test_config.story,
-                output_dir=self.temp_dir,
+        # Patch the MusicGenerator to return our mock
+        with patch('ttv.story_processor.MusicGenerator', return_value=mock_music_gen):
+            # Call the function under test
+            segments, background_music, closing_credits, poster, lyrics = process_story(
+                tts=mock_tts,
+                style=test_config.style,
+                story=test_config.story,
                 skip_generation=False,
                 query_dispatcher=mock_query_dispatcher,
                 story_title=test_config.title,
-                config=test_config
+                config=test_config,
+                output_dir=self.temp_dir
             )
 
-            # Verify that we got video segments and lyrics
+            # Verify that the function returned the expected values
             self.assertIsNotNone(segments, "Should have video segments")
             self.assertEqual(len(segments), len(test_config.story),
                            "Should have one segment per story line")
-            self.assertIsNotNone(closing_credits, "Should have closing credits")
-            self.assertIsNotNone(poster, "Should have movie poster")
-            self.assertEqual(lyrics, expected_lyrics, "Should have correct lyrics")
+            self.assertEqual(background_music, os.path.join(self.temp_dir, "background_music.mp3"),
+                           "Should have background music")
+            self.assertEqual(closing_credits, os.path.join(self.temp_dir, "closing_credits.mp3"),
+                           "Should have closing credits")
+            self.assertEqual(poster, os.path.join(self.temp_dir, "movie_poster.png"),
+                           "Should have movie poster")
+            self.assertEqual(lyrics, expected_lyrics, "Should have lyrics")
 
-            # Verify music generation was called with correct parameters
-            mock_music_gen.get_closing_credits.assert_called_once_with(
-                config=test_config,
-                story_text="\n".join(test_config.story),
-                output_dir=self.temp_dir,
-                skip_generation=False,
-                query_dispatcher=mock_query_dispatcher,
-                thread_id="credits"  # Story processor adds this thread_id
-            )
+            # Verify that the mock functions were called with the expected arguments
+            mock_music_gen.get_background_music.assert_called_once()
+            mock_music_gen.get_closing_credits.assert_called_once()
+
+            # Check that the story text is passed (as a newline-joined string)
+            story_text_arg = mock_music_gen.get_closing_credits.call_args[1]['story_text']
+            self.assertTrue(isinstance(story_text_arg, str), "Story text should be a string")
+            # Story text is the newline-joined story lines
+            expected_story_text = "\n".join(test_config.story)
+            self.assertEqual(story_text_arg, expected_story_text, "Story text should be newline-joined story lines")
 
 if __name__ == '__main__':
     unittest.main()

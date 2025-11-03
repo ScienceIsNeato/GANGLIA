@@ -21,9 +21,18 @@ concat_list.txt
 coqui_config.json
 config/ganglia_config.json
 config/chatgpt_session_config.json
-config/hotwords.json
 config/ttv_config.json
+config/vad_config.json
 config_backups/*
+
+# Session scratch files
+AUDIO_PROCESS_HANGING_ANALYSIS.md
+COMMIT_MSG.txt
+dictation/wake_word_dictation.py
+baseline_performance.txt
+
+# Utility repositories
+cursor-rules/
 
 # Test outputs
 tests/unit/ttv/test_outputs/
@@ -37,3 +46,8 @@ ganglia_minified.py
 
 # AI status
 .ai_status.md
+.cursorrules
+.cursor/
+.cursorrules
+.env
+.cursor

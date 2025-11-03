@@ -15,9 +15,12 @@ import select
 import subprocess
 import sys
 import threading
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor
+from typing import List, Tuple
 
 # Third-party imports
 from google.cloud import texttospeech_v1 as tts
@@ -26,6 +29,7 @@ from google.api_core import exceptions as google_exceptions
 # Local imports
 from logger import Logger
 from utils import get_tempdir, exponential_backoff
+from utils.performance_profiler import is_timing_enabled
 
 class TextToSpeech(ABC):
     """Abstract base class for text-to-speech functionality.
@@ -88,12 +92,13 @@ class TextToSpeech(ABC):
 
         return chunks
 
-    def play_speech_response(self, file_path, raw_response):
+    def play_speech_response(self, file_path, raw_response, suppress_text_output=False):
         """Play speech response and handle user interaction.
 
         Args:
             file_path: Path to the audio file to play
             raw_response: The text response to display
+            suppress_text_output: If True, don't print "GANGLIA says..." (for streaming)
         """
         if file_path.endswith('.txt'):
             file_path = self.concatenate_audio_from_text(file_path)
@@ -103,10 +108,16 @@ class TextToSpeech(ABC):
             # Prepare the play command and determine the audio duration
             play_command, audio_duration = self.prepare_playback(file_path)
 
-            Logger.print_demon_output(
-                f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)"
-            )
-            Logger.print_demon_output(raw_response)
+            # Only print header if not suppressed (for streaming playback)
+            if not suppress_text_output:
+                Logger.print_demon_output(
+                    f"\nGANGLIA says... (Audio Duration: {audio_duration:.1f} seconds)"
+                )
+                Logger.print_demon_output(raw_response)
+
+            # Mark the moment audio playback begins
+            if is_timing_enabled():
+                Logger.print_perf(f"⏱️  [PLAYBACK] Starting audio playback NOW! (duration: {audio_duration:.1f}s)")
 
             # Start playback in a non-blocking manner
             playback_process = subprocess.Popen(
@@ -116,20 +127,8 @@ class TextToSpeech(ABC):
                 stdin=subprocess.DEVNULL
             )
 
-            # Start the Enter key listener in a separate thread
-            stop_thread = threading.Thread(
-                target=self.monitor_enter_keypress,
-                args=(playback_process,)
-            )
-            # Ensure the thread exits when the main program exits
-            stop_thread.daemon = True
-            stop_thread.start()
-
-            # Wait for playback process to finish
+            # Wait for playback to finish (no enter key monitoring for streaming)
             playback_process.wait()
-
-            # Ensure Enter key thread finishes
-            stop_thread.join(timeout=1)  # Attempt to join, but timeout if it hangs
 
     def monitor_enter_keypress(self, playback_process):
         """Monitor for Enter key press to stop playback.
@@ -224,10 +223,15 @@ class GoogleTTS(TextToSpeech):
     # Class-level lock for gRPC client creation
     _client_lock = threading.Lock()
 
-    def __init__(self):
-        """Initialize the Google TTS client."""
+    def __init__(self, apply_effects=False):
+        """Initialize the Google TTS client.
+
+        Args:
+            apply_effects: If True, apply audio effects (pitch shift, reverb, etc.)
+        """
         super().__init__()
-        Logger.print_info("Initializing GoogleTTS...")
+        self.apply_effects = apply_effects
+        Logger.print_info(f"Initializing GoogleTTS{' with audio effects' if apply_effects else ''}...")
         # Create a single shared client instance with thread safety
         with self._client_lock:
             self._client = tts.TextToSpeechClient()
@@ -252,20 +256,34 @@ class GoogleTTS(TextToSpeech):
             name=voice_id,
         )
 
-        # Set the audio configuration
-        audio_config = tts.AudioConfig(
-            audio_encoding=tts.AudioEncoding.MP3
-        )
+        # Set the audio configuration with optional effects
+        if self.apply_effects:
+            # Use Google's native audio parameters for deeper, more dramatic voice
+            audio_config = tts.AudioConfig(
+                audio_encoding=tts.AudioEncoding.MP3,
+                pitch=-20.0,          # Deep pitch for demonic voice (range: -20.0 to 20.0)
+                speaking_rate=1,   # Slower for more menacing effect (range: 0.25 to 4.0)
+                # effects_profile_id=['headphone-class-device']  # Optional: optimize for headphones
+            )
+        else:
+            audio_config = tts.AudioConfig(
+                audio_encoding=tts.AudioEncoding.MP3
+            )
 
         thread_prefix = f"{thread_id} " if thread_id else ""
-        Logger.print_debug(f"{thread_prefix}Converting text to speech...")
+        Logger.print_debug(f"{thread_prefix}Converting text to speech ({len(text)} chars)...")
 
         # Use the shared client instance
+        tts_start = time.time()
         response = self._client.synthesize_speech(
             input=synthesis_input,
             voice=voice,
             audio_config=audio_config
         )
+        tts_elapsed = time.time() - tts_start
+
+        if is_timing_enabled():
+            Logger.print_perf(f"⏱️  [TTS] Audio generated in {tts_elapsed:.2f}s")
 
         # Create temp directory if it doesn't exist
         temp_dir = get_tempdir()
@@ -281,8 +299,8 @@ class GoogleTTS(TextToSpeech):
             sanitized_words.append(sanitized)
         snippet = '_'.join(sanitized_words)
 
-        # Save the audio to a file
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        # Save the audio to a file (with microseconds to avoid collisions in parallel generation)
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
         file_path = os.path.join(
             temp_dir, "tts",
             f"chatgpt_response_{snippet}_{timestamp}.mp3"
@@ -318,4 +336,85 @@ class GoogleTTS(TextToSpeech):
             Logger.print_error(
                 f"{thread_prefix}Error converting text to speech: {e}"
             )
+            return False, None
+
+    def convert_text_to_speech_streaming(self, sentences: List[str], voice_id="en-US-Casual-K") -> Tuple[bool, str]:
+        """Convert multiple sentences to speech in parallel and concatenate.
+
+        This method generates TTS for multiple sentences concurrently to reduce
+        total generation time for multi-sentence responses.
+
+        Args:
+            sentences: List of sentences to convert to speech
+            voice_id: The ID of the voice to use
+
+        Returns:
+            tuple: (success: bool, file_path: str) where file_path is the path
+                  to the concatenated audio file if successful, None otherwise
+        """
+        if not sentences:
+            return False, None
+
+        # Single sentence - use regular method
+        if len(sentences) == 1:
+            return self.convert_text_to_speech(sentences[0], voice_id)
+
+        Logger.print_debug(f"Generating TTS for {len(sentences)} sentences in parallel...")
+
+        # Generate TTS for all sentences in parallel
+        with ThreadPoolExecutor(max_workers=min(3, len(sentences))) as executor:
+            futures = [
+                executor.submit(self.convert_text_to_speech, sentence, voice_id)
+                for sentence in sentences
+            ]
+            results = [future.result() for future in futures]
+
+        # Check if all succeeded
+        if not all(success for success, _ in results):
+            Logger.print_error("One or more TTS generations failed")
+            return False, None
+
+        # Extract file paths
+        audio_files = [file_path for success, file_path in results if success]
+
+        if not audio_files:
+            return False, None
+
+        # Concatenate audio files
+        try:
+            temp_dir = get_tempdir()
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+            output_file = os.path.join(temp_dir, "tts", f"concatenated_{timestamp}.mp3")
+
+            # Create file list for ffmpeg
+            file_list_path = os.path.join(temp_dir, "tts", f"concat_list_{timestamp}.txt")
+            with open(file_list_path, "w") as f:
+                for audio_file in audio_files:
+                    f.write(f"file '{audio_file}'\n")
+
+            # Use ffmpeg to concatenate
+            subprocess.run(
+                ["ffmpeg", "-f", "concat", "-safe", "0", "-i", file_list_path,
+                 "-c", "copy", output_file],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True
+            )
+
+            # Clean up individual files and list
+            for audio_file in audio_files:
+                try:
+                    os.remove(audio_file)
+                except Exception:
+                    pass
+            try:
+                os.remove(file_list_path)
+            except Exception:
+                pass
+
+            Logger.print_debug(f"Concatenated {len(audio_files)} audio files into {output_file}")
+            return True, output_file
+
+        except Exception as e:
+            Logger.print_error(f"Error concatenating audio files: {e}")
             return False, None
