@@ -12,11 +12,23 @@ from typing import Optional, Dict, Any
 from query_dispatch import ChatGPTQueryDispatcher
 from session_logger import CLISessionLogger, SessionEvent
 from audio_turn_indicator import UserTurnIndicator, AiTurnIndicator
-from user_management import UserProfile
 from logger import Logger
 from pubsub import get_pubsub, Event, EventType
 from story_generation_driver import StoryGenerationDriver, StoryInfoType, StoryGenerationState
 from utils.performance_profiler import ConversationTimer, Timer
+
+
+# Stub UserProfile until user management is implemented
+class UserProfile:
+    """Placeholder for future user management functionality."""
+    def __init__(self):
+        pass
+    
+    def update_activity(self):
+        pass
+    
+    def add_conversation_entry(self, entry):
+        pass
 
 
 class Conversation:
