@@ -1,8 +1,65 @@
 # GANGLIA Project Status
 
-## Current Branch: feature/roundtrip_speed
+## Current Branch: main
 
-## Recent Work (Oct 29, 2025)
+## 🚧 ACTIVE: Repository Migration (Nov 5, 2025)
+
+**Status:** Directory restructure complete, ganglia-studio dependency fixes in progress
+
+### ✅ Completed (Nov 5, 2025)
+1. **Moved all repos to ganglia_repos/** structure:
+   - `/Users/pacey/Documents/SourceCode/ganglia_repos/GANGLIA/` (original)
+   - `/Users/pacey/Documents/SourceCode/ganglia_repos/ganglia-common/`
+   - `/Users/pacey/Documents/SourceCode/ganglia_repos/ganglia-studio/`
+   - `/Users/pacey/Documents/SourceCode/ganglia_repos/ganglia-core/`
+   - Submodules in ganglia-core work correctly
+   - New Cursor window should open from ganglia_repos/ for write access to all repos
+
+2. **Fixed ganglia-studio dependencies** (setup.py):
+   - Added ML frameworks: torchaudio, accelerate, openai-whisper
+   - Added audio: soundfile, sounddevice, pydub
+   - Added scientific: scipy, pandas
+   - Added utilities: python-magic
+   - ✅ Tested installation - all dependencies install successfully
+
+3. **Fixed ganglia-studio utils**:
+   - Copied ffmpeg_utils.py and video_utils.py from GANGLIA/utils/
+   - Fixed imports in: meta.py, foxai_suno.py, gcui_suno.py, suno_api_org.py, story_processor.py, video_generation.py
+
+### ✅ COMPLETED: ganglia-studio Import Fixes (Nov 5, 2025)
+**All `from utils import ...` statements fixed:**
+- ✅ `src/ganglia_studio/video/captions.py` - run_ffmpeg_command → ganglia_studio.utils.ffmpeg_utils
+- ✅ `src/ganglia_studio/video/ttv.py` - get_timestamped_ttv_dir → ganglia_common.utils.file_utils
+- ✅ `src/ganglia_studio/video/audio_alignment.py` - exponential_backoff → ganglia_common.utils.retry_utils
+- ✅ `src/ganglia_studio/story/story_generation_driver.py` - get_timestamped_ttv_dir, get_config_path → ganglia_common.utils.file_utils
+- ✅ `tests/integration/test_ttv_conversation.py` - get_tempdir → ganglia_common.utils.file_utils
+- ✅ `tests/integration/test_generated_ttv_pipeline.py` - get_tempdir → ganglia_common.utils.file_utils
+- ✅ `src/ganglia_studio/utils/ffmpeg_utils.py` - Logger → ganglia_common.logger
+- ✅ Added ffmpeg_utils.py and video_utils.py to ganglia-studio/utils/
+
+**Commits:**
+- ganglia-studio: 728bdd3 "fix: update imports to use ganglia_common and ganglia_studio namespaces"
+- ganglia-common: a7d7061 "chore: update package configuration and documentation"
+
+### 📋 Next Steps (Priority Order)
+1. ✅ **Finish ganglia-studio import fixes** (COMPLETED Nov 5)
+   - All imports fixed and tested
+   - Committed to ganglia-studio and ganglia-common repos
+
+2. **Validate ganglia-core** (HIGH PRIORITY)
+   - Fix pyproject.toml and imports (similar issues expected)
+   - Test submodule workflow
+   - Verify main ganglia.py works with new structure
+
+3. **Integration Testing** (MEDIUM PRIORITY)
+   - Test ganglia-core using ganglia-common and ganglia-studio
+   - Run full test suites
+
+See: MIGRATION_COMPLETE.md, MIGRATION_VALIDATION_STATUS.md, REPO_MIGRATION_MAP.md
+
+---
+
+## Previous Work (Oct 29, 2025)
 
 ### ✅ FIXED: 305-Second Google STT Stream Timeout Bug
 
