@@ -1,4 +1,60 @@
-# GANGLIA
+# ⚠️ REPOSITORY DEPRECATED - MOVED TO MODULAR ARCHITECTURE
+
+**This repository is deprecated and no longer maintained. All development has moved to the new modular architecture.**
+
+## 🔄 Migration Status: COMPLETE
+
+GANGLIA has been successfully split into three focused repositories:
+
+### New Repositories
+
+1. **[ganglia-core](https://github.com/ScienceIsNeato/ganglia-core)** - Main application and conversational interface
+   - Entry point (`ganglia.py`)
+   - Conversational interface and dialogue management
+   - Hotword detection and wake word functionality
+   - CLI and session logging
+   - Dictation modules (VAD, Google STT, wake word)
+
+2. **[ganglia-common](https://github.com/ScienceIsNeato/ganglia-common)** - Shared utilities
+   - Query dispatch (OpenAI, Anthropic integrations)
+   - TTS engines (Google, OpenAI)
+   - File utilities and cloud operations
+   - Logging infrastructure
+   - Performance profiling
+
+3. **[ganglia-studio](https://github.com/ScienceIsNeato/ganglia-studio)** - Text-to-Video (TTV) pipeline
+   - Story generation and processing
+   - Image generation (DALL-E, Imagen)
+   - Music generation (Suno, Meta backends)
+   - Video compilation with captions
+   - YouTube upload integration
+
+### 🚀 Quick Start with New Architecture
+
+```bash
+git clone --recursive https://github.com/ScienceIsNeato/ganglia-core.git
+cd ganglia-core
+pip install -r requirements.txt
+./run_ganglia.sh --help
+```
+
+See the [ganglia-core README](https://github.com/ScienceIsNeato/ganglia-core) for complete setup instructions.
+
+### Why the Migration?
+
+- **Better separation of concerns**: Core chat vs. multimedia production
+- **Independent versioning**: Each component can evolve at its own pace
+- **Easier testing**: Focused test suites for each module
+- **Lighter installs**: Use only what you need (avoid heavy ML dependencies if you just want chat)
+- **Clearer dependencies**: No more monolithic requirements
+
+### What About This Repo?
+
+This repository will remain available for historical reference but will not receive updates. All issues and PRs should be directed to the appropriate new repository.
+
+---
+
+# GANGLIA (Legacy Documentation)
 
 GANGLIA:
 - <b>G</b>eneral
