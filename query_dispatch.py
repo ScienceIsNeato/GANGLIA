@@ -25,6 +25,9 @@ class ChatGPTQueryDispatcher:
     and provides utilities for content filtering and token management.
     """
 
+    # Maximum tokens allowed in conversation history before rotating
+    MAX_HISTORY_TOKENS = 4097
+
     def __init__(self, pre_prompt=None, config_file_path=None, audio_output=False, audio_voice="alloy"):
         """Initialize the ChatGPT query dispatcher.
 
@@ -216,9 +219,7 @@ class ChatGPTQueryDispatcher:
         for message in self.messages:
             total_tokens += len(message["content"].split())
 
-        max_tokens = 4097  # Constant should be uppercase but used locally
-
-        while total_tokens > max_tokens:
+        while total_tokens > self.MAX_HISTORY_TOKENS:
             removed_message = self.messages.pop(0)
             removed_length = len(removed_message["content"].split())
             total_tokens -= removed_length

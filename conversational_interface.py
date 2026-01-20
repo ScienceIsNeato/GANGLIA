@@ -18,16 +18,22 @@ from story_generation_driver import StoryGenerationDriver, StoryInfoType, StoryG
 from utils.performance_profiler import ConversationTimer, Timer
 
 
-# Stub UserProfile until user management is implemented
 class UserProfile:
-    """Placeholder for future user management functionality."""
+    """Stub: Placeholder for future user management functionality.
+
+    This is a no-op implementation to allow the Conversation class to
+    reference user profile methods without requiring the full user
+    management system. Remove this stub when implementing Issue #XX.
+    """
     def __init__(self):
         pass
-    
+
     def update_activity(self):
+        """No-op: Will track user activity when implemented."""
         pass
-    
+
     def add_conversation_entry(self, entry):
+        """No-op: Will log conversation entries when implemented."""
         pass
 
 

@@ -1,0 +1,166 @@
+# PR #61 Post-Merge Cleanup
+
+## Summary
+
+This PR addresses issues found in the conversation pipeline PR (#61) that was merged under deadline pressure. After a comprehensive audit of the 54 commits, this cleanup fixes concrete bugs, removes inappropriate code, and improves code quality.
+
+---
+
+## Issues Found and Fixed
+
+### 1. Incorrect Comments (Misleading, Outdated, Wrong)
+
+**ganglia.py:73-75** - Removed misleading comments about GoogleTTS voice_id handling
+- The comments described GoogleTTS-specific behavior but were placed in a generic TTS initialization context
+- The actual voice_id handling happens elsewhere (conversational_interface.py)
+- **Fix**: Removed the misleading comments entirely
+
+**tts.py:266** - Removed dead commented-out code
+- Commented-out `effects_profile_id` configuration was left in production code
+- **Fix**: Removed the commented code and updated the adjacent comment for clarity
+
+---
+
+### 2. Files That Shouldn't Have Been Committed
+
+**.cursor** - External symlink committed to repository
+- A symlink pointing to `/Users/pacey/Documents/SourceCode/GANGLIA/cursor-rules/.cursor` was committed
+- This creates environment-specific dependencies and breaks on other machines
+- **Fix**: Removed the broken symlink (already in .gitignore but symlink slipped through)
+
+---
+
+### 3. Code Within Files That Shouldn't Have Been Committed
+
+**suno_request_handler.py:86** - String formatting bug (CRITICAL)
+- `print("Retrying... (Attempt {attempt + 1} of {retries})")` - missing f-string prefix
+- This would print literal `{attempt + 1}` instead of actual values
+- Also bypassed the Logger system
+- **Fix**: Changed to `Logger.print_info(f"Retrying... (Attempt {attempt + 1} of {retries})")`
+
+**dictation/vad_dictation.py:210,316** - Raw print statements bypassing Logger
+- Used `print()` instead of Logger for speech detection indicators
+- **Fix**: Replaced with `Logger.print_info()` calls
+
+---
+
+### 4. Code/Comments That Need Updating
+
+**query_dispatch.py:219** - Magic number with self-deprecating comment
+- `max_tokens = 4097  # Constant should be uppercase but used locally`
+- The comment acknowledged the problem but didn't fix it
+- **Fix**: Added `MAX_HISTORY_TOKENS = 4097` as a class constant and refactored to use it
+
+**tts_openai.py:120** - Duplicate magic number issue
+- `MAX_LENGTH = 4000` defined locally in method
+- **Fix**: Added `MAX_TEXT_LENGTH = 4000` as a class constant with documentation
+
+**conversational_interface.py:21-31** - Stub class without proper documentation
+- `UserProfile` stub was committed without clear documentation of its temporary nature
+- **Fix**: Added comprehensive docstrings explaining it's a no-op stub pending implementation
+
+**config/vad_config.json.template** - Halloween-specific aggressive settings
+- Settings were tuned for "Halloween rapid-fire interactions" (0.75s silence, 150 energy threshold)
+- These are too aggressive for normal use and would cause issues
+- **Fix**: Reset to sensible defaults (2.5s silence, 500 energy threshold) with neutral documentation
+
+---
+
+### 5. TODOs Mentioned in PR #61 That Should Be Implemented
+
+The following TODOs were identified but are **documented future work**, not bugs:
+
+| Location | TODO | Status |
+|----------|------|--------|
+| `ttv/ttv.py:9` | Remove skip_generation, make query_dispatcher required | Future refactor |
+| `dictation/vad_dictation.py:175` | Implement auto-adaptive VAD threshold (Issue #62) | Enhancement |
+| `ttv/captions.py:844` | Fix long static captions overflow bug | Known bug |
+| `ttv/final_video_generation.py:309` | GCS upload shouldn't be test-specific | Refactor needed |
+| `music_lib.py:365` | Calculate actual duration instead of hardcoded 30s | Enhancement |
+| `suno_request_handler.py:50-51` | Generate title and tags dynamically | Enhancement |
+| `conversational_interface.py:440` | Refactor user_turn method (technical debt) | Refactor |
+| `googleTTSExample.py:47` | Need exit mechanism for transcription loop | Example code |
+
+These are left as-is since they represent documented technical debt, not merge mistakes.
+
+---
+
+### 6. General Themes and Patterns in What Went Wrong
+
+1. **Deadline-driven commits**: "WIP" commits (e.g., "WIP ganglia 2025 halloween", "WIP realtime stuffs") were merged without cleanup, though the WIP files themselves were later removed
+
+2. **Environment-specific artifacts**: Developer machine paths (.cursor symlink) leaked into the repo
+
+3. **Missing f-string prefixes**: Easy to miss during review, caused silent bugs
+
+4. **Bypassing established patterns**: Using raw `print()` instead of the Logger system
+
+5. **Self-aware bad code**: Comments like `# Constant should be uppercase but used locally` show awareness of issues without fixing them
+
+6. **Temporary/event-specific configs**: Halloween-tuned settings committed as defaults
+
+7. **Stub code without clear markers**: Placeholder implementations mixed with production code
+
+---
+
+### 7. Suggested Gates to Prevent This in Future PRs
+
+1. **Pre-commit hooks**:
+   - Lint for missing f-string prefixes when `{` appears in regular strings
+   - Block commits of symlinks
+   - Block raw `print()` calls (require Logger usage)
+   - Flag "WIP", "TODO", "FIXME" in commit messages
+
+2. **CI checks**:
+   - Run `git diff --check` to catch whitespace errors and symlinks
+   - Static analysis for string formatting issues (pylint has rules for this)
+   - Check for hardcoded paths containing `/Users/` or `C:\Users\`
+
+3. **PR review checklist**:
+   - [ ] No WIP commits without squashing
+   - [ ] No environment-specific paths or symlinks
+   - [ ] All print statements use Logger
+   - [ ] Magic numbers are defined as constants
+   - [ ] Stub/placeholder code is clearly documented
+   - [ ] Config defaults are production-appropriate, not event-specific
+
+4. **Branch policies**:
+   - Require squash merging for feature branches with many commits
+   - Require passing CI before merge
+   - Require at least one approval with checklist completed
+
+---
+
+## Files Changed
+
+- `suno_request_handler.py` - Fixed string formatting bug, use Logger
+- `dictation/vad_dictation.py` - Use Logger instead of print
+- `ganglia.py` - Removed misleading comments
+- `query_dispatch.py` - Added MAX_HISTORY_TOKENS constant
+- `tts_openai.py` - Added MAX_TEXT_LENGTH constant
+- `tts.py` - Removed commented-out code
+- `conversational_interface.py` - Improved UserProfile stub documentation
+- `config/vad_config.json.template` - Reset to sensible defaults
+- `.cursor` - Removed broken symlink
+
+---
+
+## Testing
+
+- All changes are safe refactors (constants, comments, Logger calls)
+- No behavioral changes except:
+  - suno_request_handler.py now correctly logs retry attempts
+  - VAD config template now has sensible defaults
+
+---
+
+## Checklist
+
+- [x] Identified 10+ concrete issues
+- [x] Fixed all critical bugs (string formatting)
+- [x] Removed inappropriate files (symlink)
+- [x] Updated misleading comments
+- [x] Refactored magic numbers to constants
+- [x] Documented stub code properly
+- [x] Reset event-specific configs to defaults
+- [x] Documented themes and prevention strategies

@@ -207,7 +207,7 @@ class VoiceActivityDictation(Dictation):
 
                     # Confirm sustained speech (not just a noise spike)
                     if high_energy_chunks >= self.SPEECH_CONFIRMATION_CHUNKS:
-                        print("🎤", flush=True)
+                        Logger.print_info("🎤")  # Speech detected indicator
                         self.mode = 'ACTIVE'
                         # DON'T close stream yet - keep it for transition buffer
                         return True
@@ -313,7 +313,7 @@ class VoiceActivityDictation(Dictation):
 
         def return_to_idle():
             """Return to idle listening mode after timeout."""
-            print("💤", flush=True)
+            Logger.print_info("💤")  # Idle mode indicator
             self.mode = 'IDLE'
             self.listening = False
 

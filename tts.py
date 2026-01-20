@@ -262,8 +262,7 @@ class GoogleTTS(TextToSpeech):
             audio_config = tts.AudioConfig(
                 audio_encoding=tts.AudioEncoding.MP3,
                 pitch=-20.0,          # Deep pitch for demonic voice (range: -20.0 to 20.0)
-                speaking_rate=1,   # Slower for more menacing effect (range: 0.25 to 4.0)
-                # effects_profile_id=['headphone-class-device']  # Optional: optimize for headphones
+                speaking_rate=1,      # Normal rate (range: 0.25 to 4.0)
             )
         else:
             audio_config = tts.AudioConfig(

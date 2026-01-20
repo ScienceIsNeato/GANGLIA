@@ -28,6 +28,9 @@ class OpenAITTS(TextToSpeech):
     - Potentially lower latency when paired with OpenAI LLM
     """
 
+    # OpenAI TTS has a 4096 character limit per request
+    MAX_TEXT_LENGTH = 4000  # Leave buffer for safety
+
     # Available voices
     VOICES = {
         "alloy": "Neutral and balanced",
@@ -116,13 +119,10 @@ class OpenAITTS(TextToSpeech):
         Returns:
             Tuple of (success, file_path)
         """
-        # Check if text is too long (OpenAI has a 4096 character limit)
-        MAX_LENGTH = 4000  # Leave some buffer
-
-        if len(text) > MAX_LENGTH:
+        if len(text) > self.MAX_TEXT_LENGTH:
             Logger.print_warning(f"Text too long ({len(text)} chars), splitting into chunks...")
             # For long text, use the chunking/concatenation approach
-            chunks = self.split_text(text, max_length=MAX_LENGTH)
+            chunks = self.split_text(text, max_length=self.MAX_TEXT_LENGTH)
             Logger.print_debug(f"Split into {len(chunks)} chunks")
 
             audio_files = []
