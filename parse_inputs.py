@@ -5,8 +5,6 @@ import sys
 from tts import TextToSpeech, GoogleTTS
 from tts_openai import OpenAITTS
 from dictation.dictation import Dictation
-from dictation.static_google_dictation import StaticGoogleDictation
-from dictation.live_google_dictation import LiveGoogleDictation
 from dictation.vad_dictation import VoiceActivityDictation
 from logger import Logger
 
@@ -65,12 +63,12 @@ def parse_tts_interface(tts_interface: str, apply_effects: bool = False) -> Text
             "Invalid TTS interface provided. Available options: 'google', 'openai'"
         )
 
-def parse_dictation_type(dictation_type: str) -> Dictation:
-    """Parse dictation type. VAD (Voice Activity Detection) is always used for cost efficiency.
+def parse_dictation_type(dictation_type: str = "vad") -> Dictation:
+    """Create the dictation interface.
 
-    Legacy options are maintained for backwards compatibility but all use VAD.
+    Always uses Voice Activity Detection (VAD) for cost efficiency.
+    The dictation_type parameter is accepted but unused (kept for CLI compatibility).
     """
-    # Always use VAD - it's cost-efficient and prevents $20/day idle listening costs
     return VoiceActivityDictation()
 
 def parse_args(args=None):

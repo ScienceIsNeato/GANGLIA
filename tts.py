@@ -1,11 +1,13 @@
 """Text-to-Speech module for GANGLIA.
 
-This module provides text-to-speech functionality using various backends.
-Currently supports Google Cloud Text-to-Speech with features including:
+This module provides the base TextToSpeech abstract class and the Google Cloud
+Text-to-Speech implementation. See tts_openai.py for the OpenAI TTS backend.
+
+Features:
 - Text chunking for long inputs
-- Audio playback with skip functionality
+- Parallel TTS generation for multi-sentence responses
+- Audio playback
 - Error handling and retries
-- Local file handling
 """
 
 # Standard library imports
@@ -210,9 +212,6 @@ class TextToSpeech(ABC):
         return float(duration_output.strip())
 
 
-
-
-
 class GoogleTTS(TextToSpeech):
     """Google Cloud Text-to-Speech implementation.
 
@@ -258,12 +257,10 @@ class GoogleTTS(TextToSpeech):
 
         # Set the audio configuration with optional effects
         if self.apply_effects:
-            # Use Google's native audio parameters for deeper, more dramatic voice
             audio_config = tts.AudioConfig(
                 audio_encoding=tts.AudioEncoding.MP3,
-                pitch=-20.0,          # Deep pitch for demonic voice (range: -20.0 to 20.0)
-                speaking_rate=1,   # Slower for more menacing effect (range: 0.25 to 4.0)
-                # effects_profile_id=['headphone-class-device']  # Optional: optimize for headphones
+                pitch=-20.0,          # Deep pitch shift (range: -20.0 to 20.0)
+                speaking_rate=1.0,    # Normal speed (range: 0.25 to 4.0)
             )
         else:
             audio_config = tts.AudioConfig(

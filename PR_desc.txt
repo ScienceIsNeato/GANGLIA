@@ -1,0 +1,164 @@
+PR #61 Post-Merge Cleanup
+==========================
+
+PR #61 (Conversation Pipeline) merged 54 commits under deadline pressure.
+This cleanup PR addresses all inappropriately merged content.
+
+## Incorrect Comments (misleading, outdated, wrong)
+
+1. ganglia.py:73-75 - Misleading comment about GoogleTTS not having set_voice_id.
+   The comment explained a workaround ("We'll pass the voice_id when calling
+   convert_text_to_speech") but voice_id is never actually passed anywhere in
+   the codebase. Removed the dead comment entirely.
+
+2. ganglia.py:77 - Log message claimed "pitch down, reverb, bass boost" but the
+   actual GoogleTTS implementation (tts.py:260-265) only applies pitch=-20.0.
+   There is no reverb or bass boost. Fixed to say "pitch shift".
+
+3. tts.py:265 - Comment said "Slower for more menacing effect" on speaking_rate=1,
+   but 1.0 is normal speed (not slower). Fixed comment to "Normal speed".
+
+4. tts.py:1-9 - Module docstring said "Currently supports Google Cloud
+   Text-to-Speech" but PR #61 also added OpenAI TTS (tts_openai.py). Updated
+   docstring to reflect both backends.
+
+5. config/vad_config.json.template - Comments referenced "Halloween rapid-fire
+   interactions" and "outdoor environment with passing cars" with event-specific
+   tuning values (silence_threshold=0.75, conversation_timeout=5). These are not
+   sensible defaults. Reset to production defaults (2.5s, 30s) with neutral
+   comments.
+
+
+## Files That Should Not Have Been Committed (20 files removed)
+
+IDE Configuration (4 files):
+- .cursor (symlink to external cursor-rules repo - creates external dependency)
+- .vscode/launch.json (personal debug configurations)
+- .vscode/tasks.json (personal task shortcuts)
+- .vscode/settings.json (personal editor settings)
+
+Planning/Status Documents (9 files):
+- GANGLIA_2025_SETUP.md (Halloween 2025 event setup instructions)
+- GANGLIA_2025_SUMMARY.md (work summary with specific dates)
+- GANGLIA_SERVICE_SETUP.md (hardware-specific deployment doc)
+- GANGLIA_TTS_MODERNIZATION_PLAN.md (internal roadmap/planning)
+- STATUS.md (project status with dated entries)
+- TIMING_ANALYSIS_GUIDE.md (development performance guide)
+- docs/archive/LLM_MODEL_OPTIONS_2025-10.md (internal research)
+- docs/archive/PERFORMANCE_ANALYSIS_2025-10.md (internal analysis)
+- docs/archive/ROUNDTRIP_SPEED_SUMMARY_2025-10.md (internal summary)
+
+Hardware-Specific Deployment Scripts (4 files):
+- ganglia_watchdog.sh (monitors terminator window on ganglia@192.168.4.63)
+- start_ganglia_monitored.sh (hardcoded --device-index 6, ~/dev/GANGLIA/ paths)
+- prep_env.sh (assumes $AGENT_HOME and specific venv layout)
+- deployment/ganglia.desktop (GNOME autostart for /home/ganglia/ path)
+
+Diagnostic/Debug Utilities (3 files):
+- utils/vad_energy_analyzer.py (one-off VAD calibration tool)
+- utils/test_conversation_latency.py (latency measurement script)
+- utils/test_vad_sensitivity.py (VAD sensitivity testing)
+
+
+## Code Within Files That Should Not Have Been Committed
+
+1. conversational_interface.py:22-31 - Dead UserProfile stub class with
+   do-nothing methods (update_activity, add_conversation_entry). This was
+   "placeholder for future user management functionality" that added 10 lines
+   of dead code and scattered no-op calls throughout the file. Removed the class
+   and all 9 call sites.
+
+2. tts.py:266 - Commented-out code: effects_profile_id=['headphone-class-device'].
+   Dead code left from experimentation. Removed.
+
+
+## Code/Comments That Need Updating
+
+1. parse_inputs.py:68-74 - parse_dictation_type() docstring said "Legacy options
+   are maintained for backwards compatibility but all use VAD" but there ARE no
+   legacy options - the function ignores its argument entirely. Updated docstring
+   to accurately state the parameter is unused (kept for CLI compatibility).
+
+2. parse_inputs.py:7-8 - Unused imports StaticGoogleDictation and
+   LiveGoogleDictation. Since parse_dictation_type always returns
+   VoiceActivityDictation, these imports are dead. Removed.
+
+3. conversational_interface.py - Unused imports: Dict, Any from typing;
+   Timer from performance_profiler; StoryGenerationState from
+   story_generation_driver. Removed all three.
+
+4. .gitignore - Had duplicate entries for .cursorrules (listed twice) and
+   contradictory state (.cursor listed in gitignore but committed as symlink).
+   Consolidated IDE exclusions into a single section and added .vscode/.
+
+
+## TODOs From PR #61 That Should Be Addressed
+
+1. conversational_interface.py:440-443 - "TODO: REFACTOR THIS METHOD" with 4
+   lines of commentary about the user_turn method being a "catchall basket".
+   The method is 30 lines and perfectly readable. Removed the premature
+   refactoring TODO.
+
+2. ttv/ttv.py:9 - "TODO: remove skip_generation globally, make query_dispatcher
+   required". skip_generation is used in 20+ places across the codebase for
+   development testing. This is not actionable without a major refactor.
+   Removed the comment.
+
+3. config/vad_config.json.template - "recommended_presets" section included
+   event-specific presets ("noisy_party" described as "Halloween party!").
+   The entire presets section was development documentation masquerading as
+   config. Removed along with the template reset to defaults.
+
+
+## General Themes and Patterns
+
+1. Event-driven development: Many files were tuned for a specific Halloween 2025
+   event and those event-specific values leaked into templates and defaults.
+
+2. Planning docs committed to source: 9 markdown files totaling ~2400 lines of
+   internal planning, status tracking, and research that belong in a wiki or
+   project management tool, not version control.
+
+3. Hardware-specific scripts: 4 deployment scripts with hardcoded paths, device
+   indices, and IP addresses for a specific deployment target.
+
+4. Stub/placeholder code: UserProfile class with do-nothing methods scattered
+   through the codebase, creating the illusion of functionality.
+
+5. Incorrect comments: Comments describing behavior that doesn't match the code
+   (reverb/bass boost that doesn't exist, "slower" speed that's actually normal).
+
+6. Dead imports: Multiple files importing symbols that are never used, left over
+   from refactoring during the 54-commit PR.
+
+7. Diagnostic tools committed as production code: Debug/calibration utilities
+   that should live in a separate tools/ repo or be run ad-hoc.
+
+
+## Suggested Gates to Prevent This in Future PRs
+
+1. Pre-merge file checklist: Block PRs that add files matching patterns like
+   *.desktop, *_SETUP.md, *_PLAN.md, STATUS.md, or files in deployment/.
+
+2. .gitignore enforcement: CI check that no tracked files match .gitignore
+   patterns (catches the .cursor symlink contradiction).
+
+3. Dead code detection: Run vulture or similar tool in CI to catch unused
+   imports and dead stub classes.
+
+4. Comment lint: Flag TODO comments without issue references, commented-out
+   code blocks, and comments containing "hack", "temporary", or "WIP".
+
+5. Config template validation: Ensure template files use documented default
+   values, not environment-specific tuning.
+
+6. PR size limits: Flag PRs over 20 commits for mandatory architecture review
+   before merge.
+
+7. Separate deployment from application: Hardware-specific scripts, desktop
+   entries, and watchdog processes should live in a separate deployment repo
+   or at minimum a clearly marked deployment/ directory in .gitignore.
+
+8. No planning docs in source: Add *.md exclusion for root-level markdown
+   (except README.md, CONTRIBUTING.md, CHANGELOG.md) to prevent status/planning
+   docs from being committed.

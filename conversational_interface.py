@@ -7,28 +7,15 @@ with a user, replacing the direct chatbot functionality from ganglia.py.
 
 import time
 import uuid
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from query_dispatch import ChatGPTQueryDispatcher
 from session_logger import CLISessionLogger, SessionEvent
 from audio_turn_indicator import UserTurnIndicator, AiTurnIndicator
 from logger import Logger
 from pubsub import get_pubsub, Event, EventType
-from story_generation_driver import StoryGenerationDriver, StoryInfoType, StoryGenerationState
-from utils.performance_profiler import ConversationTimer, Timer
-
-
-# Stub UserProfile until user management is implemented
-class UserProfile:
-    """Placeholder for future user management functionality."""
-    def __init__(self):
-        pass
-    
-    def update_activity(self):
-        pass
-    
-    def add_conversation_entry(self, entry):
-        pass
+from story_generation_driver import StoryGenerationDriver, StoryInfoType
+from utils.performance_profiler import ConversationTimer
 
 
 class Conversation:
@@ -64,9 +51,8 @@ class Conversation:
         self.ai_turn_indicator = ai_turn_indicator
         self.hotword_manager = hotword_manager
 
-        # Initialize user profile
-        self.user_profile = UserProfile()
-        self.user_id = str(uuid.uuid4())  # Generate a unique ID for this user
+        # Initialize user ID for pubsub routing
+        self.user_id = str(uuid.uuid4())
 
         # Initialize pubsub
         self.pubsub = get_pubsub()
@@ -193,15 +179,6 @@ class Conversation:
         Returns:
             The response to the user
         """
-        # Update user activity
-        self.user_profile.update_activity()
-
-        # Add the user input to the conversation history
-        self.user_profile.add_conversation_entry({
-            'role': 'user',
-            'content': user_input
-        })
-
         # Check for hotwords
         hotword_detected, hotword_phrase = self.hotword_manager.detect_hotwords(user_input) if self.hotword_manager else (False, None)
 
@@ -223,12 +200,6 @@ class Conversation:
         else:
             # Generate a response
             response = self.query_dispatcher.send_query(user_input)
-
-        # Add the response to the conversation history
-        self.user_profile.add_conversation_entry({
-            'role': 'assistant',
-            'content': response
-        })
 
         # Log the interaction if session logger is available
         if self.session_logger:
@@ -333,13 +304,6 @@ class Conversation:
 
         self.conversation_timer.mark_llm_start()
 
-        # Update user activity and history
-        self.user_profile.update_activity()
-        self.user_profile.add_conversation_entry({
-            'role': 'user',
-            'content': user_input
-        })
-
         # Queue for audio files ready to play
         audio_queue = queue.Queue()
         full_response = ""
@@ -413,12 +377,6 @@ class Conversation:
 
         response = full_response.strip()
 
-        # Add to user profile
-        self.user_profile.add_conversation_entry({
-            'role': 'assistant',
-            'content': response
-        })
-
         # Log the interaction
         if self.session_logger:
             self.session_logger.log_session_interaction(
@@ -437,11 +395,6 @@ class Conversation:
         Returns:
             The user's input
         """
-        # TODO: REFACTOR THIS METHOD - It's become a catchall basket for all the weird things we want to do.
-        # Need to break this into smaller, focused methods with clear responsibilities.
-        # Consider: separate input handling, validation, and control flow into distinct helper methods.
-        # Current complexity makes it hard to understand control flow and adds technical debt.
-        
         # Reset conversation timer for new turn
         self.conversation_timer = ConversationTimer()
         self.conversation_timer.mark_user_start()
@@ -536,13 +489,6 @@ class Conversation:
                 # Use LLM with integrated audio output (no streaming, no TTS)
                 self.conversation_timer.mark_llm_start()
 
-                # Update user activity and history
-                self.user_profile.update_activity()
-                self.user_profile.add_conversation_entry({
-                    'role': 'user',
-                    'content': user_input
-                })
-
                 # Get response (may include audio or just text if audio failed)
                 query_result = self.query_dispatcher.send_query(user_input)
 
@@ -557,12 +503,6 @@ class Conversation:
                 Logger.print_demon_output(response)
 
                 self.conversation_timer.mark_llm_end()
-
-                # Add to user profile
-                self.user_profile.add_conversation_entry({
-                    'role': 'assistant',
-                    'content': response
-                })
 
                 # Log the interaction
                 if self.session_logger:

@@ -6,7 +6,6 @@ from logger import Logger
 from utils import get_timestamped_ttv_dir
 import traceback
 
-# TODO: remove skip_generation globally, make query_dispatcher required
 def text_to_video(config_path, skip_generation=False, tts=None, query_dispatcher=None):
     """
     Convert text to video using the provided configuration.
