@@ -13,6 +13,7 @@ TODO: Expand to analyze multiple frames for true video content.
 from typing import Optional, Tuple
 import numpy as np
 from moviepy.video.io.VideoFileClip import VideoFileClip
+from logger import Logger
 
 def calculate_activity_map(frame: np.ndarray, block_size: int = 32) -> np.ndarray:
     """Calculate activity level for each block in the frame.
@@ -146,5 +147,5 @@ def find_optimal_roi(
         )
 
     except Exception as e:
-        print(f"Error finding optimal ROI: {str(e)}")
+        Logger.print_error(f"Error finding optimal ROI: {str(e)}")
         return None

@@ -19,6 +19,7 @@ The following commits from PR #61 introduced issues that needed cleanup:
 | `a178b50` | Refactor GANGLIA architecture with modular conversational and TTV components | Added misleading comments about GoogleTTS in ganglia.py |
 | `e9d89a3` | fix: add UserProfile stub after removing user_management module | Added undocumented stub class |
 | `c4c74a0` | config: reduce conversation timeout to 5 seconds | Event-specific config (for "outdoor environment") committed as default |
+| `acae665` | adding in complimentary colors for captions | Raw `print()` instead of Logger for error handling in caption_roi.py |
 
 ### WIP Commits That Should Have Been Squashed
 
@@ -65,6 +66,11 @@ These should have been squashed or cleaned up before merge.
 **dictation/vad_dictation.py:210,316** - Raw print statements bypassing Logger
 - Used `print()` instead of Logger for speech detection indicators
 - **Fix**: Replaced with `Logger.print_info()` calls
+
+**ttv/caption_roi.py:149** - Raw print statement for error handling
+- Used `print()` instead of Logger for error output
+- Added in commit `acae665` (adding in complimentary colors for captions)
+- **Fix**: Replaced with `Logger.print_error()` call
 
 ---
 
@@ -159,6 +165,7 @@ These are left as-is since they represent documented technical debt, not merge m
 
 - `suno_request_handler.py` - Fixed string formatting bug, use Logger
 - `dictation/vad_dictation.py` - Use Logger instead of print
+- `ttv/caption_roi.py` - Use Logger instead of print for error handling
 - `ganglia.py` - Removed misleading comments
 - `query_dispatch.py` - Added MAX_HISTORY_TOKENS constant
 - `tts_openai.py` - Added MAX_TEXT_LENGTH constant
