@@ -57,7 +57,7 @@ def parse_tts_interface(tts_interface: str, apply_effects: bool = False) -> Text
     if tts_interface.lower() == "google":
         return GoogleTTS(apply_effects=apply_effects)
     elif tts_interface.lower() == "openai":
-        return OpenAITTS(voice="onyx")  # Deep voice similar to GANGLIA's personality
+        return OpenAITTS(voice="onyx")
     else:
         raise ValueError(
             "Invalid TTS interface provided. Available options: 'google', 'openai'"
@@ -88,7 +88,7 @@ def parse_args(args=None):
     parser.add_argument('--timing-analysis', action='store_true', help="Enable detailed timing analysis of conversation pipeline (default: False)")
     parser.add_argument('--audio-output', action='store_true', help="Use gpt-4o-audio-preview to get audio directly from LLM (experimental, ~10x cost)")
     parser.add_argument('--audio-voice', type=str, default='onyx', help="Voice for audio output: alloy, echo, fable, onyx, nova, shimmer (default: onyx)")
-    parser.add_argument('--audio-effects', action='store_true', help="Apply audio effects to Google TTS (pitch down, reverb, bass boost for deeper voice)")
+    parser.add_argument('--audio-effects', action='store_true', help="Apply audio effects to Google TTS (pitch shift)")
     parser.add_argument('--debug', action='store_true', help="Enable debug logging (default: False)")
 
     parsed_args = parser.parse_args(args)

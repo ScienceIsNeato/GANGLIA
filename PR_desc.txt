@@ -162,3 +162,41 @@ Diagnostic/Debug Utilities (3 files):
 8. No planning docs in source: Add *.md exclusion for root-level markdown
    (except README.md, CONTRIBUTING.md, CHANGELOG.md) to prevent status/planning
    docs from being committed.
+
+9. Test isolation: Ensure tests can be collected and run without external API
+   keys. Module-level API client initialization should be deferred.
+
+
+## Additional Fixes (Post-Initial Review)
+
+### Incorrect Comments (additional)
+
+6. parse_inputs.py:93 - --audio-effects argparse help said "pitch down, reverb,
+   bass boost for deeper voice" but only pitch shift is applied. Same incorrect
+   claim that was in ganglia.py and tts.py. Fixed to "pitch shift".
+
+7. parse_inputs.py:62 - Comment "# Deep voice similar to GANGLIA's personality"
+   on OpenAI voice selection. Opinionated personality assumption that doesn't
+   belong in infrastructure code. Removed.
+
+
+### Test Infrastructure Issues
+
+1. requirements_test.txt was missing -r requirements_core.txt. Running
+   `pip install -r requirements_test.txt` alone did NOT provide all deps needed
+   for test collection. Modules imported at collection time (blessed, pyaudio,
+   psutil, SpeechRecognition, keyboard, gTTS, google-cloud-speech, soundfile,
+   etc.) were all missing. Fixed by adding the include.
+
+2. ttv/story_generation.py:10 created an OpenAI client at module import time:
+   `client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))`. This caused
+   ALL tests that transitively imported this module to fail collection when
+   OPENAI_API_KEY was unset. Replaced with lazy _get_openai_client() getter
+   that defers initialization and warns at first use.
+
+3. Dockerfile had a redundant `pip install -r requirements_core.txt` after
+   installing requirements_test.txt. Since requirements_test.txt now includes
+   requirements_core.txt via -r, the separate install was removed.
+
+4. tests/unit/ttv/test_story_generation.py patched the now-removed module-level
+   `client` variable. Updated to patch the new `_get_openai_client` function.
