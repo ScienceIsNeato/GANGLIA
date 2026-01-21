@@ -1,0 +1,96 @@
+Known Issues (Observed During PR #61 Cleanup)
+==============================================
+
+Issues noticed during review that were out of scope for the cleanup PR
+but should be addressed in future work.
+
+
+1. GoogleTTS eager credential validation
+   File: tts.py (GoogleTTS.__init__)
+
+   GoogleTTS validates GCP credentials at instantiation time. This is the
+   same class of problem fixed in story_generation.py (module-level OpenAI
+   client), but applied to the TTS layer. Any test that calls
+   parse_tts_interface("google") fails without GOOGLE_APPLICATION_CREDENTIALS.
+   A lazy initialization or credential check at speak-time would allow tests
+   to construct the object without live credentials.
+
+
+2. Argument name mismatch in parse_inputs.py error message
+   File: parse_inputs.py:98
+
+   The error message says:
+       --json-input is required when --text-to-video is specified.
+   But the actual argument is --ttv-config (not --json-input). The argument
+   was renamed at some point but the error message was not updated.
+
+
+3. Unused prompt variable in generate_filtered_story
+   File: ttv/story_generation.py:47-61
+
+   The function builds a detailed `prompt` string (lines 47-61) that is
+   never used. The actual query sent to query_dispatcher (lines 75-83)
+   constructs a different prompt inline. The unused variable is dead code.
+
+
+4. Coqui config loading for defunct service
+   File: parse_inputs.py:29-54 (load_coqui_config)
+
+   Coqui AI shut down in 2023. The load_coqui_config() function still exists
+   and references coqui_config.json. If nothing calls this function anymore,
+   it should be removed. If something does call it, that caller is broken
+   regardless.
+
+
+5. skip_generation parameter sprawl
+   Files: 20+ locations across the codebase
+
+   skip_generation is used as a development testing bypass throughout the
+   codebase. It short-circuits normal flow in ways that make the code harder
+   to follow. The removed TODO (ttv/ttv.py) was right that this needs
+   cleanup, but it's a significant refactor touching many files and needs
+   its own PR with a clear migration plan.
+
+
+6. YouTube tests error on missing token instead of skipping
+   Files: tests/unit/ttv/test_youtube_upload.py
+
+   When YOUTUBE_TOKEN_FILE is unset or points to a nonexistent file, the
+   YouTube tests raise errors during collection rather than skipping
+   gracefully. Same pattern as the story_generation.py fix - these tests
+   should use pytest.importorskip or skip markers for missing credentials.
+
+
+7. check_environment_variables() is all-or-nothing
+   File: parse_inputs.py:11-27
+
+   The function requires ALL environment variables (OPENAI_API_KEY,
+   GCP_BUCKET_NAME, GCP_PROJECT_NAME, FOXAI_SUNO_API_KEY,
+   GOOGLE_APPLICATION_CREDENTIALS) to be set before the app can start.
+   If a user only wants to use OpenAI TTS without Google, they still need
+   GCP credentials set. A more granular approach would validate credentials
+   based on which features are actually requested.
+
+
+8. Requirements file structure is fragile
+   Files: requirements.txt, requirements_core.txt, requirements_large.txt,
+          requirements_test.txt
+
+   The dependency chain is:
+   - requirements.txt includes requirements_large.txt + requirements_core.txt
+   - requirements_test.txt includes requirements_core.txt (fixed in this PR)
+   - requirements_large.txt includes requirements_core.txt
+
+   But CI installs requirements.txt directly (workflow line 67) while Docker
+   uses requirements_test.txt. There's no single source of truth and deps
+   can drift between the two paths. Consider consolidating or documenting
+   the intended dependency graph.
+
+
+9. Mixed print()/Logger output
+   File: conversational_interface.py (and others)
+
+   Some user-facing output uses raw print() calls (e.g., the "> " prompt
+   indicator) while other output goes through Logger. This makes it
+   difficult to control verbosity, redirect output, or test output
+   behavior consistently. A unified output strategy would help.
