@@ -200,3 +200,16 @@ Diagnostic/Debug Utilities (3 files):
 
 4. tests/unit/ttv/test_story_generation.py patched the now-removed module-level
    `client` variable. Updated to patch the new `_get_openai_client` function.
+
+
+### Bug Fixes
+
+1. parse_inputs.py:98 - Error message said "--json-input is required" but the
+   actual argument is --ttv-config. The argument was renamed but the error
+   message and accompanying comment were never updated. Fixed both.
+
+### Dead Code (additional)
+
+1. ttv/story_generation.py:47-61 - generate_filtered_story() built a 15-line
+   `prompt` variable that was never used. The actual query (lines 75-83) builds
+   a different prompt inline. Removed the dead variable.

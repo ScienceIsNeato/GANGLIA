@@ -93,9 +93,9 @@ def parse_args(args=None):
 
     parsed_args = parser.parse_args(args)
 
-    # Check if --text-to-video is used, then --json-input must also be provided
+    # Check if --text-to-video is used, then --ttv-config must also be provided
     if parsed_args.text_to_video and not parsed_args.ttv_config:
-        parser.error("--json-input is required when --text-to-video is specified.")
+        parser.error("--ttv-config is required when --text-to-video is specified.")
 
     return parsed_args
 

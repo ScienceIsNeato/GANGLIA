@@ -16,24 +16,7 @@ but should be addressed in future work.
    to construct the object without live credentials.
 
 
-2. Argument name mismatch in parse_inputs.py error message
-   File: parse_inputs.py:98
-
-   The error message says:
-       --json-input is required when --text-to-video is specified.
-   But the actual argument is --ttv-config (not --json-input). The argument
-   was renamed at some point but the error message was not updated.
-
-
-3. Unused prompt variable in generate_filtered_story
-   File: ttv/story_generation.py:47-61
-
-   The function builds a detailed `prompt` string (lines 47-61) that is
-   never used. The actual query sent to query_dispatcher (lines 75-83)
-   constructs a different prompt inline. The unused variable is dead code.
-
-
-4. Coqui config loading for defunct service
+2. Coqui config loading for defunct service
    File: parse_inputs.py:29-54 (load_coqui_config)
 
    Coqui AI shut down in 2023. The load_coqui_config() function still exists
@@ -42,7 +25,7 @@ but should be addressed in future work.
    regardless.
 
 
-5. skip_generation parameter sprawl
+3. skip_generation parameter sprawl
    Files: 20+ locations across the codebase
 
    skip_generation is used as a development testing bypass throughout the
@@ -52,7 +35,7 @@ but should be addressed in future work.
    its own PR with a clear migration plan.
 
 
-6. YouTube tests error on missing token instead of skipping
+4. YouTube tests error on missing token instead of skipping
    Files: tests/unit/ttv/test_youtube_upload.py
 
    When YOUTUBE_TOKEN_FILE is unset or points to a nonexistent file, the
@@ -61,7 +44,7 @@ but should be addressed in future work.
    should use pytest.importorskip or skip markers for missing credentials.
 
 
-7. check_environment_variables() is all-or-nothing
+5. check_environment_variables() is all-or-nothing
    File: parse_inputs.py:11-27
 
    The function requires ALL environment variables (OPENAI_API_KEY,
@@ -72,7 +55,7 @@ but should be addressed in future work.
    based on which features are actually requested.
 
 
-8. Requirements file structure is fragile
+6. Requirements file structure is fragile
    Files: requirements.txt, requirements_core.txt, requirements_large.txt,
           requirements_test.txt
 
@@ -87,7 +70,7 @@ but should be addressed in future work.
    the intended dependency graph.
 
 
-9. Mixed print()/Logger output
+7. Mixed print()/Logger output
    File: conversational_interface.py (and others)
 
    Some user-facing output uses raw print() calls (e.g., the "> " prompt
