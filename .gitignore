@@ -29,6 +29,7 @@ config_backups/*
 .vscode/
 .cursor
 .cursorrules
+.claude/
 
 # Session scratch files
 AUDIO_PROCESS_HANGING_ANALYSIS.md
