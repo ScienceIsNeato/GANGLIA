@@ -1,0 +1,105 @@
+# Known Issues
+
+Issues identified during PR #61 cleanup that were not addressed because they
+require larger refactoring efforts or are feature requests rather than bugs.
+
+---
+
+## 1. Test Infrastructure Gaps
+
+### Integration tests lack skip fixtures
+**Location**: `tests/integration/`
+**Issue**: Unit tests now skip gracefully when API keys are missing, but integration
+tests still fail. They rely entirely on CI having all secrets configured.
+**Suggested fix**: Add similar skip fixtures to integration tests, or mark them
+with `pytest.mark.skipif` based on credential availability.
+
+### Third-party test credential handling
+**Location**: `tests/third_party/`
+**Issue**: Tests for Suno, YouTube, Meta MusicGen fail without credentials rather
+than skipping. Inconsistent with the new unit test approach.
+**Suggested fix**: Apply the same `requires_*` fixture pattern to third-party tests.
+
+### Google credentials fixture checks presence, not validity
+**Location**: `tests/conftest.py`, `tests/unit/ttv/test_audio_alignment.py`
+**Issue**: The `requires_google_credentials` fixture only checks if
+`GOOGLE_APPLICATION_CREDENTIALS` env var is set, not whether the credentials
+actually work. Tests pass the fixture but fail at runtime when TTS calls fail.
+**Suggested fix**: Add a lightweight credential validation (e.g., try to create
+a client) in the fixture, or catch TTS failures and skip with a clear message.
+
+---
+
+## 2. Documented TODOs from PR #61
+
+These TODOs existed before PR #61 or were intentionally added as tracked technical debt:
+
+| Location | TODO | Type |
+|----------|------|------|
+| `ttv/ttv.py:9` | Remove skip_generation, make query_dispatcher required | Refactor |
+| `dictation/vad_dictation.py:175` | Implement auto-adaptive VAD threshold | Enhancement (Issue #62) |
+| `ttv/captions.py:844` | Fix long static captions overflow bug | Bug |
+| `ttv/final_video_generation.py:309` | GCS upload shouldn't be test-specific | Refactor |
+| `music_lib.py:365` | Calculate actual duration instead of hardcoded 30s | Enhancement |
+| `suno_request_handler.py:50-51` | Generate title and tags dynamically | Enhancement |
+| `conversational_interface.py:440` | Refactor user_turn method (technical debt) | Refactor |
+| `googleTTSExample.py:47` | Need exit mechanism for transcription loop | Example code |
+
+---
+
+## 3. Architectural Issues
+
+### UserProfile stub needs implementation
+**Location**: `conversational_interface.py:21-31`
+**Issue**: The `UserProfile` class is a no-op stub. The conversation system calls
+`update_activity()` and `add_conversation_entry()` but they do nothing.
+**Impact**: No user activity tracking or conversation logging is actually happening.
+**Suggested fix**: Implement proper user management or remove the calls if not needed.
+
+### Potential module-level client instantiation elsewhere
+**Location**: Unknown - need audit
+**Issue**: Fixed `ttv/story_generation.py` which had module-level `OpenAI()` client
+creation causing import failures. There may be similar patterns elsewhere.
+**Suggested fix**: Audit codebase for other module-level API client instantiations
+that could cause import-time failures when credentials are missing.
+
+---
+
+## 4. Process Issues
+
+### WIP commits merged to main
+**Issue**: PR #61 included commits with "WIP" in the message that should have been
+squashed before merge:
+- `7d03641 WIP ganglia 2025 halloween`
+- `e6c9664 WIP realtime stuffs`
+**Impact**: Cluttered git history, temporary/debug code in production.
+**Suggested fix**: Enforce squash merging for feature branches, or add CI check
+that warns on "WIP" in commit messages.
+
+### Event-specific configs committed as defaults
+**Issue**: Halloween-tuned VAD settings (aggressive thresholds for outdoor use)
+were committed as the default template values.
+**Impact**: Future users copying the template would get inappropriate defaults.
+**Suggested fix**: Add CI check or pre-commit hook that flags config changes with
+comments mentioning specific events or environments.
+
+---
+
+## 5. Missing Error Handling
+
+### FoxAI Suno backend initialization
+**Location**: `music_lib.py`
+**Issue**: Fixed to gracefully handle missing API key, but the fallback behavior
+(setting `fallback_backend = None`) means music generation silently degrades.
+**Suggested fix**: Add clearer logging/warning when fallback is unavailable, or
+raise an error earlier in the pipeline if music is required but unavailable.
+
+---
+
+## Priority Recommendations
+
+1. **High**: Caption overflow bug (`ttv/captions.py:844`) - user-visible issue
+2. **High**: UserProfile stub - silent data loss (no conversation logging)
+3. **Medium**: Test infrastructure gaps - affects CI reliability
+4. **Medium**: Auto-adaptive VAD threshold - usability improvement
+5. **Low**: Process improvements - prevent future issues
