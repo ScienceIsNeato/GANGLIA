@@ -2,7 +2,31 @@
 
 ## Summary
 
-This PR addresses issues found in the conversation pipeline PR (#61) that was merged under deadline pressure. After a comprehensive audit of the 54 commits, this cleanup fixes concrete bugs, removes inappropriate code, and improves code quality.
+This PR addresses issues found in the conversation pipeline PR (#61) that was merged under deadline pressure. After a comprehensive audit of the 55 commits, this cleanup fixes concrete bugs, removes inappropriate code, and improves code quality.
+
+---
+
+## Problematic Commits from PR #61
+
+The following commits from PR #61 introduced issues that needed cleanup:
+
+| Commit | Message | Issue |
+|--------|---------|-------|
+| `a9b3998` | chore: resolve merge conflict and add cursor symlink | Added broken `.cursor` symlink pointing to developer's local machine |
+| `5ff91ad` | refactor: simplify VAD logging to emoji-only output | Changed `Logger.print_info()` to raw `print()` - wrong direction |
+| `7d03641` | WIP ganglia 2025 halloween | WIP commit with Halloween-specific settings merged to main |
+| `e6c9664` | WIP realtime stuffs | WIP commit adding debug files (later removed) |
+| `a178b50` | Refactor GANGLIA architecture with modular conversational and TTV components | Added misleading comments about GoogleTTS in ganglia.py |
+| `e9d89a3` | fix: add UserProfile stub after removing user_management module | Added undocumented stub class |
+| `c4c74a0` | config: reduce conversation timeout to 5 seconds | Event-specific config (for "outdoor environment") committed as default |
+
+### WIP Commits That Should Have Been Squashed
+
+Two commits with "WIP" in the message were merged:
+- `7d03641 WIP ganglia 2025 halloween` - Modified 12 files with Halloween-specific tuning
+- `e6c9664 WIP realtime stuffs` - Added 3 debug files (later removed in subsequent commits)
+
+These should have been squashed or cleaned up before merge.
 
 ---
 
