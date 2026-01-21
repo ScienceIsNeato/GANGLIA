@@ -1,5 +1,8 @@
-# Test Requirements - Includes dependencies needed for test collection
-# Some modules import these at top-level, so they're required even for tests
+# Test Requirements - Includes all dependencies needed for test collection and execution
+# Modules import runtime deps at top-level, so they're required even for test collection
+
+# Core runtime dependencies (needed for module imports during test collection)
+-r requirements_core.txt
 
 # ML Dependencies (needed for audio_alignment.py and music_backends/meta.py imports)
 torch>=2.0.0

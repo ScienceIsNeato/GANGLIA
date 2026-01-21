@@ -17,11 +17,8 @@ COPY requirements.txt .
 COPY requirements_core.txt .
 COPY requirements_test.txt .
 
-# Install test dependencies (lightweight - excludes torch/transformers/whisper)
+# Install test dependencies (includes core deps + ML/media packages for test collection)
 RUN pip install --no-cache-dir -r requirements_test.txt
-
-# Install remaining dependencies
-RUN pip install --no-cache-dir -r requirements_core.txt
 
 # Copy application code
 COPY . .

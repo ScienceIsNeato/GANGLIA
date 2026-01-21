@@ -1,13 +1,33 @@
 import json
 import os
-from openai import OpenAI
 import time
+import warnings
 import requests
 from logger import Logger
 from typing import Optional, Any, Dict
 from datetime import datetime
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+_client = None
+
+
+def _get_openai_client():
+    """Lazily initialize the OpenAI client on first use.
+
+    This avoids failing at import time when OPENAI_API_KEY is not set,
+    allowing test collection to succeed without API credentials.
+    """
+    global _client
+    if _client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            warnings.warn(
+                "OPENAI_API_KEY not set - story generation features will not be available",
+                stacklevel=2
+            )
+            return None
+        from openai import OpenAI
+        _client = OpenAI(api_key=api_key)
+    return _client
 
 def generate_filtered_story(context, style, story_title, query_dispatcher):
     """
@@ -112,10 +132,15 @@ def generate_movie_poster(
     prompt = f"Create a movie poster for the story titled '{story_title}' with the style of {style} and context: {filtered_context}."
     safety_retries = 3
 
+    openai_client = _get_openai_client()
+    if openai_client is None:
+        Logger.print_error(f"{thread_prefix}Cannot generate movie poster: OPENAI_API_KEY not set")
+        return None
+
     for safety_attempt in range(safety_retries):
         for attempt in range(retries):
             try:
-                response = client.images.generate(
+                response = openai_client.images.generate(
                     model="dall-e-3",
                     prompt=prompt,
                     size="1024x1024",
