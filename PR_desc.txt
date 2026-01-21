@@ -164,3 +164,41 @@ These are left as-is since they represent documented technical debt, not merge m
 - [x] Documented stub code properly
 - [x] Reset event-specific configs to defaults
 - [x] Documented themes and prevention strategies
+- [x] Fixed test infrastructure to skip tests when API keys unavailable
+
+---
+
+## Additional Test Infrastructure Fixes
+
+### Problem
+Tests were failing at **collection time** when API keys (OPENAI_API_KEY, FOXAI_SUNO_API_KEY, etc.) were not set, because:
+1. `ttv/story_generation.py` created OpenAI client at module import time
+2. `music_lib.py` raised errors when initializing fallback backends without API keys
+3. Tests raised EnvironmentError instead of skipping when credentials missing
+
+### Solution
+
+**Lazy client initialization** (`ttv/story_generation.py`):
+- Changed module-level `client = OpenAI(...)` to lazy `_get_openai_client()` function
+- Client only created when actually needed, not at import time
+
+**Graceful fallback handling** (`music_lib.py`):
+- Wrapped FoxAISunoBackend initialization in try/except
+- If API key missing, fallback is set to None with a warning instead of raising
+
+**Test skip fixtures** (`tests/conftest.py`):
+- Added `requires_openai_key`, `requires_google_credentials`, `requires_suno_key` fixtures
+- Tests using these fixtures are skipped (not failed) when credentials unavailable
+- Warnings logged at test session start about missing API keys
+
+**Updated tests**:
+- `test_send_query.py`, `test_query_dispatch.py` - use `requires_openai_key`
+- `test_generate_poster.py`, `test_generate_lyrics.py` - use `requires_openai_key`
+- `test_audio_alignment.py` - use `requires_google_credentials`
+- `test_music_lib.py` - updated assertions to handle None fallback
+- `test_story_generation.py` - updated mock to use `_get_openai_client`
+
+### Result
+- Tests now **skip gracefully** instead of failing when API keys are missing
+- Test collection no longer fails on import errors
+- 128 passed, 19 skipped, 3 failed (runtime Google TTS issues, not collection failures)

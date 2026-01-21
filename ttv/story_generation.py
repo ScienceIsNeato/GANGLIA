@@ -7,7 +7,23 @@ from logger import Logger
 from typing import Optional, Any, Dict
 from datetime import datetime
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Lazy-initialized OpenAI client to avoid import-time errors when API key is missing
+_client = None
+
+def _get_openai_client():
+    """Get or create the OpenAI client lazily.
+
+    Returns:
+        OpenAI client instance, or None if API key is not configured.
+    """
+    global _client
+    if _client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            Logger.print_warning("OPENAI_API_KEY not set - image generation features will be unavailable")
+            return None
+        _client = OpenAI(api_key=api_key)
+    return _client
 
 def generate_filtered_story(context, style, story_title, query_dispatcher):
     """
@@ -98,6 +114,13 @@ def generate_movie_poster(
     output_dir: str = None
 ) -> Optional[str]:
     thread_prefix = f"{thread_id} " if thread_id else ""
+
+    # Get OpenAI client (lazy initialization)
+    client = _get_openai_client()
+    if client is None:
+        Logger.print_error(f"{thread_prefix}Cannot generate movie poster: OPENAI_API_KEY not configured")
+        return None
+
     try:
         filtered_story = json.loads(filtered_story_json)
     except json.JSONDecodeError:

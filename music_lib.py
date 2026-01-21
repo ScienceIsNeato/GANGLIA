@@ -57,10 +57,16 @@ class MusicGenerator:
                 self.fallback_backend = None
             else:  # Default to SunoApiOrg with FoxAI as fallback
                 self.backend = SunoApiOrgBackend()
-                self.fallback_backend = FoxAISunoBackend()
+                # Try to initialize fallback, but don't fail if API key is missing
+                try:
+                    self.fallback_backend = FoxAISunoBackend()
+                except (EnvironmentError, OSError) as e:
+                    Logger.print_warning(f"FoxAI fallback backend unavailable: {e}")
+                    self.fallback_backend = None
 
+            fallback_name = self.fallback_backend.__class__.__name__ if self.fallback_backend else "None"
             Logger.print_info(f"MusicGenerator initialized with backend: {self.backend.__class__.__name__},"
-                              f" and fallback: {self.fallback_backend.__class__.__name__}")
+                              f" and fallback: {fallback_name}")
 
     def generate_instrumental(self, prompt: str, duration: Optional[int] = None,
                             title: Optional[str] = None, tags: Optional[List[str]] = None,

@@ -10,11 +10,8 @@ from unittest.mock import patch, MagicMock
 
 
 @pytest.mark.costly
-def test_generate_movie_poster():
+def test_generate_movie_poster(requires_openai_key):
     """Test movie poster generation with mocked dependencies."""
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        raise EnvironmentError("Environment variable 'OPENAI_API_KEY' is not set.")
 
     story_title = "The Great Adventure"
     context = (

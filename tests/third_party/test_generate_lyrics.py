@@ -35,10 +35,7 @@ def count_line_syllables(line):
     words = line.replace(',', ' ').replace('-', ' ').split()
     return sum(count_syllables(word) for word in words)
 
-def test_generate_lyrics():
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        raise EnvironmentError("Environment variable 'OPENAI_API_KEY' is not set.")
+def test_generate_lyrics(requires_openai_key):
 
     story_text = (
         "This is a story about a brave knight named Stephanie, a dragon named Steve, "

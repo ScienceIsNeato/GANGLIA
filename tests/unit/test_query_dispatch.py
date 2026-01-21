@@ -4,14 +4,14 @@ from query_dispatch import ChatGPTQueryDispatcher
 from utils import get_config_path
 
 
-def test_load_git_repo_into_history():
+def test_load_git_repo_into_history(requires_openai_key):
     dispatcher = ChatGPTQueryDispatcher(pre_prompt="Test pre-prompt")
     token_count = dispatcher.count_tokens()
 
     assert isinstance(token_count, int)
     assert token_count > 0
 
-def test_query_dispatcher_init():
+def test_query_dispatcher_init(requires_openai_key):
     """Test that the query dispatcher initializes correctly."""
     dispatcher = ChatGPTQueryDispatcher()
     assert dispatcher.client is not None

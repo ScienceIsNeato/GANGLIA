@@ -11,7 +11,7 @@ def query_dispatcher():
     return ChatGPTQueryDispatcher(config_file_path=get_config_path())
 
 
-def test_send_query():
+def test_send_query(requires_openai_key):
     expected_in_response = "Paris"
     query_dispatcher = ChatGPTQueryDispatcher(config_file_path=get_config_path())
 

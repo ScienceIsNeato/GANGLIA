@@ -13,7 +13,7 @@ import whisper
 import threading
 
 
-def test_word_alignment():
+def test_word_alignment(requires_google_credentials):
     # Create test audio using TTS
     tts = GoogleTTS()
     test_text = "This is a test sentence for word alignment"
@@ -155,7 +155,7 @@ def _test_alignment_with_model(model_size: str) -> tuple[set[str], set[str]]:
             os.remove(audio_path)
 
 
-def test_complex_phrase_alignment():
+def test_complex_phrase_alignment(requires_google_credentials):
     """Test word-level alignment for complex phrases.
 
     This test verifies Whisper's behavior with specific text patterns that have been
@@ -179,7 +179,7 @@ def test_complex_phrase_alignment():
     assert not extra_words, f"Extra words in captions: {extra_words}"
 
 
-def test_thread_safe_model_loading():
+def test_thread_safe_model_loading(requires_google_credentials):
     """Test that Whisper model is only loaded once when called from multiple threads."""
     # Create test audio using TTS
     tts = GoogleTTS()
