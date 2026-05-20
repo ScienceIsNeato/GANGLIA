@@ -1,5 +1,5 @@
 <!-- willville
-status: dormant
+status: shipping
 summary: Framework for integrating AI modalities. Current implementations: hands-free conversational chat interface and story-to-video generation with music and captions.
 -->
 
