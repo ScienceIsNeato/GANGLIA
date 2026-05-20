@@ -1,3 +1,8 @@
+<!-- willville
+status: dormant
+summary: Framework for integrating AI modalities. Current implementations: hands-free conversational chat interface and story-to-video generation with music and captions.
+-->
+
 # GANGLIA Project Status
 
 ## Current Branch: feature/roundtrip_speed
